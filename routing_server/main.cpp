@@ -136,12 +136,13 @@ int main(int argc, char* argv[]){
 		long long start_time = get_micro_time();
 		ch_query.reset().add_source(from).add_target(to).run();
 		auto distance = ch_query.get_distance();
-		auto path = ch_query.get_node_path();
+		auto node_path = ch_query.get_node_path();
+		auto arc_path = ch_query.get_arc_path();
 		long long end_time = get_micro_time();
 		long long query_time = end_time - start_time;
 		
 		LOG("Route computed in " << query_time << " microseconds");
-		LOG("Path length: " << path.size() << " nodes, travel time: " << distance << " ms");
+		LOG("Path length: " << node_path.size() << " nodes, travel time: " << distance << " ms");
 
 		// Create JSON response
 		crow::json::wvalue result;
@@ -150,12 +151,54 @@ int main(int argc, char* argv[]){
 		result["travel_time_ms"] = distance;
 		result["query_time_us"] = query_time;
 		
-		// Add path as array
-		crow::json::wvalue::list path_list;
-		for (auto node : path) {
-			path_list.push_back(node);
+		// Add path as array of points with coordinates and cumulative travel time
+		crow::json::wvalue::list path_points;
+		unsigned current_travel_time = 0;
+
+		// If we have an empty path but valid nodes, add the start and end points
+		if (node_path.size() <= 1 && from != invalid_id && to != invalid_id) {
+			// Add source point
+			crow::json::wvalue point;
+			point["lat"] = graph.latitude[from];
+			point["lon"] = graph.longitude[from];
+			point["time_ms"] = 0;
+			point["node_id"] = from;
+			path_points.push_back(std::move(point));
+			
+			// Add target point
+			point = crow::json::wvalue();
+			point["lat"] = graph.latitude[to];
+			point["lon"] = graph.longitude[to];
+			point["time_ms"] = distance;
+			point["node_id"] = to;
+			path_points.push_back(std::move(point));
+		} else if (node_path.size() > 1) {
+			// Calculate exact cumulative travel times using the arc path
+			std::vector<unsigned> cumulative_times(node_path.size(), 0);
+			
+			// First node always has time 0
+			cumulative_times[0] = 0;
+			
+			// Calculate cumulative times for each node
+			for (size_t i = 0; i < arc_path.size(); ++i) {
+				const auto arc_id = arc_path[i];
+				cumulative_times[i + 1] = cumulative_times[i] + graph.travel_time[arc_id];
+			}
+			
+			// Add all points in the path with exact travel times
+			for (size_t i = 0; i < node_path.size(); ++i) {
+				auto node_id = node_path[i];
+				
+				crow::json::wvalue point;
+				point["lat"] = graph.latitude[node_id];
+				point["lon"] = graph.longitude[node_id];
+				point["time_ms"] = cumulative_times[i];
+				point["node_id"] = node_id;
+				path_points.push_back(std::move(point));
+			}
 		}
-		result["path"] = std::move(path_list);
+
+		result["path"] = std::move(path_points);
 		
 		LOG("Sending response");
 		return crow::response(result);
