@@ -24,12 +24,19 @@ std::string current_time_string() {
 // Custom logger
 #define LOG(msg) std::cout << "[" << current_time_string() << "] " << msg << std::endl
 
-int main(){
+int main(int argc, char* argv[]){
 	LOG("Starting routing server...");
 	
+	// Check command line arguments
+	if (argc != 2) {
+		LOG("Usage: " << argv[0] << " <osm_file>");
+		return 1;
+	}
+
 	// Load a car routing graph from OpenStreetMap-based data
-	LOG("Loading OSM data from netherlands-latest.osm.pbf...");
-	auto graph = simple_load_osm_car_routing_graph_from_pbf("../../osm_files/netherlands-latest.osm.pbf");
+	std::string osm_file = argv[1];
+	LOG("Loading OSM data from " << osm_file << "...");
+	auto graph = simple_load_osm_car_routing_graph_from_pbf(osm_file);
 	LOG("Loaded graph with " << graph.node_count() << " nodes and " << graph.arc_count() << " arcs");
 	auto tail = invert_inverse_vector(graph.first_out);
 
