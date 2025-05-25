@@ -5,20 +5,18 @@ export async function load(event: RequestEvent) {
   console.log('Event locals keys:', Object.keys(event.locals));
   console.log('Auth type:', typeof event.locals.auth);
 
-  // Get session from event.locals
-  const session = await event.locals.getSession();
+  // Get session using the auth() method instead of getSession()
+  const session = await event.locals.auth();
   
   // Debug session content
   console.log('Session before serialization:', session);
   
-  // Add debugger statement to pause execution
-  debugger;
-  // Return a simplified version of the session to avoid serialization issues
+  // Return a properly serialized session to avoid serialization issues
+  // Using structuredClone to ensure we get a serializable version
   return {
-    session: session ? { 
-      // Only include serializable properties
+    session: session ? structuredClone({
       user: session.user,
       expires: session.expires
-    } : null
+    }) : null
   };
 } 

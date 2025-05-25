@@ -4,9 +4,15 @@ import { signIn } from '../../auth';
 
 // Just check if the user is already logged in
 export const load = (async ({ locals }) => {
-    if (locals.auth?.user) {
+    const session = await locals.auth();
+    
+    if (session?.user) {
         throw redirect(302, '/');
     }
+    
+    return {
+        session
+    };
 }) satisfies PageServerLoad;
 
 export const actions = { default: signIn } satisfies Actions; 
