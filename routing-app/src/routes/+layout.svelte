@@ -1,16 +1,8 @@
 <script lang="ts">
 	import '../app.css';
 	import { page } from '$app/stores';
-	import { onMount } from 'svelte';
 
 	let { children } = $props();
-
-	onMount(() => {
-		console.log('=== Layout component mounted ===');
-		console.log('Page data keys:', Object.keys($page.data || {}));
-		console.log('Session from page data:', $page.data?.session);
-		console.log('Session type:', typeof $page.data?.session);
-	});
 
 	// Helper function to safely check session
 	function hasValidSession() {

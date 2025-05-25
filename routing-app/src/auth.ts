@@ -8,8 +8,6 @@ import { user, credential } from "./lib/server/db/schema";
 import { hashPassword, verifyPassword } from "./lib/server/auth/password";
 import type { Session } from "@auth/core/types";
 
-console.log('Initializing Auth.js...');
-
 // Type definition for credentials
 interface CredentialsType {
   username: string;
@@ -43,11 +41,8 @@ const auth = SvelteKitAuth({
         const typedCredentials = credentials as CredentialsType;
         
         if (!typedCredentials?.username || !typedCredentials?.password) {
-          console.log('Missing credentials');
           return null;
         }
-        
-        console.log('Authorize called with username:', typedCredentials.username);
         
         try {
           // First try to find the user by username
@@ -57,7 +52,6 @@ const auth = SvelteKitAuth({
             .where(eq(user.username, typedCredentials.username));
           
           if (!foundUser) {
-            console.log('User not found');
             return null;
           }
           
@@ -75,9 +69,10 @@ const auth = SvelteKitAuth({
             );
             
             if (!isValid) {
-              console.log('Invalid password (credential table)');
               return null;
             }
+
+            console.log(`User authenticated: ${foundUser.username}`);
           } 
           // Otherwise fall back to the legacy password field in the user table
           else if (foundUser.passwordHash) {
@@ -89,7 +84,6 @@ const auth = SvelteKitAuth({
             );
             
             if (!isValid) {
-              console.log('Invalid password (legacy)');
               return null;
             }
             
@@ -99,8 +93,9 @@ const auth = SvelteKitAuth({
               userId: foundUser.id,
               hashedPassword: foundUser.passwordHash,
             });
+
+            console.log(`User authenticated (legacy password migrated): ${foundUser.username}`);
           } else {
-            console.log('No password found for user');
             return null;
           }
           
@@ -214,5 +209,6 @@ export async function createUser({
     hashedPassword
   });
   
+  console.log(`User registered: ${username}`);
   return { userId };
 } 
