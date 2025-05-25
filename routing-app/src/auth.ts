@@ -6,8 +6,29 @@ import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { user, credential } from "./lib/server/db/schema";
 import { hashPassword, verifyPassword } from "./lib/server/auth/password";
+import type { Session } from "@auth/core/types";
 
 console.log('Initializing Auth.js...');
+
+// Type definition for credentials
+interface CredentialsType {
+  username: string;
+  password: string;
+}
+
+// Define types for session
+interface SessionUser {
+  id?: string;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+}
+
+interface SessionType extends Session {
+  user?: SessionUser;
+  error?: string;
+  accessToken?: string;
+}
 
 // Initialize Auth.js
 const auth = SvelteKitAuth({
@@ -19,19 +40,21 @@ const auth = SvelteKitAuth({
         password: { label: 'Password', type: 'password' }
       },
       async authorize(credentials) {
-        if (!credentials?.username || !credentials?.password) {
+        const typedCredentials = credentials as CredentialsType;
+        
+        if (!typedCredentials?.username || !typedCredentials?.password) {
           console.log('Missing credentials');
           return null;
         }
         
-        console.log('Authorize called with username:', credentials.username);
+        console.log('Authorize called with username:', typedCredentials.username);
         
         try {
           // First try to find the user by username
           const [foundUser] = await db
             .select()
             .from(user)
-            .where(eq(user.username, credentials.username));
+            .where(eq(user.username, typedCredentials.username));
           
           if (!foundUser) {
             console.log('User not found');
@@ -47,7 +70,7 @@ const auth = SvelteKitAuth({
           // If we have credentials in the new table, use that
           if (userCredential) {
             const isValid = await verifyPassword(
-              credentials.password,
+              typedCredentials.password,
               userCredential.hashedPassword
             );
             
@@ -61,7 +84,7 @@ const auth = SvelteKitAuth({
             // Note: This assumes the legacy passwords used the same hashing method
             // If they used a different hash, you would need to adjust this logic
             const isValid = await verifyPassword(
-              credentials.password,
+              typedCredentials.password,
               foundUser.passwordHash
             );
             
@@ -96,7 +119,7 @@ const auth = SvelteKitAuth({
     })
   ],
   session: {
-    strategy: "database",
+    strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   secret: process.env.AUTH_SECRET || "SUPER_SECRET_DO_NOT_USE_THIS_IN_PRODUCTION",
@@ -108,11 +131,28 @@ const auth = SvelteKitAuth({
     error: '/login' // Error code passed in query string as ?error=
   },
   callbacks: {
-    async session({ session, user }) {
-      if (session.user) {
-        session.user.id = user.id;
+    async jwt({ token, user }) {
+      // Add user ID to the token when it's first created
+      if (user) {
+        token.userId = user.id;
       }
-      return session;
+      return token;
+    },
+    async session({ session, token }) {
+      // Create a properly typed session object
+      const typedSession = session as SessionType;
+      
+      // Add user ID to the session from the token
+      if (typedSession.user) {
+        typedSession.user.id = token.userId as string;
+      }
+      
+      // Add error information if available
+      if (token.error) {
+        typedSession.error = token.error as string;
+      }
+      
+      return typedSession;
     }
   }
 });
@@ -146,7 +186,7 @@ export async function createUser({
     const [existingEmail] = await db
       .select()
       .from(user)
-      .where(eq(user.email, email));
+      .where(eq(user.email, email as string));
     
     if (existingEmail) {
       throw new Error("Email already exists");

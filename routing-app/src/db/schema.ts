@@ -37,11 +37,9 @@ export const accounts = sqliteTable(
     id_token: text('id_token'),
     session_state: text('session_state'),
   },
-  (account) => ({
-    compoundKey: primaryKey({
-      columns: [account.provider, account.providerAccountId],
-    }),
-  })
+  (table) => [
+    primaryKey({ columns: [table.provider, table.providerAccountId] })
+  ]
 );
 
 // Sessions table - user sessions
@@ -62,9 +60,9 @@ export const verificationTokens = sqliteTable(
     token: text('token').notNull(),
     expires: integer('expires', { mode: 'timestamp_ms' }).notNull(),
   },
-  (vt) => ({
-    compoundKey: primaryKey({ columns: [vt.identifier, vt.token] }),
-  })
+  (vt) => [
+    primaryKey({ columns: [vt.identifier, vt.token] })
+  ]
 );
 
 // Credentials table - for storing password credentials separately
