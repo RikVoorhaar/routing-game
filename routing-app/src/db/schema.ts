@@ -42,16 +42,6 @@ export const accounts = sqliteTable(
   ]
 );
 
-// Sessions table - user sessions
-export const sessions = sqliteTable('session', {
-  id: text('id').notNull().primaryKey(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  sessionToken: text('session_token').notNull().unique(),
-  expires: integer('expires', { mode: 'timestamp_ms' }).notNull(),
-});
-
 // Verification tokens - for email verification
 export const verificationTokens = sqliteTable(
   'verification_token',
