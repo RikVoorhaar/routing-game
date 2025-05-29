@@ -1,0 +1,20 @@
+services:
+  routing-server:
+    build:
+      context: ..
+      dockerfile: routing_server/Dockerfile
+    container_name: routing-server
+    ports:
+      - "8050:8080"
+    volumes:
+      - ../osm_files:/data/osm
+    environment:
+      - OSM_FILE=/data/osm/utrecht-latest.osm.pbf
+      - ADDRESS_FILE=/data/osm/utrecht-latest.addresses.csv.gz
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s 

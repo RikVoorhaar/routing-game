@@ -75,7 +75,7 @@ protected:
 // Test server class that starts a test instance in a separate thread
 class TestServer {
 public:
-    TestServer() : running_(false) {}
+    TestServer() : app_(nullptr), running_(false) {}
     
     ~TestServer() {
         stop();
@@ -89,6 +89,9 @@ public:
                           << " (from " << fs::current_path().string() << ")" << std::endl;
                 return; // Don't start server if files are missing
             }
+            
+            // Reset the ready promise
+            ready_promise_ = std::promise<bool>();
             
             // Start server in separate thread
             server_thread_ = std::thread([this]() {
@@ -104,25 +107,29 @@ public:
                     // Setup API handlers
                     ApiHandlers api_handlers(engine);
                     
-                    // Create Crow app
+                    // Create Crow app (store in member variable)
                     std::cout << "Creating Crow app..." << std::endl;
-                    crow::SimpleApp app;
+                    app_ = std::make_unique<crow::SimpleApp>();
                     
                     // Register routes
                     std::cout << "Registering routes..." << std::endl;
-                    api_handlers.registerRoutes(app);
+                    api_handlers.registerRoutes(*app_);
                     
                     // Configure port
                     std::cout << "Setting port to " << 8765 << std::endl;
-                    app.port(8765);
+                    app_->port(8765);
+                    
+                    // No middlewares needed for testing
                     
                     // Set server signal for testing
                     std::cout << "Server initialized, setting ready signal..." << std::endl;
                     ready_promise_.set_value(true);
                     
-                    // Run server (blocking call)
+                    // Run server (blocking call until stop() is called)
                     std::cout << "Starting server..." << std::endl;
-                    app.run();
+                    app_->run();
+                    
+                    std::cout << "Server stopped." << std::endl;
                     
                 } catch (const std::exception& e) {
                     std::cerr << "Server error: " << e.what() << std::endl;
@@ -144,11 +151,22 @@ public:
     }
     
     void stop() {
-        if (running_) {
+        if (running_ && app_) {
+            std::cout << "Stopping test server..." << std::endl;
+            
+            // Stop the app from the main thread
+            app_->stop();
+            
+            // Wait for the thread to finish
             if (server_thread_.joinable()) {
                 server_thread_.join();
             }
+            
+            // Clear the app
+            app_.reset();
             running_ = false;
+            
+            std::cout << "Test server stopped." << std::endl;
         }
     }
     
@@ -159,6 +177,7 @@ public:
 private:
     std::thread server_thread_;
     std::promise<bool> ready_promise_;
+    std::unique_ptr<crow::SimpleApp> app_;
     bool running_;
 };
 
@@ -175,27 +194,47 @@ TEST_F(RoutingServerTest, ShortestPathEndpoint) {
     // Parse JSON response
     auto json_response = crow::json::load(response);
     
-    // Note: Actual path verification would depend on the specific map data
-    // Just check the response structure
+    // Check the response structure - according to API_DOCUMENTATION.md
     EXPECT_EQ(status_code, 200);
     EXPECT_TRUE(json_response.has("success"));
     EXPECT_TRUE(json_response["success"].b());
     EXPECT_TRUE(json_response.has("path"));
-    EXPECT_TRUE(json_response.has("distance_meters"));
-    EXPECT_TRUE(json_response.has("time_seconds"));
+    EXPECT_TRUE(json_response.has("travel_time_ms"));
+    EXPECT_TRUE(json_response.has("query_time_us"));
+    
+    // Explicitly stop server
+    server_.stop();
 }
 
-// Skip address-dependent tests that would fail
-TEST_F(RoutingServerTest, RandomAddressEndpoint) {
-    GTEST_SKIP() << "Skipping test that requires address data";
-}
-
-TEST_F(RoutingServerTest, RandomAddressWithSeed) {
-    GTEST_SKIP() << "Skipping test that requires address data";
-}
-
-TEST_F(RoutingServerTest, RandomAddressInAnnulusEndpoint) {
-    GTEST_SKIP() << "Skipping test that requires address data";
+// Test the closest address endpoint
+TEST_F(RoutingServerTest, ClosestAddressEndpoint) {
+    TestServer server_;
+    server_.start();
+    
+    ASSERT_TRUE(server_.isRunning()) << "Server failed to start";
+    
+    // Make a request to the closest address endpoint with coordinates in Utrecht
+    auto [status_code, response] = makeGetRequest("/api/v1/closest_address", "location=52.0907,5.1214");
+    
+    // If no addresses are loaded, we expect a 404
+    if (status_code == 404) {
+        // This is acceptable if no addresses are loaded
+        auto json_response = crow::json::load(response);
+        EXPECT_FALSE(json_response["success"].b());
+        EXPECT_TRUE(json_response.has("error"));
+    } else {
+        // Parse JSON response if addresses are loaded
+        auto json_response = crow::json::load(response);
+        
+        // Check the response structure
+        EXPECT_EQ(status_code, 200);
+        EXPECT_TRUE(json_response.has("id"));
+        EXPECT_TRUE(json_response.has("lat"));
+        EXPECT_TRUE(json_response.has("lon"));
+    }
+    
+    // Explicitly stop server
+    server_.stop();
 }
 
 // Test handling of invalid endpoints
@@ -210,6 +249,9 @@ TEST_F(RoutingServerTest, InvalidEndpoint) {
     
     // Check that we get a 404 Not Found
     EXPECT_EQ(status_code, 404);
+    
+    // Explicitly stop server
+    server_.stop();
 }
 
 // Test handling of invalid parameters
@@ -229,9 +271,24 @@ TEST_F(RoutingServerTest, InvalidParameters) {
     auto json_response = crow::json::load(response);
     EXPECT_FALSE(json_response["success"].b());
     EXPECT_TRUE(json_response.has("error"));
+    
+    // Explicitly stop server
+    server_.stop();
 }
 
 int main(int argc, char** argv) {
+    // Initialize curl
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    
+    // Run tests
     ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int result = RUN_ALL_TESTS();
+    
+    // Clean up curl
+    curl_global_cleanup();
+    
+    // Make sure all background threads are stopped
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    
+    return result;
 } 

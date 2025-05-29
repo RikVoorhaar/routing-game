@@ -72,6 +72,9 @@ public:
     // Find nearest address to given coordinates
     Address findNearestAddress(double latitude, double longitude, float max_radius = 1000.0f) const;
     
+    // Get closest address to a coordinate (returns nullopt if none found)
+    std::optional<Address> getClosestAddress(double latitude, double longitude) const;
+    
     // Get a random address (with optional seed)
     Address getRandomAddress(std::optional<unsigned> seed = std::nullopt) const;
     

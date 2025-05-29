@@ -286,6 +286,29 @@ Address RoutingEngine::findNearestAddress(double latitude, double longitude, flo
     return result;
 }
 
+std::optional<Address> RoutingEngine::getClosestAddress(double latitude, double longitude) const {
+    // Check if we have addresses loaded
+    if (addresses_.empty() || !addr_index_) {
+        LOG("No addresses loaded");
+        return std::nullopt;
+    }
+    
+    // Use a large radius to make sure we find something
+    constexpr float MAX_SEARCH_RADIUS = 5000.0f;  // 5km radius
+    
+    // Find the nearest address
+    auto nearest = addr_index_->find_nearest_neighbor_within_radius(
+        latitude, longitude, MAX_SEARCH_RADIUS
+    );
+    
+    if (nearest.id != RoutingKit::invalid_id && nearest.id < addresses_.size()) {
+        return addresses_[nearest.id];
+    }
+    
+    // Return nullopt if no address found within radius
+    return std::nullopt;
+}
+
 Address RoutingEngine::getRandomAddress(std::optional<unsigned> seed) const {
     // Check if we have addresses loaded
     if (addresses_.empty()) {

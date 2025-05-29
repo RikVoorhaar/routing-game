@@ -5,9 +5,9 @@ A server for routing and address-related queries based on OpenStreetMap data.
 ## Features
 
 - Shortest path calculation between two points
-- Random address selection
-- Random address selection within an annular region (ring)
-- Support for deterministic random selection with seed values
+- Finding the closest address to a location
+- Support for OpenStreetMap PBF data files
+- Support for address databases in CSV format
 
 ## Building
 
@@ -42,6 +42,57 @@ Example:
 
 The server will start on port 8080 by default.
 
+## Quick Start with docker-run.sh
+
+For a quick setup without Docker, you can use the provided script that:
+1. Checks for and builds RoutingKit if needed
+2. Builds the routing server
+3. Runs the server on port 8050
+
+```bash
+./docker-run.sh
+```
+
+This script assumes:
+- The RoutingKit repository is in the parent directory (`../RoutingKit`)
+- The OpenStreetMap data is in `../osm_files/utrecht-latest.osm.pbf`
+
+## Docker
+
+You can also run the routing server using Docker:
+
+### Building the Docker image
+
+```bash
+cd routing_server
+docker build -t routing-server .
+```
+
+### Running with Docker
+
+```bash
+docker run -p 8050:8080 \
+  -v /path/to/osm_files:/data/osm \
+  -e OSM_FILE=/data/osm/utrecht-latest.osm.pbf \
+  -e ADDRESS_FILE=/data/osm/utrecht.addresses.csv.gz \
+  routing-server
+```
+
+### Using Docker Compose
+
+A docker-compose.yml file is provided for convenience:
+
+```bash
+cd routing_server
+docker-compose up -d
+```
+
+This will:
+1. Build the Docker image if not already built
+2. Mount the ../osm_files directory to /data/osm in the container
+3. Configure the server to use utrecht-latest.osm.pbf
+4. Start the server on port 8050
+
 ## Address CSV Format
 
 The address CSV file should have the following format:
@@ -61,32 +112,21 @@ See the [API_DOCUMENTATION.md](API_DOCUMENTATION.md) file for detailed API docum
 
 ## Testing
 
-A test script is provided to test the API endpoints:
+Integration tests are provided in the `tests/` directory and can be run after building:
 
 ```bash
-./test_api.sh
+cd build
+ctest
 ```
-
-This script requires `curl` and `jq` for proper operation.
 
 ## Example Queries
 
-1. Get a random address:
+1. Find the closest address to a location:
 ```
-http://localhost:8080/api/v1/random_address
-```
-
-2. Get a random address with a seed for deterministic results:
-```
-http://localhost:8080/api/v1/random_address?seed=42
+http://localhost:8080/api/v1/closest_address?location=52.0907,5.1214
 ```
 
-3. Get a random address within an annular region:
-```
-http://localhost:8080/api/v1/random_address_in_annulus?center=52.0907,5.1214&r_min=100&r_max=1000
-```
-
-4. Calculate the shortest path between two points:
+2. Calculate the shortest path between two points:
 ```
 http://localhost:8080/api/v1/shortest_path?from=52.0907,5.1214&to=52.0860,5.1207
 ``` 

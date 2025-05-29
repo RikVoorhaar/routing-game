@@ -58,25 +58,20 @@ GET /api/v1/shortest_path?from=52.0907,5.1214&to=52.0860,5.1207
 }
 ```
 
-### 2. Random Address
+### 2. Closest Address
 
-Get a random address from the loaded address dataset.
+Find the closest address to a geographic coordinate.
 
-**URL:** `/api/v1/random_address`
+**URL:** `/api/v1/closest_address`
 
 **Method:** GET
 
 **Parameters:**
-- `seed` (optional): Integer seed for the random number generator to get deterministic results
+- `location` (required): Coordinates in format `latitude,longitude`
 
 **Example Request:**
 ```
-GET /api/v1/random_address
-```
-
-**Example Request with Seed:**
-```
-GET /api/v1/random_address?seed=42
+GET /api/v1/closest_address?location=52.0907,5.1214
 ```
 
 **Example Response:**
@@ -100,48 +95,29 @@ GET /api/v1/random_address?seed=42
 }
 ```
 
-### 3. Random Address in Annulus
+### 3. Health Check
 
-Get a random address within an annular region (ring) around a center point.
+Check the health and status of the routing server.
 
-**URL:** `/api/v1/random_address_in_annulus`
+**URL:** `/health`
 
 **Method:** GET
 
-**Parameters:**
-- `center` (required): Center coordinates in format `latitude,longitude`
-- `r_min` (required): Minimum radius in meters
-- `r_max` (required): Maximum radius in meters
-- `seed` (optional): Integer seed for the random number generator to get deterministic results
+**Parameters:** None
 
 **Example Request:**
 ```
-GET /api/v1/random_address_in_annulus?center=52.0907,5.1214&r_min=100&r_max=1000
-```
-
-**Example Request with Seed:**
-```
-GET /api/v1/random_address_in_annulus?center=52.0907,5.1214&r_min=100&r_max=1000&seed=42
+GET /health
 ```
 
 **Example Response:**
 ```json
 {
-  "id": 23456,
-  "lat": 52.0945,
-  "lon": 5.1275,
-  "street": "Park Avenue",
-  "housenumber": "17",
-  "postcode": "3512CD",
-  "city": "Utrecht"
-}
-```
-
-**Error Response:**
-```json
-{
-  "error": "Invalid or missing annulus parameters. Format: /api/v1/random_address_in_annulus?center=latitude,longitude&r_min=min_radius&r_max=max_radius[&seed=random_seed]",
-  "success": false
+  "status": "ok",
+  "engine_initialized": true,
+  "node_count": 123456,
+  "arc_count": 234567,
+  "address_count": 34567
 }
 ```
 

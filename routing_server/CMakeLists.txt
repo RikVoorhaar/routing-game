@@ -7,9 +7,25 @@ set(CMAKE_CXX_STANDARD 17)
 # Add compile options
 add_compile_options(-Wall -Wextra)
 
+# Check for system installed RoutingKit
+if(EXISTS "/usr/local/include/routingkit")
+    set(ROUTINGKIT_INCLUDES "/usr/local/include")
+    set(ROUTINGKIT_LIB_DIR "/usr/local/lib")
+    message(STATUS "Using system-installed RoutingKit")
+# Check for external RoutingKit directory
+elseif(EXISTS "/external/RoutingKit")
+    set(ROUTINGKIT_INCLUDES "/external/RoutingKit/include")
+    set(ROUTINGKIT_LIB_DIR "/external/RoutingKit/lib")
+    message(STATUS "Using mounted RoutingKit from /external/RoutingKit")
+else()
+    set(ROUTINGKIT_INCLUDES "${CMAKE_SOURCE_DIR}/../RoutingKit/include")
+    set(ROUTINGKIT_LIB_DIR "${CMAKE_SOURCE_DIR}/../RoutingKit/lib")
+    message(STATUS "Using RoutingKit from parent directory: ${CMAKE_SOURCE_DIR}/../RoutingKit")
+endif()
+
 # Include directories
 include_directories(
-    ${CMAKE_SOURCE_DIR}/../RoutingKit/include
+    ${ROUTINGKIT_INCLUDES}
     ${CMAKE_SOURCE_DIR}
 )
 
@@ -36,25 +52,36 @@ find_package(OpenSSL REQUIRED)
 include_directories(${OPENSSL_INCLUDE_DIR})
 
 # Link RoutingKit and zlib libraries
-target_link_libraries(routing_server PUBLIC
-    ${CMAKE_SOURCE_DIR}/../RoutingKit/lib/libroutingkit.a
-    ${ZLIB_LIBRARIES}
-    pthread
-    Crow::Crow
-    ${OPENSSL_LIBRARIES}
-)
+if(EXISTS "${ROUTINGKIT_LIB_DIR}/libroutingkit.a")
+    message(STATUS "Using static RoutingKit library from ${ROUTINGKIT_LIB_DIR}")
+    target_link_libraries(routing_server PUBLIC
+        ${ROUTINGKIT_LIB_DIR}/libroutingkit.a
+        ${ZLIB_LIBRARIES}
+        pthread
+        Crow::Crow
+        ${OPENSSL_LIBRARIES}
+    )
+elseif(EXISTS "${ROUTINGKIT_LIB_DIR}/libroutingkit.so")
+    message(STATUS "Using shared RoutingKit library from ${ROUTINGKIT_LIB_DIR}")
+    target_link_libraries(routing_server PUBLIC
+        ${ROUTINGKIT_LIB_DIR}/libroutingkit.so
+        ${ZLIB_LIBRARIES}
+        pthread
+        Crow::Crow
+        ${OPENSSL_LIBRARIES}
+    )
+else()
+    message(FATAL_ERROR "RoutingKit library not found in ${ROUTINGKIT_LIB_DIR}")
+endif()
 
-# Install documentation and test scripts
+# Install documentation
 install(FILES
     API_DOCUMENTATION.md
     DESTINATION ${CMAKE_INSTALL_PREFIX}/share/routing_server
 )
 
-install(FILES
-    test_api.sh
-    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/routing_server/tests
-    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
-)
-
-# Add tests subdirectory
-add_subdirectory(tests)
+# Add tests subdirectory only if testing is enabled
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

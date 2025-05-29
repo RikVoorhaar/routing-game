@@ -1,0 +1,28 @@
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+*.exe
+
+# OSM data files
+*.osm
+*.pbf
+*.csv
+*.csv.gz
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# IDE/editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~ 
