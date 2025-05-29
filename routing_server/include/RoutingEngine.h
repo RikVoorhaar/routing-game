@@ -4,9 +4,13 @@
 #include <routingkit/contraction_hierarchy.h>
 #include <routingkit/inverse_vector.h>
 #include <routingkit/geo_position_to_node.h>
+#include <crow/json.h>
 #include <string>
 #include <vector>
 #include <memory>
+#include <random>
+#include <cmath>
+#include <optional>
 
 namespace RoutingServer {
 
@@ -29,14 +33,52 @@ struct RoutePoint {
     unsigned time_ms;
 };
 
+// Address information
+struct Address {
+    unsigned id;
+    double latitude;
+    double longitude;
+    std::string street;
+    std::string housenumber;
+    std::string postcode;
+    std::string city;
+    
+    // Convert to JSON representation
+    crow::json::wvalue toJson() const {
+        crow::json::wvalue json;
+        json["id"] = id;
+        json["lat"] = latitude;
+        json["lon"] = longitude;
+        json["street"] = street;
+        json["housenumber"] = housenumber;
+        json["postcode"] = postcode;
+        json["city"] = city;
+        return json;
+    }
+};
+
 // Main routing engine class
 class RoutingEngine {
 public:
     // Initialize with OSM data file
     explicit RoutingEngine(const std::string& osm_file);
     
+    // Load addresses from CSV file
+    bool loadAddressesFromCSV(const std::string& csv_file);
+    
     // Find nearest node to given coordinates
     unsigned findNearestNode(double latitude, double longitude, unsigned max_radius = 1000) const;
+    
+    // Find nearest address to given coordinates
+    Address findNearestAddress(double latitude, double longitude, float max_radius = 1000.0f) const;
+    
+    // Get a random address (with optional seed)
+    Address getRandomAddress(std::optional<unsigned> seed = std::nullopt) const;
+    
+    // Get a random address in an annulus (with optional seed)
+    Address getRandomAddressInAnnulus(double center_lat, double center_lon, 
+                                      float r_min, float r_max, 
+                                      std::optional<unsigned> seed = std::nullopt) const;
     
     // Compute shortest path between two nodes
     RoutingResult computeShortestPath(unsigned from_node, unsigned to_node) const;
@@ -55,12 +97,33 @@ public:
     
     // Get graph arc count
     unsigned getArcCount() const;
+    
+    // Get address count
+    unsigned getAddressCount() const;
 
 private:
+    // Generate a point in an annulus
+    std::pair<double, double> generateAnnulusPoint(double center_lat, double center_lon, 
+                                                 float r_min, float r_max, 
+                                                 std::mt19937& gen) const;
+    
+    // Calculate haversine distance between two coordinates (in meters)
+    static double haversineDistance(double lat1, double lon1, double lat2, double lon2);
+    
+    // Convert degrees to radians
+    static constexpr double toRadians(double degrees) { return degrees * M_PI / 180.0; }
+    
     // RoutingKit graph data
     RoutingKit::SimpleOSMCarRoutingGraph graph_;
     std::unique_ptr<RoutingKit::ContractionHierarchy> ch_;
     std::unique_ptr<RoutingKit::GeoPositionToNode> pos_to_node_;
+    
+    // Address data
+    std::vector<Address> addresses_;
+    std::unique_ptr<RoutingKit::GeoPositionToNode> addr_index_;
+    
+    // Static earth-related constants
+    static constexpr float METER_PER_DEGREE = 111111.0f; // Approximation at equator
 };
 
 } // namespace RoutingServer 

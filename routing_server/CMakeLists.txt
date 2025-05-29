@@ -4,6 +4,9 @@ project(RoutingServer)
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 
+# Add compile options
+add_compile_options(-Wall -Wextra)
+
 # Include directories
 include_directories(
     ${CMAKE_SOURCE_DIR}/../RoutingKit/include
@@ -40,3 +43,18 @@ target_link_libraries(routing_server PUBLIC
     Crow::Crow
     ${OPENSSL_LIBRARIES}
 )
+
+# Install documentation and test scripts
+install(FILES
+    API_DOCUMENTATION.md
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/routing_server
+)
+
+install(FILES
+    test_api.sh
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/routing_server/tests
+    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+)
+
+# Add tests subdirectory
+add_subdirectory(tests)

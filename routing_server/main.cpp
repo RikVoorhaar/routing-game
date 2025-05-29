@@ -12,8 +12,10 @@ int main(int argc, char* argv[]) {
 	LOG("Starting routing server...");
 	
 	// Check command line arguments
-	if (argc != 2) {
-		LOG("Usage: " << argv[0] << " <osm_file>");
+	if (argc < 2 || argc > 3) {
+		LOG("Usage: " << argv[0] << " <osm_file> [addresses_csv_file]");
+		LOG("  osm_file: Path to the OSM data file in PBF format");
+		LOG("  addresses_csv_file: Optional path to a CSV file with address data");
 		return 1;
 	}
 	
@@ -21,12 +23,29 @@ int main(int argc, char* argv[]) {
 	std::string osm_file = argv[1];
 	LOG("Using OSM data from " << osm_file);
 	
+	// Get optional addresses file
+	std::string addresses_file;
+	if (argc == 3) {
+		addresses_file = argv[2];
+		LOG("Using address data from " << addresses_file);
+	}
+	
 	try {
 		// Initialize the routing engine
 		LOG("Initializing routing engine...");
 		auto engine = std::make_shared<RoutingEngine>(osm_file);
 		LOG("Routing engine initialized with " << engine->getNodeCount() << " nodes and " 
 			<< engine->getArcCount() << " arcs");
+		
+		// Load addresses if provided
+		if (!addresses_file.empty()) {
+			LOG("Loading addresses...");
+			if (engine->loadAddressesFromCSV(addresses_file)) {
+				LOG("Loaded " << engine->getAddressCount() << " addresses");
+			} else {
+				LOG("Failed to load addresses from " << addresses_file);
+			}
+		}
 		
 		// Create API handlers
 		ApiHandlers api_handlers(engine);
