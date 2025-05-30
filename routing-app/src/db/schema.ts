@@ -3,6 +3,7 @@ import {
   primaryKey,
   sqliteTable,
   text,
+  real,
 } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
@@ -15,8 +16,49 @@ export const users = sqliteTable('user', {
   image: text('image'),
   // Optional user-specific fields (not part of Auth.js schema)
   username: text('username').unique(),
-  // We'll use a separate table for credentials instead of storing passwords here
-  // This makes it easier to migrate to different auth methods later
+});
+
+// Game state table - tracks user's game progress
+export const gameStates = sqliteTable('game_state', {
+  id: text('id').notNull().primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' })
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+  money: real('money').notNull().default(0),
+  maxTravelDistance: real('max_travel_distance').notNull().default(100), // Default 100km
+  numRoutes: integer('num_routes').notNull().default(3), // Default 3 routes
+});
+
+// Employees table - tracks user's employees and their states
+export const employees = sqliteTable('employee', {
+  id: text('id').notNull().primaryKey(),
+  gameId: text('game_id')
+    .notNull()
+    .references(() => gameStates.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  upgradeState: text('upgrade_state', { mode: 'json' }).notNull(), // JSON: { vehicleType: string, capacity: number }
+  location: text('location', { mode: 'json' }), // JSON: Address | null
+  availableRoutes: text('available_routes', { mode: 'json' }).notNull().default('[]'), // JSON: string[] (route IDs)
+  timeRoutesGenerated: integer('time_routes_generated', { mode: 'timestamp_ms' }), // null if no routes generated
+  currentRoute: text('current_route').references(() => routes.id), // null if not on a route
+  speedMultiplier: real('speed_multiplier').notNull().default(1.0),
+});
+
+// Routes table - available and active routes
+export const routes = sqliteTable('route', {
+  id: text('id').notNull().primaryKey(),
+  startLocation: text('start_location', { mode: 'json' }).notNull(), // JSON: Address
+  endLocation: text('end_location', { mode: 'json' }).notNull(), // JSON: Address
+  lengthTime: integer('length_time').notNull(), // in seconds
+  startTime: integer('start_time', { mode: 'timestamp_ms' }), // null if not started
+  endTime: integer('end_time', { mode: 'timestamp_ms' }), // null if not completed
+  goodsType: text('goods_type').notNull(),
+  weight: real('weight').notNull(),
+  reward: real('reward').notNull(),
+  routeData: text('route_data', { mode: 'json' }).notNull(), // JSON: Route data
 });
 
 // Accounts table - OAuth providers info

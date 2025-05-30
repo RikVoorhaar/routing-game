@@ -16,6 +16,10 @@ dotenv.config();
 
 const execPromise = promisify(exec);
 
+// Parse command line arguments
+const args = process.argv.slice(2);
+const forceFlag = args.includes('--force');
+
 // Function to ask a question and get user input
 function askQuestion(query: string): Promise<string> {
   const rl = readline.createInterface({
@@ -85,15 +89,20 @@ async function main() {
   if (existingTables.length > 0) {
     console.log('Database already contains tables.');
     
-    // Ask user what to do
-    const answer = await askQuestion(
-      'What would you like to do?\n' +
-      '1. Keep existing database (default)\n' +
-      '2. Drop all tables and reinitialize\n' +
-      'Enter your choice (1/2): '
-    );
-    
-    const choice = answer.trim() || '1';
+    let choice = '1';
+    if (!forceFlag) {
+      // Ask user what to do
+      const answer = await askQuestion(
+        'What would you like to do?\n' +
+        '1. Keep existing database (default)\n' +
+        '2. Drop all tables and reinitialize\n' +
+        'Enter your choice (1/2): '
+      );
+      choice = answer.trim() || '1';
+    } else {
+      console.log('--force flag detected, automatically choosing to drop and reinitialize');
+      choice = '2';
+    }
     
     if (choice !== '2') {
       console.log('Keeping existing database. Exiting...');
@@ -121,14 +130,18 @@ async function main() {
       // Then drop all tables
       console.log('Tables to drop:', existingTables.join(', '));
       
-      // Ask for final confirmation
-      const confirmation = await askQuestion(
-        'Are you sure you want to drop these tables? This action cannot be undone (y/N): '
-      );
-      
-      if (confirmation.toLowerCase() !== 'y' && confirmation.toLowerCase() !== 'yes') {
-        console.log('Operation cancelled. Exiting...');
-        process.exit(0);
+      // Skip confirmation if --force flag is present
+      if (!forceFlag) {
+        const confirmation = await askQuestion(
+          'Are you sure you want to drop these tables? This action cannot be undone (y/N): '
+        );
+        
+        if (confirmation.toLowerCase() !== 'y' && confirmation.toLowerCase() !== 'yes') {
+          console.log('Operation cancelled. Exiting...');
+          process.exit(0);
+        }
+      } else {
+        console.log('--force flag detected, skipping confirmation');
       }
       
       // Drop tables in reverse dependency order
