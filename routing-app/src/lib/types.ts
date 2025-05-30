@@ -13,8 +13,16 @@ export interface Coordinate {
     lon: number;
 }
 
+export interface PathPoint {
+    coordinates: {
+        lat: number;
+        lon: number;
+    };
+    cumulative_time_seconds: number;
+}
+
 export interface RoutingResult {
-    path: Coordinate[];
+    path: PathPoint[];
     travelTimeSeconds: number;
     destination: Address;
 } 

@@ -142,7 +142,10 @@ std::vector<RoutePoint> RoutingEngine::processPathIntoPoints(const RoutingResult
     if (result.node_path.size() == 1) {
         RoutePoint point;
         point.node_id = result.node_path[0];
-        getNodeCoordinates(point.node_id, point.latitude, point.longitude);
+        double lat, lon;
+        getNodeCoordinates(point.node_id, lat, lon);
+        point.latitude = static_cast<float>(lat);
+        point.longitude = static_cast<float>(lon);
         point.time_ms = 0;
         route_points.push_back(point);
         return route_points;
@@ -162,7 +165,10 @@ std::vector<RoutePoint> RoutingEngine::processPathIntoPoints(const RoutingResult
     for (size_t i = 0; i < result.node_path.size(); ++i) {
         RoutePoint point;
         point.node_id = result.node_path[i];
-        getNodeCoordinates(point.node_id, point.latitude, point.longitude);
+        double lat, lon;
+        getNodeCoordinates(point.node_id, lat, lon);
+        point.latitude = static_cast<float>(lat);
+        point.longitude = static_cast<float>(lon);
         point.time_ms = cumulative_times[i];
         route_points.push_back(point);
     }

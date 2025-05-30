@@ -10,7 +10,7 @@ describe('routing functions (integration)', () => {
             const health = await getServerHealth();
             expect(health.status).toBe('ok');
             expect(health.engine_initialized).toBe(true);
-        } catch (error) {
+        } catch  {
             throw new Error('Routing server is not running. Please start it before running these tests.');
         }
     });
@@ -32,10 +32,11 @@ describe('routing functions (integration)', () => {
             expect(Array.isArray(route.path)).toBe(true);
             expect(route.path.length).toBeGreaterThan(0);
             route.path.forEach(point => {
-                expect(Array.isArray(point)).toBe(true);
-                expect(point.length).toBe(2);
-                expect(typeof point[0]).toBe('number'); // lat
-                expect(typeof point[1]).toBe('number'); // lon
+                expect(point).toHaveProperty('coordinates');
+                expect(point.coordinates).toHaveProperty('lat');
+                expect(point.coordinates).toHaveProperty('lon');
+                expect(typeof point.coordinates.lat).toBe('number');
+                expect(typeof point.coordinates.lon).toBe('number');
             });
             
             // Check travel time

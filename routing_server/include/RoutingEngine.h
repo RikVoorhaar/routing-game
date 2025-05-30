@@ -27,8 +27,8 @@ struct RoutingResult {
 
 // Point on the route with travel time
 struct RoutePoint {
-    double latitude;
-    double longitude;
+    float latitude;
+    float longitude;
     unsigned node_id;
     unsigned time_ms;
 };
