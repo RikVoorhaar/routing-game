@@ -9,21 +9,14 @@ crow::json::wvalue JsonBuilder::buildRouteResponse(
     crow::json::wvalue response;
     
     // Add basic info about the route
-    response["source_node"] = result.source_node;
-    response["target_node"] = result.target_node;
-    response["travel_time_ms"] = result.total_travel_time_ms;
-    response["query_time_us"] = result.query_time_us;
     response["success"] = result.success;
+    response["travel_time_seconds"] = result.total_travel_time_ms / 1000.0; // Convert to seconds
     
-    // Add route points as array
+    // Add route points as array of coordinates
     crow::json::wvalue::list path_list;
     for (const auto& point : route_points) {
-        crow::json::wvalue point_json;
-        point_json["lat"] = point.latitude;
-        point_json["lon"] = point.longitude;
-        point_json["time_ms"] = point.time_ms;
-        point_json["node_id"] = point.node_id;
-        path_list.push_back(std::move(point_json));
+        crow::json::wvalue::list coord = {point.latitude, point.longitude};
+        path_list.push_back(std::move(coord));
     }
     response["path"] = std::move(path_list);
     

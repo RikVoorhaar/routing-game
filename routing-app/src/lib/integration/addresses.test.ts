@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { getRandomAddressInAnnulus } from './addresses';
-import { getServerHealth } from './server';
-import type { Coordinate } from './types';
+import { getRandomAddressInAnnulus } from '../addresses';
+import { getServerHealth } from '../server';
+import type { Coordinate } from '../types';
 
 describe('address functions (integration)', () => {
     beforeAll(async () => {
@@ -10,7 +10,7 @@ describe('address functions (integration)', () => {
             const health = await getServerHealth();
             expect(health.status).toBe('ok');
             expect(health.engine_initialized).toBe(true);
-        } catch (error) {
+        } catch  {
             throw new Error('Routing server is not running. Please start it before running these tests.');
         }
     });

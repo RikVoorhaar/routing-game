@@ -11,4 +11,10 @@ export interface Address {
 export interface Coordinate {
     lat: number;
     lon: number;
+}
+
+export interface RoutingResult {
+    path: Coordinate[];
+    travelTimeSeconds: number;
+    destination: Address;
 } 

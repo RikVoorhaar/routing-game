@@ -22,30 +22,12 @@ GET /api/v1/shortest_path?from=52.0907,5.1214&to=52.0860,5.1207
 **Example Response:**
 ```json
 {
-  "source_node": 123456,
-  "target_node": 789012,
-  "travel_time_ms": 1234,
-  "query_time_us": 456,
   "success": true,
+  "travel_time_seconds": 123.4,
   "path": [
-    {
-      "lat": 52.0907,
-      "lon": 5.1214,
-      "time_ms": 0,
-      "node_id": 123456
-    },
-    {
-      "lat": 52.0890,
-      "lon": 5.1210,
-      "time_ms": 578,
-      "node_id": 345678
-    },
-    {
-      "lat": 52.0860,
-      "lon": 5.1207,
-      "time_ms": 1234,
-      "node_id": 789012
-    }
+    [52.0907, 5.1214],
+    [52.0890, 5.1210],
+    [52.0860, 5.1207]
   ]
 }
 ```
@@ -128,10 +110,8 @@ The address CSV file should have the following format:
 id lon lat street housenumber postcode city
 ```
 
-For example:
-```
-1 5.1214 52.0907 Main 42 3511AB Utrecht
-2 5.1275 52.0945 Park 17 3512CD Utrecht
-```
+You can use the provided `extract_addresses.sh` script in the `osm_files` directory to extract addresses from an OSM PBF file:
 
-The server supports both regular CSV files and gzipped CSV files (with `.gz` extension). 
+```bash
+./extract_addresses.sh utrecht-latest.osm.pbf
+``` 
