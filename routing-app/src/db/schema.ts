@@ -28,8 +28,7 @@ export const gameStates = sqliteTable('game_state', {
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
   money: real('money').notNull().default(0),
-  maxTravelDistance: real('max_travel_distance').notNull().default(100), // Default 100km
-  numRoutes: integer('num_routes').notNull().default(3), // Default 3 routes
+  routeLevel: integer('route_level').notNull().default(3),
 });
 
 // Employees table - tracks user's employees and their states
