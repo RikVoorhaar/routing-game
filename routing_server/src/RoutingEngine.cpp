@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <cstring>
 
 namespace RoutingServer {
 
@@ -12,6 +13,94 @@ namespace RoutingServer {
 inline bool ends_with(const std::string& str, const std::string& suffix) {
     return str.size() >= suffix.size() && 
            str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+// Custom profile implementation - allows access to all road types
+bool is_osm_way_used_by_custom_profile(uint64_t osm_way_id, const RoutingKit::TagMap& tags, 
+                                       std::function<void(const std::string&)> log_message) {
+    // Include all roads that cars, bicycles, or pedestrians can use
+    if (RoutingKit::is_osm_way_used_by_cars(osm_way_id, tags, log_message)) {
+        return true;
+    }
+    
+    if (RoutingKit::is_osm_way_used_by_bicycles(osm_way_id, tags, log_message)) {
+        return true;
+    }
+    
+    if (RoutingKit::is_osm_way_used_by_pedestrians(osm_way_id, tags, log_message)) {
+        return true;
+    }
+    
+    // Additionally check for other path types that might be useful
+    const char* highway_value = tags["highway"];
+    if (highway_value != nullptr && (
+        strcmp(highway_value, "path") == 0 ||
+        strcmp(highway_value, "footway") == 0 ||
+        strcmp(highway_value, "cycleway") == 0 ||
+        strcmp(highway_value, "pedestrian") == 0 ||
+        strcmp(highway_value, "steps") == 0 ||
+        strcmp(highway_value, "bridleway") == 0 ||
+        strcmp(highway_value, "track") == 0)) {
+        return true;
+    }
+    
+    return false;
+}
+
+unsigned get_custom_profile_speed(uint64_t osm_way_id, const RoutingKit::TagMap& tags,
+                                  std::function<void(const std::string&)> log_message) {
+    // First try to get the standard speed from OSM maxspeed tags
+    unsigned standard_speed = RoutingKit::get_osm_way_speed(osm_way_id, tags, log_message);
+    
+    // For non-car infrastructure, apply conservative speed limits
+    const char* highway_value = tags["highway"];
+    if (highway_value != nullptr) {
+        if (strcmp(highway_value, "path") == 0 || 
+            strcmp(highway_value, "footway") == 0 || 
+            strcmp(highway_value, "cycleway") == 0 || 
+            strcmp(highway_value, "pedestrian") == 0) {
+            // Cap speed at 20 km/h for shared infrastructure
+            return std::min(standard_speed, 20u);
+        } else if (strcmp(highway_value, "steps") == 0) {
+            // Very slow traversal of steps
+            return 5u;
+        } else if (strcmp(highway_value, "bridleway") == 0 || 
+                   strcmp(highway_value, "track") == 0) {
+            // Moderate speed for tracks and bridleways
+            return std::min(standard_speed, 30u);
+        }
+    }
+    
+    return standard_speed;
+}
+
+RoutingKit::OSMWayDirectionCategory get_custom_profile_direction_category(uint64_t osm_way_id, const RoutingKit::TagMap& tags,
+                                                                          std::function<void(const std::string&)> log_message) {
+    // For most pedestrian and cycling infrastructure, allow bidirectional access unless explicitly restricted
+    const char* highway_value = tags["highway"];
+    if (highway_value != nullptr && (
+        strcmp(highway_value, "path") == 0 ||
+        strcmp(highway_value, "footway") == 0 ||
+        strcmp(highway_value, "cycleway") == 0 ||
+        strcmp(highway_value, "pedestrian") == 0 ||
+        strcmp(highway_value, "bridleway") == 0)) {
+        
+        // Check for explicit oneway restrictions
+        const char* oneway_value = tags["oneway"];
+        if (oneway_value != nullptr) {
+            if (strcmp(oneway_value, "yes") == 0 || strcmp(oneway_value, "true") == 0 || strcmp(oneway_value, "1") == 0) {
+                return RoutingKit::OSMWayDirectionCategory::only_open_forwards;
+            } else if (strcmp(oneway_value, "-1") == 0 || strcmp(oneway_value, "reverse") == 0) {
+                return RoutingKit::OSMWayDirectionCategory::only_open_backwards;
+            }
+        }
+        
+        // Default to bidirectional for pedestrian/cycling infrastructure
+        return RoutingKit::OSMWayDirectionCategory::open_in_both;
+    }
+    
+    // For car roads and other infrastructure, use the standard car direction logic
+    return RoutingKit::get_osm_car_direction_category(osm_way_id, tags, log_message);
 }
 
 // Helper method to process a line from the address CSV
@@ -63,25 +152,85 @@ static void processAddressLine(const std::string& line, std::vector<Address>& ad
 }
 
 RoutingEngine::RoutingEngine(const std::string& osm_file) {
-    // Load the graph from the OSM file
-    graph_ = RoutingKit::simple_load_osm_car_routing_graph_from_pbf(osm_file);
+    LOG("Loading OSM routing graph with custom profile...");
+    
+    // Load the ID mapping with our custom profile
+    auto mapping = RoutingKit::load_osm_id_mapping_from_pbf(
+        osm_file,
+        nullptr, // No special routing nodes
+        [](uint64_t osm_way_id, const RoutingKit::TagMap& tags) {
+            return is_osm_way_used_by_custom_profile(osm_way_id, tags);
+        },
+        [](const std::string& msg) { LOG(msg); }
+    );
+    
+    LOG("ID mapping loaded, " << mapping.is_routing_way.population_count() << " routing ways found");
+    
+    // Prepare speed storage
+    unsigned routing_way_count = mapping.is_routing_way.population_count();
+    way_speed_.resize(routing_way_count);
+    
+    // Load the routing graph with custom callbacks
+    graph_ = RoutingKit::load_osm_routing_graph_from_pbf(
+        osm_file,
+        mapping,
+        [this](uint64_t osm_way_id, unsigned routing_way_id, const RoutingKit::TagMap& way_tags) {
+            // Store the speed for this way
+            way_speed_[routing_way_id] = get_custom_profile_speed(osm_way_id, way_tags);
+            return get_custom_profile_direction_category(osm_way_id, way_tags);
+        },
+        nullptr, // No turn restrictions for now
+        [](const std::string& msg) { LOG(msg); }
+    );
+    
+    LOG("Routing graph loaded with " << graph_.node_count() << " nodes and " << graph_.arc_count() << " arcs");
+    
+    // Build travel time array from geo_distance and way speeds
+    std::vector<unsigned> travel_time(graph_.arc_count());
+    for (unsigned arc_id = 0; arc_id < graph_.arc_count(); ++arc_id) {
+        unsigned way_id = graph_.way[arc_id];
+        unsigned speed_kmh = way_speed_[way_id];
+        unsigned distance_m = graph_.geo_distance[arc_id];
+        
+        // Convert to travel time in milliseconds: (distance_m / speed_kmh) * 3600 * 1000
+        if (speed_kmh > 0) {
+            travel_time[arc_id] = (distance_m * 3600ULL * 1000ULL) / (speed_kmh * 1000ULL);
+        } else {
+            travel_time[arc_id] = RoutingKit::inf_weight;
+        }
+    }
+    
+    LOG("Building contraction hierarchies...");
     
     // Build the tail array from the first_out array
     auto tail = RoutingKit::invert_inverse_vector(graph_.first_out);
     
-    // Build the contraction hierarchy
+    // Build contraction hierarchy for travel time
     ch_ = std::make_unique<RoutingKit::ContractionHierarchy>(
         RoutingKit::ContractionHierarchy::build(
             graph_.node_count(),
             tail, graph_.head,
-            graph_.travel_time
+            travel_time
         )
     );
+    
+    // Build contraction hierarchy for geo distance
+    ch_geo_ = std::make_unique<RoutingKit::ContractionHierarchy>(
+        RoutingKit::ContractionHierarchy::build(
+            graph_.node_count(),
+            tail, graph_.head,
+            graph_.geo_distance
+        )
+    );
+    
+    LOG("Contraction hierarchies built");
     
     // Create the geo position mapping
     pos_to_node_ = std::make_unique<RoutingKit::GeoPositionToNode>(
         graph_.latitude, graph_.longitude
     );
+    
+    LOG("Routing engine initialization complete");
 }
 
 unsigned RoutingEngine::findNearestNode(double latitude, double longitude, unsigned max_radius) const {
@@ -98,17 +247,21 @@ RoutingResult RoutingEngine::computeShortestPath(unsigned from_node, unsigned to
     // Check if both nodes are valid
     if (!isValidNode(from_node) || !isValidNode(to_node)) {
         result.total_travel_time_ms = RoutingKit::inf_weight;
+        result.total_geo_distance_m = RoutingKit::inf_weight;
         return result;
     }
     
-    // Create a query object
+    // Create query objects for both time and distance
     RoutingKit::ContractionHierarchyQuery ch_query(*ch_);
+    RoutingKit::ContractionHierarchyQuery ch_geo_query(*ch_geo_);
     
     // Compute the route
     long long start_time = RoutingKit::get_micro_time();
     ch_query.reset().add_source(from_node).add_target(to_node).run();
+    ch_geo_query.reset().add_source(from_node).add_target(to_node).run();
     
     result.total_travel_time_ms = ch_query.get_distance();
+    result.total_geo_distance_m = ch_geo_query.get_distance();
     result.node_path = ch_query.get_node_path();
     result.arc_path = ch_query.get_arc_path();
     long long end_time = RoutingKit::get_micro_time();
@@ -138,7 +291,7 @@ std::vector<RoutePoint> RoutingEngine::processPathIntoPoints(const RoutingResult
         return route_points;
     }
     
-    // If we only have a single node, add it with zero travel time
+    // If we only have a single node, add it with zero travel time and distance
     if (result.node_path.size() == 1) {
         RoutePoint point;
         point.node_id = result.node_path[0];
@@ -147,21 +300,35 @@ std::vector<RoutePoint> RoutingEngine::processPathIntoPoints(const RoutingResult
         point.latitude = static_cast<float>(lat);
         point.longitude = static_cast<float>(lon);
         point.time_ms = 0;
+        point.distance_m = 0;
         route_points.push_back(point);
         return route_points;
     }
     
-    // Calculate cumulative travel times
+    // Calculate cumulative travel times and distances
     std::vector<unsigned> cumulative_times(result.node_path.size(), 0);
+    std::vector<unsigned> cumulative_distances(result.node_path.size(), 0);
     cumulative_times[0] = 0; // First node is always at time 0
+    cumulative_distances[0] = 0; // First node is always at distance 0
     
-    // Add up travel times for each arc
+    // Add up travel times and distances for each arc
     for (size_t i = 0; i < result.arc_path.size(); ++i) {
         const auto arc_id = result.arc_path[i];
-        cumulative_times[i + 1] = cumulative_times[i] + graph_.travel_time[arc_id];
+        unsigned way_id = graph_.way[arc_id];
+        unsigned speed_kmh = way_speed_[way_id];
+        unsigned distance_m = graph_.geo_distance[arc_id];
+        
+        // Calculate travel time for this arc
+        unsigned arc_time_ms = 0;
+        if (speed_kmh > 0) {
+            arc_time_ms = (distance_m * 3600ULL * 1000ULL) / (speed_kmh * 1000ULL);
+        }
+        
+        cumulative_times[i + 1] = cumulative_times[i] + arc_time_ms;
+        cumulative_distances[i + 1] = cumulative_distances[i] + distance_m;
     }
     
-    // Create route points with coordinates and travel times
+    // Create route points with coordinates, travel times, and distances
     for (size_t i = 0; i < result.node_path.size(); ++i) {
         RoutePoint point;
         point.node_id = result.node_path[i];
@@ -170,6 +337,7 @@ std::vector<RoutePoint> RoutingEngine::processPathIntoPoints(const RoutingResult
         point.latitude = static_cast<float>(lat);
         point.longitude = static_cast<float>(lon);
         point.time_ms = cumulative_times[i];
+        point.distance_m = cumulative_distances[i];
         route_points.push_back(point);
     }
     

@@ -1,6 +1,7 @@
 #pragma once
 
-#include <routingkit/osm_simple.h>
+#include <routingkit/osm_graph_builder.h>
+#include <routingkit/osm_profile.h>
 #include <routingkit/contraction_hierarchy.h>
 #include <routingkit/inverse_vector.h>
 #include <routingkit/geo_position_to_node.h>
@@ -11,6 +12,7 @@
 #include <random>
 #include <cmath>
 #include <optional>
+#include <functional>
 
 namespace RoutingServer {
 
@@ -19,18 +21,20 @@ struct RoutingResult {
     unsigned source_node;
     unsigned target_node;
     unsigned total_travel_time_ms;
+    unsigned total_geo_distance_m;
     std::vector<unsigned> node_path;
     std::vector<unsigned> arc_path;
     long long query_time_us;
     bool success;
 };
 
-// Point on the route with travel time
+// Point on the route with travel time and distance
 struct RoutePoint {
     float latitude;
     float longitude;
     unsigned node_id;
     unsigned time_ms;
+    unsigned distance_m;
 };
 
 // Address information
@@ -56,6 +60,16 @@ struct Address {
         return json;
     }
 };
+
+// Custom routing profile functions
+bool is_osm_way_used_by_custom_profile(uint64_t osm_way_id, const RoutingKit::TagMap& tags, 
+                                       std::function<void(const std::string&)> log_message = nullptr);
+
+unsigned get_custom_profile_speed(uint64_t osm_way_id, const RoutingKit::TagMap& tags,
+                                  std::function<void(const std::string&)> log_message = nullptr);
+
+RoutingKit::OSMWayDirectionCategory get_custom_profile_direction_category(uint64_t osm_way_id, const RoutingKit::TagMap& tags,
+                                                                          std::function<void(const std::string&)> log_message = nullptr);
 
 // Main routing engine class
 class RoutingEngine {
@@ -89,7 +103,7 @@ public:
     // Get the latitude and longitude for a node
     void getNodeCoordinates(unsigned node_id, double& latitude, double& longitude) const;
     
-    // Process the path into a sequence of route points with cumulative travel times
+    // Process the path into a sequence of route points with cumulative travel times and distances
     std::vector<RoutePoint> processPathIntoPoints(const RoutingResult& result) const;
     
     // Check if node ID is valid
@@ -116,9 +130,11 @@ private:
     // Convert degrees to radians
     static constexpr double toRadians(double degrees) { return degrees * M_PI / 180.0; }
     
-    // RoutingKit graph data
-    RoutingKit::SimpleOSMCarRoutingGraph graph_;
+    // Custom routing graph data
+    RoutingKit::OSMRoutingGraph graph_;
+    std::vector<unsigned> way_speed_;
     std::unique_ptr<RoutingKit::ContractionHierarchy> ch_;
+    std::unique_ptr<RoutingKit::ContractionHierarchy> ch_geo_;
     std::unique_ptr<RoutingKit::GeoPositionToNode> pos_to_node_;
     
     // Address data

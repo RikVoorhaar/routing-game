@@ -12,8 +12,9 @@ crow::json::wvalue JsonBuilder::buildRouteResponse(
     // Add basic info about the route
     response["success"] = result.success;
     response["travel_time_seconds"] = result.total_travel_time_ms / 1000.0; // Convert to seconds
+    response["total_distance_meters"] = result.total_geo_distance_m; // Distance in meters
     
-    // Add route points as array of coordinates with cumulative times
+    // Add route points as array of coordinates with cumulative times and distances
     crow::json::wvalue::list path_list;
     for (const auto& point : route_points) {
         crow::json::wvalue point_obj;
@@ -23,6 +24,7 @@ crow::json::wvalue JsonBuilder::buildRouteResponse(
         std::cerr << "Serializing point: lat=" << point.latitude << ", lon=" << point.longitude << std::endl;
         point_obj["coordinates"] = std::move(coord_obj);
         point_obj["cumulative_time_seconds"] = point.time_ms / 1000.0; // Convert to seconds
+        point_obj["cumulative_distance_meters"] = point.distance_m; // Distance in meters
         path_list.push_back(std::move(point_obj));
     }
     response["path"] = std::move(path_list);
