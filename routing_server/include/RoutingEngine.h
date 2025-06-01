@@ -35,6 +35,7 @@ struct RoutePoint {
     unsigned node_id;
     unsigned time_ms;
     unsigned distance_m;
+    unsigned max_speed_kmh; // Maximum speed on the arc leading to this point
 };
 
 // Address information
@@ -99,12 +100,16 @@ public:
     
     // Compute shortest path between two nodes
     RoutingResult computeShortestPath(unsigned from_node, unsigned to_node) const;
+    
+    // Recalculate total travel time with maximum speed limit applied
+    unsigned recalculateTotalTravelTime(const RoutingResult& result, unsigned max_speed_kmh) const;
 
     // Get the latitude and longitude for a node
     void getNodeCoordinates(unsigned node_id, double& latitude, double& longitude) const;
     
     // Process the path into a sequence of route points with cumulative travel times and distances
-    std::vector<RoutePoint> processPathIntoPoints(const RoutingResult& result) const;
+    std::vector<RoutePoint> processPathIntoPoints(const RoutingResult& result, 
+                                                   std::optional<unsigned> max_speed_kmh = std::nullopt) const;
     
     // Check if node ID is valid
     bool isValidNode(unsigned node_id) const;

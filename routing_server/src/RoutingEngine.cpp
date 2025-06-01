@@ -283,7 +283,8 @@ void RoutingEngine::getNodeCoordinates(unsigned node_id, double& latitude, doubl
     }
 }
 
-std::vector<RoutePoint> RoutingEngine::processPathIntoPoints(const RoutingResult& result) const {
+std::vector<RoutePoint> RoutingEngine::processPathIntoPoints(const RoutingResult& result, 
+                                                             std::optional<unsigned> max_speed_kmh) const {
     std::vector<RoutePoint> route_points;
     
     if (!result.success || result.node_path.empty()) {
@@ -301,6 +302,7 @@ std::vector<RoutePoint> RoutingEngine::processPathIntoPoints(const RoutingResult
         point.longitude = static_cast<float>(lon);
         point.time_ms = 0;
         point.distance_m = 0;
+        point.max_speed_kmh = 0; // No arc for single point
         route_points.push_back(point);
         return route_points;
     }
@@ -308,6 +310,8 @@ std::vector<RoutePoint> RoutingEngine::processPathIntoPoints(const RoutingResult
     // Calculate cumulative travel times and distances
     std::vector<unsigned> cumulative_times(result.node_path.size(), 0);
     std::vector<unsigned> cumulative_distances(result.node_path.size(), 0);
+    std::vector<unsigned> arc_speeds(result.arc_path.size());
+    
     cumulative_times[0] = 0; // First node is always at time 0
     cumulative_distances[0] = 0; // First node is always at distance 0
     
@@ -315,20 +319,29 @@ std::vector<RoutePoint> RoutingEngine::processPathIntoPoints(const RoutingResult
     for (size_t i = 0; i < result.arc_path.size(); ++i) {
         const auto arc_id = result.arc_path[i];
         unsigned way_id = graph_.way[arc_id];
-        unsigned speed_kmh = way_speed_[way_id];
+        unsigned original_speed_kmh = way_speed_[way_id];
         unsigned distance_m = graph_.geo_distance[arc_id];
         
-        // Calculate travel time for this arc
+        // Apply maximum speed limit if specified
+        unsigned effective_speed_kmh = original_speed_kmh;
+        if (max_speed_kmh.has_value()) {
+            effective_speed_kmh = std::min(original_speed_kmh, max_speed_kmh.value());
+        }
+        
+        // Store the effective speed for this arc
+        arc_speeds[i] = effective_speed_kmh;
+        
+        // Calculate travel time for this arc with effective speed
         unsigned arc_time_ms = 0;
-        if (speed_kmh > 0) {
-            arc_time_ms = (distance_m * 3600ULL * 1000ULL) / (speed_kmh * 1000ULL);
+        if (effective_speed_kmh > 0) {
+            arc_time_ms = (distance_m * 3600ULL * 1000ULL) / (effective_speed_kmh * 1000ULL);
         }
         
         cumulative_times[i + 1] = cumulative_times[i] + arc_time_ms;
         cumulative_distances[i + 1] = cumulative_distances[i] + distance_m;
     }
     
-    // Create route points with coordinates, travel times, and distances
+    // Create route points with coordinates, travel times, distances, and speeds
     for (size_t i = 0; i < result.node_path.size(); ++i) {
         RoutePoint point;
         point.node_id = result.node_path[i];
@@ -338,6 +351,15 @@ std::vector<RoutePoint> RoutingEngine::processPathIntoPoints(const RoutingResult
         point.longitude = static_cast<float>(lon);
         point.time_ms = cumulative_times[i];
         point.distance_m = cumulative_distances[i];
+        
+        // For the first node, there's no incoming arc, so use 0
+        // For subsequent nodes, use the speed of the arc that leads to this node
+        if (i == 0) {
+            point.max_speed_kmh = 0; // No incoming arc
+        } else {
+            point.max_speed_kmh = arc_speeds[i - 1]; // Speed of arc leading to this node
+        }
+        
         route_points.push_back(point);
     }
     
@@ -591,6 +613,32 @@ double RoutingEngine::haversineDistance(double lat1, double lon1, double lat2, d
     const double R = 6371000.0;
     
     return R * c;
+}
+
+unsigned RoutingEngine::recalculateTotalTravelTime(const RoutingResult& result, unsigned max_speed_kmh) const {
+    if (!result.success || result.arc_path.empty()) {
+        return 0;
+    }
+    
+    unsigned total_time_ms = 0;
+    
+    for (size_t i = 0; i < result.arc_path.size(); ++i) {
+        const auto arc_id = result.arc_path[i];
+        unsigned way_id = graph_.way[arc_id];
+        unsigned original_speed_kmh = way_speed_[way_id];
+        unsigned distance_m = graph_.geo_distance[arc_id];
+        
+        // Apply maximum speed limit
+        unsigned effective_speed_kmh = std::min(original_speed_kmh, max_speed_kmh);
+        
+        // Calculate travel time for this arc with effective speed
+        if (effective_speed_kmh > 0) {
+            unsigned arc_time_ms = (distance_m * 3600ULL * 1000ULL) / (effective_speed_kmh * 1000ULL);
+            total_time_ms += arc_time_ms;
+        }
+    }
+    
+    return total_time_ms;
 }
 
 } // namespace RoutingServer 

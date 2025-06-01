@@ -1,6 +1,7 @@
 #include "../include/ApiHandlers.h"
 #include "../include/JsonBuilder.h"
 #include "../include/Logger.h"
+#include <routingkit/timer.h>
 #include <sstream>
 
 namespace RoutingServer {
@@ -35,6 +36,7 @@ void ApiHandlers::registerRoutes(crow::SimpleApp& app) {
 }
 
 crow::response ApiHandlers::handleShortestPath(const crow::request& req) {
+    long long start_time = RoutingKit::get_micro_time();
     LOG("Received request: " + req.url);
     
     // Parse coordinates from request
@@ -43,6 +45,8 @@ crow::response ApiHandlers::handleShortestPath(const crow::request& req) {
         auto error_response = JsonBuilder::buildErrorResponse(
             "Invalid or missing coordinates. Format: /api/v1/shortest_path?from=latitude,longitude&to=latitude,longitude"
         );
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
         return crow::response(400, error_response);
     }
     
@@ -55,6 +59,8 @@ crow::response ApiHandlers::handleShortestPath(const crow::request& req) {
         auto error_response = JsonBuilder::buildErrorResponse(
             "No node within 1000m from source position"
         );
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
         return crow::response(404, error_response);
     }
     
@@ -63,6 +69,8 @@ crow::response ApiHandlers::handleShortestPath(const crow::request& req) {
         auto error_response = JsonBuilder::buildErrorResponse(
             "No node within 1000m from target position"
         );
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
         return crow::response(404, error_response);
     }
     
@@ -75,12 +83,36 @@ crow::response ApiHandlers::handleShortestPath(const crow::request& req) {
     LOG("Route computed in " << result.query_time_us << " microseconds");
     LOG("Path length: " << result.node_path.size() << " nodes, travel time: " << result.total_travel_time_ms << " ms");
     
+    // Check for optional max_speed parameter
+    std::optional<unsigned> max_speed_kmh;
+    std::string max_speed_param = req.url_params.get("max_speed") ? req.url_params.get("max_speed") : "";
+    if (!max_speed_param.empty()) {
+        try {
+            unsigned max_speed = std::stoul(max_speed_param);
+            if (max_speed > 0) {
+                max_speed_kmh = max_speed;
+                LOG("Applying maximum speed limit: " << max_speed << " km/h");
+            }
+        } catch (const std::exception& e) {
+            LOG("Invalid max_speed parameter: " << e.what());
+        }
+    }
+    
     // Process the path into points with coordinates and travel times
-    auto route_points = engine_->processPathIntoPoints(result);
+    auto route_points = engine_->processPathIntoPoints(result, max_speed_kmh);
+    
+    // If max speed was applied, recalculate the total travel time
+    RoutingResult modified_result = result;
+    if (max_speed_kmh.has_value()) {
+        modified_result.total_travel_time_ms = engine_->recalculateTotalTravelTime(result, max_speed_kmh.value());
+        LOG("Total travel time with max speed " << max_speed_kmh.value() << " km/h: " << modified_result.total_travel_time_ms << " ms");
+    }
     
     // Build and return the JSON response
     LOG("Sending response");
-    auto success_response = JsonBuilder::buildRouteResponse(result, route_points);
+    auto success_response = JsonBuilder::buildRouteResponse(modified_result, route_points);
+    long long end_time = RoutingKit::get_micro_time();
+    LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms");
     return crow::response(success_response);
 }
 
@@ -145,6 +177,7 @@ bool ApiHandlers::parseCoordinate(const std::string& param, double& lat, double&
 }
 
 crow::response ApiHandlers::handleHealthCheck(const crow::request& req) {
+    long long start_time = RoutingKit::get_micro_time();
     LOG("Received health check request: " + req.url);
     
     crow::json::wvalue response;
@@ -155,10 +188,13 @@ crow::response ApiHandlers::handleHealthCheck(const crow::request& req) {
     response["address_count"] = engine_->getAddressCount();
     
     LOG("Sending health check response");
+    long long end_time = RoutingKit::get_micro_time();
+    LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms");
     return crow::response(200, response);
 }
 
 crow::response ApiHandlers::handleClosestAddress(const crow::request& req) {
+    long long start_time = RoutingKit::get_micro_time();
     LOG("Received request: " + req.url);
     
     // Check if addresses are loaded
@@ -166,6 +202,8 @@ crow::response ApiHandlers::handleClosestAddress(const crow::request& req) {
         auto error_response = JsonBuilder::buildErrorResponse(
             "No addresses loaded. Start server with address CSV file."
         );
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
         return crow::response(404, error_response);
     }
     
@@ -177,6 +215,8 @@ crow::response ApiHandlers::handleClosestAddress(const crow::request& req) {
         auto error_response = JsonBuilder::buildErrorResponse(
             "Invalid or missing location parameter. Format: /api/v1/closest_address?location=latitude,longitude"
         );
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
         return crow::response(400, error_response);
     }
     
@@ -188,12 +228,16 @@ crow::response ApiHandlers::handleClosestAddress(const crow::request& req) {
         auto error_response = JsonBuilder::buildErrorResponse(
             "No address found"
         );
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
         return crow::response(404, error_response);
     }
     
     // Build and return the JSON response
     LOG("Sending response");
     auto success_response = address->toJson();
+    long long end_time = RoutingKit::get_micro_time();
+    LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms");
     return crow::response(success_response);
 }
 

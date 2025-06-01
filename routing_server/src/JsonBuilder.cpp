@@ -21,10 +21,10 @@ crow::json::wvalue JsonBuilder::buildRouteResponse(
         crow::json::wvalue coord_obj;
         coord_obj["lat"] = static_cast<double>(point.latitude);
         coord_obj["lon"] = static_cast<double>(point.longitude);
-        std::cerr << "Serializing point: lat=" << point.latitude << ", lon=" << point.longitude << std::endl;
         point_obj["coordinates"] = std::move(coord_obj);
         point_obj["cumulative_time_seconds"] = point.time_ms / 1000.0; // Convert to seconds
         point_obj["cumulative_distance_meters"] = point.distance_m; // Distance in meters
+        point_obj["max_speed_kmh"] = point.max_speed_kmh; // Maximum speed on arc leading to this point
         path_list.push_back(std::move(point_obj));
     }
     response["path"] = std::move(path_list);
