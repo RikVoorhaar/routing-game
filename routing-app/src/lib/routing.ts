@@ -109,7 +109,7 @@ async function getShortestPath(from: Coordinate, to: Coordinate, maxSpeed?: numb
 
     const data = await response.json();
     if (!data.success) {
-        throw new Error(data.error || 'Failed to get shortest path');
+        throw new Error(data.error || 'Failed to get shortest path ' + url);
     }
 
     // Convert the path to our PathPoint type

@@ -109,7 +109,7 @@ describe('Route Generation', () => {
             expect(routeData.length).toBeGreaterThan(0);
             
             // Check that route points have the expected structure
-            routeData.forEach((point: any, index: number) => {
+            routeData.forEach((point: { coordinates: unknown; cumulative_time_seconds: unknown; cumulative_distance_meters: unknown; max_speed_kmh: unknown }, index: number) => {
                 expect(point).toHaveProperty('coordinates');
                 expect(point).toHaveProperty('cumulative_time_seconds');
                 expect(point).toHaveProperty('cumulative_distance_meters');

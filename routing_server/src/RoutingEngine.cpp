@@ -6,6 +6,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cstring>
+#include <set>
 
 namespace RoutingServer {
 
@@ -18,6 +19,41 @@ inline bool ends_with(const std::string& str, const std::string& suffix) {
 // Custom profile implementation - allows access to all road types
 bool is_osm_way_used_by_custom_profile(uint64_t osm_way_id, const RoutingKit::TagMap& tags, 
                                        std::function<void(const std::string&)> log_message) {
+    // Log highway types for analysis (static set to avoid duplicates)
+    static std::set<std::string> highway_types_seen;
+    static std::set<std::string> other_tags_seen;
+    
+    const char* highway_value = tags["highway"];
+    if (highway_value != nullptr) {
+        std::string highway_str(highway_value);
+        if (highway_types_seen.insert(highway_str).second) {
+            if (log_message) {
+                log_message("Found highway type: " + highway_str);
+            }
+        }
+    }
+    
+    // Also log other relevant tags
+    const char* railway_value = tags["railway"];
+    if (railway_value != nullptr) {
+        std::string tag_str = "railway=" + std::string(railway_value);
+        if (other_tags_seen.insert(tag_str).second) {
+            if (log_message) {
+                log_message("Found tag: " + tag_str);
+            }
+        }
+    }
+    
+    const char* public_transport_value = tags["public_transport"];
+    if (public_transport_value != nullptr) {
+        std::string tag_str = "public_transport=" + std::string(public_transport_value);
+        if (other_tags_seen.insert(tag_str).second) {
+            if (log_message) {
+                log_message("Found tag: " + tag_str);
+            }
+        }
+    }
+
     // Include all roads that cars, bicycles, or pedestrians can use
     if (RoutingKit::is_osm_way_used_by_cars(osm_way_id, tags, log_message)) {
         return true;
@@ -31,16 +67,68 @@ bool is_osm_way_used_by_custom_profile(uint64_t osm_way_id, const RoutingKit::Ta
         return true;
     }
     
-    // Additionally check for other path types that might be useful
-    const char* highway_value = tags["highway"];
-    if (highway_value != nullptr && (
-        strcmp(highway_value, "path") == 0 ||
-        strcmp(highway_value, "footway") == 0 ||
-        strcmp(highway_value, "cycleway") == 0 ||
-        strcmp(highway_value, "pedestrian") == 0 ||
-        strcmp(highway_value, "steps") == 0 ||
-        strcmp(highway_value, "bridleway") == 0 ||
-        strcmp(highway_value, "track") == 0)) {
+    // Include ALL possible highway types from OSM documentation
+    if (highway_value != nullptr) {
+        std::string highway_str(highway_value);
+        
+        // Main road types
+        if (highway_str == "motorway" || highway_str == "trunk" || highway_str == "primary" ||
+            highway_str == "secondary" || highway_str == "tertiary" || highway_str == "unclassified" ||
+            highway_str == "residential") {
+            return true;
+        }
+        
+        // Link roads
+        if (highway_str == "motorway_link" || highway_str == "trunk_link" || highway_str == "primary_link" ||
+            highway_str == "secondary_link" || highway_str == "tertiary_link") {
+            return true;
+        }
+        
+        // Special road types
+        if (highway_str == "living_street" || highway_str == "service" || highway_str == "pedestrian" ||
+            highway_str == "track" || highway_str == "bus_guideway" || highway_str == "busway" ||
+            highway_str == "raceway" || highway_str == "road" || highway_str == "construction" ||
+            highway_str == "escape") {
+            return true;
+        }
+        
+        // Paths
+        if (highway_str == "path" || highway_str == "footway" || highway_str == "cycleway" ||
+            highway_str == "bridleway" || highway_str == "steps" || highway_str == "corridor") {
+            return true;
+        }
+        
+        // Other highway features mentioned in documentation
+        if (highway_str == "bus_stop" || highway_str == "crossing" || highway_str == "emergency_access_point" ||
+            highway_str == "give_way" || highway_str == "mini_roundabout" || highway_str == "motorway_junction" ||
+            highway_str == "passing_place" || highway_str == "platform" || highway_str == "rest_area" ||
+            highway_str == "services" || highway_str == "speed_camera" || highway_str == "stop" ||
+            highway_str == "street_lamp" || highway_str == "traffic_signals" || highway_str == "turning_circle" ||
+            highway_str == "turning_loop") {
+            return true;
+        }
+        
+        // Lifecycle states
+        if (highway_str == "proposed" || highway_str == "planned" || highway_str == "abandoned" ||
+            highway_str == "disused" || highway_str == "razed") {
+            return true;
+        }
+        
+        // Additional types that might exist
+        if (highway_str == "via_ferrata" || highway_str == "elevator" || highway_str == "escalator") {
+            return true;
+        }
+    }
+    
+    // Also include railway platforms and other transport infrastructure
+    const char* railway_value_check = tags["railway"];
+    if (railway_value_check != nullptr && strcmp(railway_value_check, "platform") == 0) {
+        return true;
+    }
+    
+    // Include public transport platforms
+    const char* public_transport_value_check = tags["public_transport"];
+    if (public_transport_value_check != nullptr && strcmp(public_transport_value_check, "platform") == 0) {
         return true;
     }
     
@@ -55,20 +143,77 @@ unsigned get_custom_profile_speed(uint64_t osm_way_id, const RoutingKit::TagMap&
     // For non-car infrastructure, apply conservative speed limits
     const char* highway_value = tags["highway"];
     if (highway_value != nullptr) {
-        if (strcmp(highway_value, "path") == 0 || 
-            strcmp(highway_value, "footway") == 0 || 
-            strcmp(highway_value, "cycleway") == 0 || 
-            strcmp(highway_value, "pedestrian") == 0) {
-            // Cap speed at 20 km/h for shared infrastructure
-            return std::min(standard_speed, 20u);
-        } else if (strcmp(highway_value, "steps") == 0) {
-            // Very slow traversal of steps
-            return 5u;
-        } else if (strcmp(highway_value, "bridleway") == 0 || 
-                   strcmp(highway_value, "track") == 0) {
-            // Moderate speed for tracks and bridleways
-            return std::min(standard_speed, 30u);
+        std::string highway_str(highway_value);
+        
+        // Very slow infrastructure (walking pace)
+        if (highway_str == "steps" || highway_str == "via_ferrata" || highway_str == "elevator" ||
+            highway_str == "escalator") {
+            return 5u; // 5 km/h
         }
+        
+        // Pedestrian and shared infrastructure (slow)
+        if (highway_str == "path" || highway_str == "footway" || highway_str == "cycleway" || 
+            highway_str == "pedestrian" || highway_str == "platform" || highway_str == "corridor") {
+            return std::min(standard_speed, 20u); // Max 20 km/h
+        }
+        
+        // Service roads and tracks (moderate)
+        if (highway_str == "service" || highway_str == "living_street" || highway_str == "track" ||
+            highway_str == "bridleway") {
+            return std::min(standard_speed, 30u); // Max 30 km/h
+        }
+        
+        // Construction and lifecycle states (conservative)
+        if (highway_str == "construction" || highway_str == "proposed" || highway_str == "planned") {
+            return std::min(standard_speed, 30u); // Max 30 km/h
+        }
+        
+        // Abandoned/disused (very slow)
+        if (highway_str == "abandoned" || highway_str == "disused" || highway_str == "razed") {
+            return 10u; // 10 km/h
+        }
+        
+        // Residential areas
+        if (highway_str == "residential" || highway_str == "unclassified") {
+            return std::min(standard_speed, 50u); // Max 50 km/h
+        }
+        
+        // Special purpose roads
+        if (highway_str == "bus_guideway" || highway_str == "busway") {
+            return std::min(standard_speed, 60u); // Max 60 km/h
+        }
+        
+        // Racing tracks (but still reasonable for routing)
+        if (highway_str == "raceway") {
+            return std::min(standard_speed, 80u); // Max 80 km/h
+        }
+        
+        // Emergency and escape roads
+        if (highway_str == "escape" || highway_str == "emergency_access_point") {
+            return std::min(standard_speed, 40u); // Max 40 km/h
+        }
+        
+        // Highway features (usually not routable, but just in case)
+        if (highway_str == "bus_stop" || highway_str == "crossing" || highway_str == "give_way" ||
+            highway_str == "mini_roundabout" || highway_str == "motorway_junction" || 
+            highway_str == "passing_place" || highway_str == "rest_area" || highway_str == "services" ||
+            highway_str == "speed_camera" || highway_str == "stop" || highway_str == "street_lamp" ||
+            highway_str == "traffic_signals" || highway_str == "turning_circle" || highway_str == "turning_loop") {
+            return 10u; // 10 km/h (these are usually point features anyway)
+        }
+        
+        // Unknown road type (for "road" and any others)
+        if (highway_str == "road") {
+            return std::min(standard_speed, 50u); // Max 50 km/h
+        }
+    }
+    
+    // Handle railway and public transport platforms
+    const char* railway_value = tags["railway"];
+    const char* public_transport_value = tags["public_transport"];
+    if ((railway_value != nullptr && strcmp(railway_value, "platform") == 0) ||
+        (public_transport_value != nullptr && strcmp(public_transport_value, "platform") == 0)) {
+        return 10u; // Very slow walking speed on platforms
     }
     
     return standard_speed;
@@ -246,8 +391,21 @@ RoutingResult RoutingEngine::computeShortestPath(unsigned from_node, unsigned to
     
     // Check if both nodes are valid
     if (!isValidNode(from_node) || !isValidNode(to_node)) {
+        LOG("Invalid nodes: from=" << from_node << " (valid: " << isValidNode(from_node) << "), to=" << to_node << " (valid: " << isValidNode(to_node) << ")");
         result.total_travel_time_ms = RoutingKit::inf_weight;
         result.total_geo_distance_m = RoutingKit::inf_weight;
+        return result;
+    }
+    
+    // Special case: if source and target are the same node, return a successful single-node route
+    if (from_node == to_node) {
+        LOG("Same source and target node: " << from_node << ", returning single-node route");
+        result.total_travel_time_ms = 0;
+        result.total_geo_distance_m = 0;
+        result.node_path = {from_node};
+        result.arc_path = {}; // No arcs for single node
+        result.query_time_us = 0;
+        result.success = true;
         return result;
     }
     
@@ -269,6 +427,38 @@ RoutingResult RoutingEngine::computeShortestPath(unsigned from_node, unsigned to
     
     // Check if a path was found
     result.success = result.total_travel_time_ms != RoutingKit::inf_weight && !result.node_path.empty();
+    
+    // Fallback for very close coordinates that can't be routed
+    if (!result.success) {
+        // Get coordinates for both nodes
+        double from_lat, from_lon, to_lat, to_lon;
+        getNodeCoordinates(from_node, from_lat, from_lon);
+        getNodeCoordinates(to_node, to_lat, to_lon);
+        
+        // Calculate the distance between the coordinates
+        double distance_m = haversineDistance(from_lat, from_lon, to_lat, to_lon);
+        
+        // If the coordinates are very close (within 200m), treat it as a successful route
+        if (distance_m <= 200.0) {
+            LOG("Very close coordinates (" << distance_m << "m apart) but no route found. Returning successful single-node route for gaming purposes.");
+            result.total_travel_time_ms = static_cast<unsigned>(distance_m * 3600 / 5); // Walking speed ~5 km/h
+            result.total_geo_distance_m = static_cast<unsigned>(distance_m);
+            result.node_path = {from_node}; // Use the starting node
+            result.arc_path = {}; // No arcs
+            result.success = true;
+            return result;
+        }
+        
+        // Add debug logging for failed routes
+        LOG("Route failed: from_node=" << from_node << ", to_node=" << to_node << 
+            ", travel_time=" << result.total_travel_time_ms << 
+            ", geo_distance=" << result.total_geo_distance_m << 
+            ", path_length=" << result.node_path.size() << 
+            ", actual_distance=" << distance_m << "m");
+            
+        LOG("From coordinates: (" << from_lat << "," << from_lon << ")");
+        LOG("To coordinates: (" << to_lat << "," << to_lon << ")");
+    }
     
     return result;
 }
