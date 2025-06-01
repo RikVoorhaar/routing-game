@@ -19,10 +19,13 @@ export interface PathPoint {
         lon: number;
     };
     cumulative_time_seconds: number;
+    cumulative_distance_meters: number;
+    max_speed_kmh: number;
 }
 
 export interface RoutingResult {
     path: PathPoint[];
     travelTimeSeconds: number;
+    totalDistanceMeters: number;
     destination: Address;
 } 

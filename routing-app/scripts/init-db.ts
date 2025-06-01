@@ -223,7 +223,7 @@ async function main() {
     }
     
     // Check if test user already exists
-    const userExists = await db.select().from(schema.user).where(eq(schema.user.username, 'testuser'));
+    const userExists = await db.select().from(schema.users).where(eq(schema.users.username, 'testuser'));
     
     if (userExists.length > 0) {
       console.log('Test user already exists, skipping user creation.');
@@ -234,7 +234,7 @@ async function main() {
       const hashedPassword = await hashPassword('password123');
       
       // Insert test user
-      await db.insert(schema.user).values({
+      await db.insert(schema.users).values({
         id: testUserId,
         username: 'testuser',
         name: 'Test User',
@@ -242,7 +242,7 @@ async function main() {
       });
       
       // Insert test user credentials
-      await db.insert(schema.credential).values({
+      await db.insert(schema.credentials).values({
         id: nanoid(),
         userId: testUserId,
         hashedPassword

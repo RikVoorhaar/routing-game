@@ -7,6 +7,8 @@ const ROUTING_SERVER_URL = 'http://localhost:8050';
 interface ServerPathPoint {
     coordinates: { lat: number; lon: number };
     cumulative_time_seconds: number;
+    cumulative_distance_meters: number;
+    max_speed_kmh: number;
 }
 
 /**
@@ -92,10 +94,14 @@ export function interpolateLocationAtTime(path: PathPoint[], time: number): { la
     };
 }
 
-async function getShortestPath(from: Coordinate, to: Coordinate): Promise<RoutingResult> {
-    const response = await fetch(
-        `${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`
-    );
+async function getShortestPath(from: Coordinate, to: Coordinate, maxSpeed?: number): Promise<RoutingResult> {
+    let url = `${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`;
+    
+    if (maxSpeed !== undefined && maxSpeed > 0) {
+        url += `&max_speed=${maxSpeed}`;
+    }
+
+    const response = await fetch(url);
 
     if (!response.ok) {
         throw new Error(`Failed to get shortest path: ${response.statusText}`);
@@ -109,12 +115,15 @@ async function getShortestPath(from: Coordinate, to: Coordinate): Promise<Routin
     // Convert the path to our PathPoint type
     const path: PathPoint[] = data.path.map((point: ServerPathPoint) => ({
         coordinates: { lat: point.coordinates.lat, lon: point.coordinates.lon },
-        cumulative_time_seconds: point.cumulative_time_seconds
+        cumulative_time_seconds: point.cumulative_time_seconds,
+        cumulative_distance_meters: point.cumulative_distance_meters,
+        max_speed_kmh: point.max_speed_kmh
     }));
 
     return {
         path,
         travelTimeSeconds: data.travel_time_seconds,
+        totalDistanceMeters: data.total_distance_meters,
         destination: {
             id: data.destination_id,
             lat: to.lat,
@@ -126,11 +135,12 @@ async function getShortestPath(from: Coordinate, to: Coordinate): Promise<Routin
 export async function getRandomRouteInAnnulus(
     from: Coordinate,
     minDistance: number,
-    maxDistance: number
+    maxDistance: number,
+    maxSpeed?: number
 ): Promise<RoutingResult> {
     // Get a random destination address in the annulus
     const destination = await getRandomAddressInAnnulus(from, minDistance, maxDistance);
     
     // Get the route to that destination
-    return getShortestPath(from, destination);
+    return getShortestPath(from, destination, maxSpeed);
 } 

@@ -7,15 +7,21 @@ describe('interpolateLocationAtTime', () => {
     const samplePath: PathPoint[] = [
         {
             coordinates: { lat: 52.0907, lon: 5.1214 },
-            cumulative_time_seconds: 0
+            cumulative_time_seconds: 0,
+            cumulative_distance_meters: 0,
+            max_speed_kmh: 0
         },
         {
             coordinates: { lat: 52.0905, lon: 5.1212 },
-            cumulative_time_seconds: 10
+            cumulative_time_seconds: 10,
+            cumulative_distance_meters: 250,
+            max_speed_kmh: 30
         },
         {
             coordinates: { lat: 52.0903, lon: 5.1210 },
-            cumulative_time_seconds: 20
+            cumulative_time_seconds: 20,
+            cumulative_distance_meters: 500,
+            max_speed_kmh: 50
         }
     ];
 
@@ -70,7 +76,9 @@ describe('interpolateLocationAtTime', () => {
     it('handles single point path', () => {
         const singlePointPath: PathPoint[] = [{
             coordinates: { lat: 52.0907, lon: 5.1214 },
-            cumulative_time_seconds: 0
+            cumulative_time_seconds: 0,
+            cumulative_distance_meters: 0,
+            max_speed_kmh: 0
         }];
         
         const result = interpolateLocationAtTime(singlePointPath, 5);
@@ -88,11 +96,11 @@ describe('interpolateLocationAtTime', () => {
 
     it('interpolates along a longer path', () => {
         const longerPath: PathPoint[] = [
-            { coordinates: { lat: 52.0907, lon: 5.1214 }, cumulative_time_seconds: 0 },
-            { coordinates: { lat: 52.0905, lon: 5.1212 }, cumulative_time_seconds: 10 },
-            { coordinates: { lat: 52.0903, lon: 5.1210 }, cumulative_time_seconds: 20 },
-            { coordinates: { lat: 52.0901, lon: 5.1208 }, cumulative_time_seconds: 30 },
-            { coordinates: { lat: 52.0899, lon: 5.1206 }, cumulative_time_seconds: 40 }
+            { coordinates: { lat: 52.0907, lon: 5.1214 }, cumulative_time_seconds: 0, cumulative_distance_meters: 0, max_speed_kmh: 0 },
+            { coordinates: { lat: 52.0905, lon: 5.1212 }, cumulative_time_seconds: 10, cumulative_distance_meters: 250, max_speed_kmh: 30 },
+            { coordinates: { lat: 52.0903, lon: 5.1210 }, cumulative_time_seconds: 20, cumulative_distance_meters: 500, max_speed_kmh: 50 },
+            { coordinates: { lat: 52.0901, lon: 5.1208 }, cumulative_time_seconds: 30, cumulative_distance_meters: 750, max_speed_kmh: 30 },
+            { coordinates: { lat: 52.0899, lon: 5.1206 }, cumulative_time_seconds: 40, cumulative_distance_meters: 1000, max_speed_kmh: 20 }
         ];
 
         // Test interpolation at various points

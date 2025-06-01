@@ -1,5 +1,5 @@
 import { type InferSelectModel } from 'drizzle-orm';
-import { employees, gameStates, routes } from '../db/schema';
+import { employees, gameStates, routes } from './server/db/schema';
 import { getRandomRouteInAnnulus } from './routing';
 import { type Address, type Coordinate } from './types';
 import { db } from './server/db';
@@ -38,8 +38,6 @@ export async function generateSingleRoute(
     minDistanceKm: number,
     maxDistanceKm: number
 ): Promise<RouteInsert> {
-    // Convert km to meters for the routing function
-
     // Get the employee's current location or use a default
     if (!employee.location) {
         throw new Error('Employee must have a location to generate routes');
@@ -51,14 +49,17 @@ export async function generateSingleRoute(
     };
 
     // Generate a random route in the specified annulus
+    // Use the employee's maxSpeed if available
+    const maxSpeed = employee.maxSpeed ? Math.round(employee.maxSpeed) : undefined;
     const routeResult = await getRandomRouteInAnnulus(
         startLocation,
         minDistanceKm,
-        maxDistanceKm
+        maxDistanceKm,
+        maxSpeed
     );
 
-    // Generate random weight and reward
-    const distanceKm = routeResult.travelTimeSeconds / 3600 * 50; // Rough estimate: 50 km/h average speed
+    // Use the actual distance from the routing result
+    const distanceKm = routeResult.totalDistanceMeters / 1000;
     const weight = computeWeight();
     const reward = computeReward(distanceKm);
 
@@ -85,9 +86,9 @@ function computeWeight(): number {
     return weight;
 }
 
-function computeReward(travelTimeSeconds: number): number {
+function computeReward(distanceKm: number): number {
     const rewardMultiplier = Math.random() * (MAX_REWARD_MULTIPLIER - MIN_REWARD_MULTIPLIER) + MIN_REWARD_MULTIPLIER;
-    const reward = rewardMultiplier * Math.pow(travelTimeSeconds, REWARD_DISTANCE_POWER);
+    const reward = rewardMultiplier * Math.pow(distanceKm, REWARD_DISTANCE_POWER);
     return reward;
 }
 
