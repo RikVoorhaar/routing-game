@@ -2,9 +2,8 @@ import { SvelteKitAuth } from "@auth/sveltekit";
 import Credentials from "@auth/core/providers/credentials";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { db } from "./lib/server/db";
-import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { user, credential } from "./lib/server/db/schema";
+import { users, credentials } from "./lib/server/db/schema";
 import { hashPassword, verifyPassword } from "./lib/server/auth/password";
 import type { Session } from "@auth/core/types";
 
@@ -45,60 +44,63 @@ const auth = SvelteKitAuth({
         }
         
         try {
+          console.log('=== AUTHENTICATION DEBUG ===');
+          console.log('Username:', typedCredentials.username);
+          console.log('Password length:', typedCredentials.password?.length);
+          
           // First try to find the user by username
-          const [foundUser] = await db
-            .select()
-            .from(user)
-            .where(eq(user.username, typedCredentials.username));
+          const userResult = await db.run(`
+            SELECT id, username, name, email, image 
+            FROM user 
+            WHERE username = ?
+          `, [typedCredentials.username]);
+          
+          console.log('User query result:', userResult);
+          console.log('User rows:', userResult.rows);
+          
+          const foundUser = userResult.rows?.[0];
+          console.log('Found user:', foundUser);
           
           if (!foundUser) {
+            console.log('No user found with username:', typedCredentials.username);
             return null;
           }
           
           // Find credential record for the user
-          const [userCredential] = await db
-            .select()
-            .from(credential)
-            .where(eq(credential.userId, foundUser.id));
+          const credentialResult = await db.run(`
+            SELECT id, user_id, hashed_password 
+            FROM credential 
+            WHERE user_id = ?
+          `, [foundUser.id]);
           
-          // If we have credentials in the new table, use that
+          console.log('Credential query result:', credentialResult);
+          console.log('Credential rows:', credentialResult.rows);
+          
+          const userCredential = credentialResult.rows?.[0];
+          console.log('Found credential:', userCredential);
+          
+          // Check if we have credentials in the credentials table
           if (userCredential) {
+            console.log('Verifying password...');
             const isValid = await verifyPassword(
               typedCredentials.password,
-              userCredential.hashedPassword
+              userCredential.hashed_password
             );
             
+            console.log('Password valid:', isValid);
+            
             if (!isValid) {
+              console.log('Password verification failed');
               return null;
             }
 
-            console.log(`User authenticated: ${foundUser.username}`);
-          } 
-          // Otherwise fall back to the legacy password field in the user table
-          else if (foundUser.passwordHash) {
-            // Note: This assumes the legacy passwords used the same hashing method
-            // If they used a different hash, you would need to adjust this logic
-            const isValid = await verifyPassword(
-              typedCredentials.password,
-              foundUser.passwordHash
-            );
-            
-            if (!isValid) {
-              return null;
-            }
-            
-            // Migrate the password to the new credential table
-            await db.insert(credential).values({
-              id: nanoid(),
-              userId: foundUser.id,
-              hashedPassword: foundUser.passwordHash,
-            });
-
-            console.log(`User authenticated (legacy password migrated): ${foundUser.username}`);
+            console.log(`User authenticated successfully: ${foundUser.username}`);
           } else {
+            console.log('No credentials found for user:', foundUser.id);
             return null;
           }
           
+          console.log('Returning user object for session');
           // Return the user object for the session
           return {
             id: foundUser.id,
@@ -168,21 +170,25 @@ export async function createUser({
   name?: string;
 }) {
   // Check if user already exists
-  const [existingUser] = await db
-    .select()
-    .from(user)
-    .where(eq(user.username, username));
+  const existingUserResult = await db.run(`
+    SELECT id, username 
+    FROM user 
+    WHERE username = ?
+  `, [username]);
   
+  const existingUser = existingUserResult.rows?.[0];
   if (existingUser) {
     throw new Error("Username already exists");
   }
   
   if (email) {
-    const [existingEmail] = await db
-      .select()
-      .from(user)
-      .where(eq(user.email, email as string));
+    const existingEmailResult = await db.run(`
+      SELECT id, email 
+      FROM user 
+      WHERE email = ?
+    `, [email]);
     
+    const existingEmail = existingEmailResult.rows?.[0];
     if (existingEmail) {
       throw new Error("Email already exists");
     }
@@ -195,7 +201,7 @@ export async function createUser({
   const userId = nanoid();
   
   // Create user record
-  await db.insert(user).values({
+  await db.insert(users).values({
     id: userId,
     username,
     email,
@@ -203,7 +209,7 @@ export async function createUser({
   });
   
   // Create credential record
-  await db.insert(credential).values({
+  await db.insert(credentials).values({
     id: nanoid(),
     userId,
     hashedPassword

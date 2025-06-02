@@ -60,199 +60,149 @@
     }
 </script>
 
-<div class="register-container">
-    <h1>Create an Account</h1>
-    
-    {#if error}
-        <div class="error">
-            <p>{error}</p>
-        </div>
-    {/if}
-    
-    {#if success}
-        <div class="success">
-            <p>{success}</p>
-        </div>
-    {/if}
-    
-    <form on:submit|preventDefault={handleSubmit}>
-        <div class="form-group">
-            <label for="username">Username <span class="required">*</span></label>
-            <input 
-                id="username" 
-                name="username" 
-                type="text" 
-                bind:value={username} 
-                required
-                disabled={loading}
-            />
-        </div>
-        
-        <div class="form-group">
-            <label for="email">Email</label>
-            <input 
-                id="email" 
-                name="email" 
-                type="email" 
-                bind:value={email}
-                disabled={loading}
-            />
-            {#if email && !isEmailValid(email)}
-                <p class="input-error">Please enter a valid email address</p>
+<div class="min-h-screen bg-base-200 flex items-center justify-center p-4">
+    <div class="card w-full max-w-md bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h1 class="text-3xl font-bold text-center text-primary mb-2">🚛 Routing Game</h1>
+            <h2 class="text-xl font-semibold text-center mb-6">Create an Account</h2>
+            
+            {#if error}
+                <div class="alert alert-error mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>{error}</span>
+                </div>
             {/if}
-        </div>
-        
-        <div class="form-group">
-            <label for="name">Full Name</label>
-            <input 
-                id="name" 
-                name="name" 
-                type="text" 
-                bind:value={name}
-                disabled={loading}
-            />
-        </div>
-        
-        <div class="form-group">
-            <label for="password">Password <span class="required">*</span></label>
-            <input 
-                id="password" 
-                name="password" 
-                type="password" 
-                bind:value={password} 
-                required
-                disabled={loading}
-            />
-            {#if password && !isPasswordValid}
-                <p class="input-error">Password must be at least 8 characters long</p>
+            
+            {#if success}
+                <div class="alert alert-success mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>{success}</span>
+                </div>
             {/if}
+            
+            <form on:submit|preventDefault={handleSubmit} class="space-y-4">
+                <div class="form-control">
+                    <label class="label" for="username">
+                        <span class="label-text">Username <span class="text-error">*</span></span>
+                    </label>
+                    <input 
+                        id="username" 
+                        name="username" 
+                        type="text" 
+                        placeholder="Enter your username"
+                        class="input input-bordered w-full"
+                        bind:value={username} 
+                        required
+                        disabled={loading}
+                    />
+                </div>
+                
+                <div class="form-control">
+                    <label class="label" for="email">
+                        <span class="label-text">Email (optional)</span>
+                    </label>
+                    <input 
+                        id="email" 
+                        name="email" 
+                        type="email" 
+                        placeholder="Enter your email"
+                        class="input input-bordered w-full"
+                        class:input-error={email && !isEmailValid(email)}
+                        bind:value={email}
+                        disabled={loading}
+                    />
+                    {#if email && !isEmailValid(email)}
+                        <div class="label">
+                            <span class="label-text-alt text-error">Please enter a valid email address</span>
+                        </div>
+                    {/if}
+                </div>
+                
+                <div class="form-control">
+                    <label class="label" for="name">
+                        <span class="label-text">Full Name (optional)</span>
+                    </label>
+                    <input 
+                        id="name" 
+                        name="name" 
+                        type="text" 
+                        placeholder="Enter your full name"
+                        class="input input-bordered w-full"
+                        bind:value={name}
+                        disabled={loading}
+                    />
+                </div>
+                
+                <div class="form-control">
+                    <label class="label" for="password">
+                        <span class="label-text">Password <span class="text-error">*</span></span>
+                    </label>
+                    <input 
+                        id="password" 
+                        name="password" 
+                        type="password" 
+                        placeholder="Enter your password (min 8 characters)"
+                        class="input input-bordered w-full"
+                        class:input-error={password && !isPasswordValid}
+                        bind:value={password} 
+                        required
+                        disabled={loading}
+                    />
+                    {#if password && !isPasswordValid}
+                        <div class="label">
+                            <span class="label-text-alt text-error">Password must be at least 8 characters long</span>
+                        </div>
+                    {/if}
+                </div>
+                
+                <div class="form-control">
+                    <label class="label" for="confirmPassword">
+                        <span class="label-text">Confirm Password <span class="text-error">*</span></span>
+                    </label>
+                    <input 
+                        id="confirmPassword" 
+                        name="confirmPassword" 
+                        type="password" 
+                        placeholder="Confirm your password"
+                        class="input input-bordered w-full"
+                        class:input-error={confirmPassword && !passwordsMatch}
+                        bind:value={confirmPassword} 
+                        required
+                        disabled={loading}
+                    />
+                    {#if confirmPassword && !passwordsMatch}
+                        <div class="label">
+                            <span class="label-text-alt text-error">Passwords do not match</span>
+                        </div>
+                    {/if}
+                </div>
+                
+                <button 
+                    type="submit" 
+                    class="btn btn-primary w-full" 
+                    class:loading={loading}
+                    disabled={!isFormValid || loading}
+                >
+                    {#if loading}
+                        <span class="loading loading-spinner loading-sm"></span>
+                        Creating Account...
+                    {:else}
+                        Create Account
+                    {/if}
+                </button>
+            </form>
+            
+            <div class="divider"></div>
+            
+            <div class="text-center">
+                <p class="text-sm">Already have an account? 
+                    <a href="/login" class="link link-primary">Log in here</a>
+                </p>
+            </div>
         </div>
-        
-        <div class="form-group">
-            <label for="confirmPassword">Confirm Password <span class="required">*</span></label>
-            <input 
-                id="confirmPassword" 
-                name="confirmPassword" 
-                type="password" 
-                bind:value={confirmPassword} 
-                required
-                disabled={loading}
-            />
-            {#if confirmPassword && !passwordsMatch}
-                <p class="input-error">Passwords do not match</p>
-            {/if}
-        </div>
-        
-        <button 
-            type="submit" 
-            class="register-button" 
-            disabled={!isFormValid || loading}
-        >
-            {loading ? 'Creating Account...' : 'Create Account'}
-        </button>
-        
-        <div class="login-link">
-            <p>Already have an account? <a href="/login">Log in</a></p>
-        </div>
-    </form>
-</div>
-
-<style>
-    .register-container {
-        max-width: 400px;
-        margin: 80px auto 0;
-        padding: 2rem;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        background: white;
-    }
-    
-    h1 {
-        text-align: center;
-        margin-bottom: 1.5rem;
-        color: #333;
-    }
-    
-    .form-group {
-        margin-bottom: 1rem;
-    }
-    
-    label {
-        display: block;
-        margin-bottom: 0.5rem;
-        font-weight: 500;
-    }
-    
-    .required {
-        color: #e53e3e;
-    }
-    
-    input {
-        width: 100%;
-        padding: 0.75rem;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-size: 1rem;
-    }
-    
-    .register-button {
-        width: 100%;
-        padding: 0.75rem;
-        border: none;
-        border-radius: 4px;
-        background-color: #4a7dff;
-        color: white;
-        font-size: 1rem;
-        cursor: pointer;
-        transition: background-color 0.2s;
-        margin-top: 1rem;
-    }
-    
-    .register-button:hover:not(:disabled) {
-        background-color: #3a6ae0;
-    }
-    
-    .register-button:disabled {
-        background-color: #a0aec0;
-        cursor: not-allowed;
-    }
-    
-    .error {
-        color: #e53e3e;
-        margin-bottom: 1rem;
-        padding: 0.5rem;
-        background-color: #fee2e2;
-        border-radius: 4px;
-        text-align: center;
-    }
-    
-    .success {
-        color: #047857;
-        margin-bottom: 1rem;
-        padding: 0.5rem;
-        background-color: #d1fae5;
-        border-radius: 4px;
-        text-align: center;
-    }
-    
-    .input-error {
-        color: #e53e3e;
-        font-size: 0.8rem;
-        margin-top: 0.25rem;
-        margin-bottom: 0;
-    }
-    
-    .login-link {
-        text-align: center;
-        margin-top: 1.5rem;
-    }
-    
-    a {
-        color: #4a7dff;
-        text-decoration: none;
-    }
-    
-    a:hover {
-        text-decoration: underline;
-    }
-</style> 
+    </div>
+</div> 
