@@ -32,7 +32,7 @@
 	</main>
 
 	<footer>
-		<p>© {new Date().getFullYear()} Routing App - Auth.js Demo</p>
+		<p>© {new Date().getFullYear()} Routing App</p>
 	</footer>
 </div>
 

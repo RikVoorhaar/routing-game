@@ -3,8 +3,9 @@ import Credentials from "@auth/core/providers/credentials";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { db } from "./lib/server/db";
 import { nanoid } from "nanoid";
-import { users, credentials } from "./lib/server/db/schema";
+import { users, credentials as credentialsTable } from "./lib/server/db/schema";
 import { hashPassword, verifyPassword } from "./lib/server/auth/password";
+import { eq, count } from "drizzle-orm";
 import type { Session } from "@auth/core/types";
 
 // Type definition for credentials
@@ -47,18 +48,33 @@ const auth = SvelteKitAuth({
           console.log('=== AUTHENTICATION DEBUG ===');
           console.log('Username:', typedCredentials.username);
           console.log('Password length:', typedCredentials.password?.length);
+          console.log('Database connection from env:', process.env.DATABASE_URL);
+          
+          // Let's also test the database connection
+          const testResult = await db.select({ count: count() }).from(users);
+          console.log('Total users in database:', testResult);
+          
+          // Debug: Print all users in the database
+          const allUsersResult = await db.select({
+            id: users.id,
+            username: users.username,
+            name: users.name,
+            email: users.email
+          }).from(users);
+          console.log('All users in database:', allUsersResult);
           
           // First try to find the user by username
-          const userResult = await db.run(`
-            SELECT id, username, name, email, image 
-            FROM user 
-            WHERE username = ?
-          `, [typedCredentials.username]);
+          const userResult = await db.select({
+            id: users.id,
+            username: users.username,
+            name: users.name,
+            email: users.email,
+            image: users.image
+          }).from(users).where(eq(users.username, typedCredentials.username));
           
           console.log('User query result:', userResult);
-          console.log('User rows:', userResult.rows);
           
-          const foundUser = userResult.rows?.[0];
+          const foundUser = userResult?.[0];
           console.log('Found user:', foundUser);
           
           if (!foundUser) {
@@ -67,16 +83,15 @@ const auth = SvelteKitAuth({
           }
           
           // Find credential record for the user
-          const credentialResult = await db.run(`
-            SELECT id, user_id, hashed_password 
-            FROM credential 
-            WHERE user_id = ?
-          `, [foundUser.id]);
+          const credentialResult = await db.select({
+            id: credentialsTable.id,
+            userId: credentialsTable.userId,
+            hashedPassword: credentialsTable.hashedPassword
+          }).from(credentialsTable).where(eq(credentialsTable.userId, foundUser.id));
           
           console.log('Credential query result:', credentialResult);
-          console.log('Credential rows:', credentialResult.rows);
           
-          const userCredential = credentialResult.rows?.[0];
+          const userCredential = credentialResult?.[0];
           console.log('Found credential:', userCredential);
           
           // Check if we have credentials in the credentials table
@@ -84,7 +99,7 @@ const auth = SvelteKitAuth({
             console.log('Verifying password...');
             const isValid = await verifyPassword(
               typedCredentials.password,
-              userCredential.hashed_password
+              userCredential.hashedPassword
             );
             
             console.log('Password valid:', isValid);
@@ -170,25 +185,23 @@ export async function createUser({
   name?: string;
 }) {
   // Check if user already exists
-  const existingUserResult = await db.run(`
-    SELECT id, username 
-    FROM user 
-    WHERE username = ?
-  `, [username]);
+  const existingUserResult = await db.select({
+    id: users.id,
+    username: users.username
+  }).from(users).where(eq(users.username, username));
   
-  const existingUser = existingUserResult.rows?.[0];
+  const existingUser = existingUserResult?.[0];
   if (existingUser) {
     throw new Error("Username already exists");
   }
   
   if (email) {
-    const existingEmailResult = await db.run(`
-      SELECT id, email 
-      FROM user 
-      WHERE email = ?
-    `, [email]);
+    const existingEmailResult = await db.select({
+      id: users.id,
+      email: users.email
+    }).from(users).where(eq(users.email, email));
     
-    const existingEmail = existingEmailResult.rows?.[0];
+    const existingEmail = existingEmailResult?.[0];
     if (existingEmail) {
       throw new Error("Email already exists");
     }
@@ -209,7 +222,7 @@ export async function createUser({
   });
   
   // Create credential record
-  await db.insert(credentials).values({
+  await db.insert(credentialsTable).values({
     id: nanoid(),
     userId,
     hashedPassword
