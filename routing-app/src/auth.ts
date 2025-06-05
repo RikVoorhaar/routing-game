@@ -5,7 +5,7 @@ import { db } from "./lib/server/db";
 import { nanoid } from "nanoid";
 import { users, credentials as credentialsTable } from "./lib/server/db/schema";
 import { hashPassword, verifyPassword } from "./lib/server/auth/password";
-import { eq, count } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { Session } from "@auth/core/types";
 
 // Type definition for credentials
@@ -45,24 +45,6 @@ const auth = SvelteKitAuth({
         }
         
         try {
-          console.log('=== AUTHENTICATION DEBUG ===');
-          console.log('Username:', typedCredentials.username);
-          console.log('Password length:', typedCredentials.password?.length);
-          console.log('Database connection from env:', process.env.DATABASE_URL);
-          
-          // Let's also test the database connection
-          const testResult = await db.select({ count: count() }).from(users);
-          console.log('Total users in database:', testResult);
-          
-          // Debug: Print all users in the database
-          const allUsersResult = await db.select({
-            id: users.id,
-            username: users.username,
-            name: users.name,
-            email: users.email
-          }).from(users);
-          console.log('All users in database:', allUsersResult);
-          
           // First try to find the user by username
           const userResult = await db.select({
             id: users.id,
@@ -72,13 +54,10 @@ const auth = SvelteKitAuth({
             image: users.image
           }).from(users).where(eq(users.username, typedCredentials.username));
           
-          console.log('User query result:', userResult);
-          
           const foundUser = userResult?.[0];
-          console.log('Found user:', foundUser);
           
           if (!foundUser) {
-            console.log('No user found with username:', typedCredentials.username);
+            console.log(`Login failed: User not found - ${typedCredentials.username}`);
             return null;
           }
           
@@ -89,33 +68,26 @@ const auth = SvelteKitAuth({
             hashedPassword: credentialsTable.hashedPassword
           }).from(credentialsTable).where(eq(credentialsTable.userId, foundUser.id));
           
-          console.log('Credential query result:', credentialResult);
-          
           const userCredential = credentialResult?.[0];
-          console.log('Found credential:', userCredential);
           
           // Check if we have credentials in the credentials table
           if (userCredential) {
-            console.log('Verifying password...');
             const isValid = await verifyPassword(
               typedCredentials.password,
               userCredential.hashedPassword
             );
             
-            console.log('Password valid:', isValid);
-            
             if (!isValid) {
-              console.log('Password verification failed');
+              console.log(`Login failed: Invalid password - ${typedCredentials.username}`);
               return null;
             }
 
-            console.log(`User authenticated successfully: ${foundUser.username}`);
+            console.log(`Login successful: ${foundUser.username}`);
           } else {
-            console.log('No credentials found for user:', foundUser.id);
+            console.log(`Login failed: No credentials found - ${typedCredentials.username}`);
             return null;
           }
           
-          console.log('Returning user object for session');
           // Return the user object for the session
           return {
             id: foundUser.id,
@@ -124,7 +96,7 @@ const auth = SvelteKitAuth({
             image: foundUser.image,
           };
         } catch (error) {
-          console.error('Error during authentication:', error);
+          console.error(`Login error for ${typedCredentials.username}:`, error);
           return null;
         }
       }
