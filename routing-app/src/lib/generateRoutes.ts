@@ -16,6 +16,19 @@ export const MIN_REWARD_MULTIPLIER = 0.5;
 export const MAX_REWARD_MULTIPLIER = 1.5;
 export const REWARD_DISTANCE_POWER = 1.2;
 
+// Constants for employee management
+export const DEFAULT_EMPLOYEE_LOCATION: Address = {
+    id: 'domplein-1',
+    lat: 52.09082916316217,
+    lon: 5.12112919278711,
+    street: 'Domplein',
+    house_number: '1',
+    city: 'Utrecht',
+    postcode: '3512 JC'
+};
+
+export const MIN_ROUTE_REGEN_INTERVAL = 10 * 60 * 1000; // 10 minutes in milliseconds
+
 export enum GoodsType {
     GENERAL = 'GENERAL',
     FOOD = 'FOOD',
@@ -131,4 +144,16 @@ export async function updateEmployeeRoutes(employee: EmployeeWithGameState): Pro
             timeRoutesGenerated: new Date(Date.now())
         })
         .where(eq(employees.id, employee.id));
+}
+
+/**
+ * Computes the cost of hiring a new employee based on the number of existing employees
+ * Formula: €100 * i^2 where i is the number of existing employees
+ * The first employee is free (cost is 0 when i = 0)
+ */
+export function computeEmployeeCosts(existingEmployeeCount: number): number {
+    if (existingEmployeeCount === 0) {
+        return 0; // First employee is free
+    }
+    return 100 * Math.pow(existingEmployeeCount, 2);
 }

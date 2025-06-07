@@ -1,0 +1,48 @@
+import { redirect, error } from '@sveltejs/kit';
+import type { PageServerLoad } from './$types';
+import { db } from '$lib/server/db';
+import { gameStates, employees } from '$lib/server/db/schema';
+import { eq, and } from 'drizzle-orm';
+
+export const load: PageServerLoad = async ({ locals, params }) => {
+    const session = await locals.auth();
+    
+    if (!session?.user?.id) {
+        throw redirect(303, '/login');
+    }
+
+    const { gameStateId } = params;
+
+    try {
+        // Get the game state and verify ownership
+        const [gameState] = await db
+            .select()
+            .from(gameStates)
+            .where(
+                and(
+                    eq(gameStates.id, gameStateId),
+                    eq(gameStates.userId, session.user.id)
+                )
+            )
+            .limit(1);
+
+        if (!gameState) {
+            throw error(404, 'Game state not found or access denied');
+        }
+
+        // Get all employees for this game state
+        const gameEmployees = await db
+            .select()
+            .from(employees)
+            .where(eq(employees.gameId, gameStateId));
+
+        return {
+            session,
+            gameState,
+            employees: gameEmployees
+        };
+    } catch (err) {
+        console.error('Error loading game state:', err);
+        throw error(500, 'Failed to load game state');
+    }
+}; 

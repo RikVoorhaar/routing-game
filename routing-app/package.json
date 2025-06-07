@@ -55,6 +55,7 @@
 		"@auth/core": "^0.39.0",
 		"@auth/drizzle-adapter": "^1.9.1",
 		"@auth/sveltekit": "^1.9.2",
+		"@faker-js/faker": "^9.8.0",
 		"@libsql/client": "^0.14.0",
 		"@node-rs/argon2": "^2.0.2",
 		"@oslojs/crypto": "^1.0.1",

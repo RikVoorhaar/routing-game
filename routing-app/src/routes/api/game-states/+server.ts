@@ -63,7 +63,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             name: name.trim(),
             userId: session.user.id,
             createdAt: new Date(Date.now()),
-            money: 0,
+            money: 500,
             routeLevel: 3
         };
 
