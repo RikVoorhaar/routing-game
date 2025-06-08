@@ -33,7 +33,9 @@ int main(int argc, char* argv[]) {
 	try {
 		// Initialize the routing engine
 		LOG("Initializing routing engine...");
+		LOG("Starting RoutingEngine constructor with file: " << osm_file);
 		auto engine = std::make_shared<RoutingEngine>(osm_file);
+		LOG("RoutingEngine constructor completed successfully");
 		LOG("Routing engine initialized with " << engine->getNodeCount() << " nodes and " 
 			<< engine->getArcCount() << " arcs");
 		
@@ -48,12 +50,15 @@ int main(int argc, char* argv[]) {
 		}
 		
 		// Create API handlers
+		LOG("Creating API handlers...");
 		ApiHandlers api_handlers(engine);
 		
 		// Create and configure the Crow app
+		LOG("Setting up Crow application...");
 		crow::SimpleApp app;
 		
 		// Register API routes
+		LOG("Registering API routes...");
 		api_handlers.registerRoutes(app);
 		
 		// Start the server
@@ -61,6 +66,9 @@ int main(int argc, char* argv[]) {
 		app.port(8080).run();
 	} catch (const std::exception& e) {
 		LOG("Error: " << e.what());
+		return 1;
+	} catch (...) {
+		LOG("Unknown error occurred");
 		return 1;
 	}
 	

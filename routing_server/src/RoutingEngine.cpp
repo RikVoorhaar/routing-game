@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstring>
 #include <set>
+#include <limits>
 
 namespace RoutingServer {
 
@@ -332,43 +333,97 @@ RoutingEngine::RoutingEngine(const std::string& osm_file) {
     
     // Build travel time array from geo_distance and way speeds
     std::vector<unsigned> travel_time(graph_.arc_count());
+    LOG("Processing " << graph_.arc_count() << " arcs for travel time calculation...");
+    
     for (unsigned arc_id = 0; arc_id < graph_.arc_count(); ++arc_id) {
         unsigned way_id = graph_.way[arc_id];
         unsigned speed_kmh = way_speed_[way_id];
         unsigned distance_m = graph_.geo_distance[arc_id];
         
-        // Convert to travel time in milliseconds: (distance_m / speed_kmh) * 3600 * 1000
-        if (speed_kmh > 0) {
-            travel_time[arc_id] = (distance_m * 3600ULL * 1000ULL) / (speed_kmh * 1000ULL);
+        // Convert to travel time in seconds, then to milliseconds
+        // time_sec = distance_m / (speed_kmh * 1000 / 3600) = distance_m * 3600 / (speed_kmh * 1000)
+        if (speed_kmh > 0 && distance_m > 0) {
+            // Calculate time in seconds first to avoid overflow
+            unsigned long long time_seconds = (static_cast<unsigned long long>(distance_m) * 3600ULL) / (static_cast<unsigned long long>(speed_kmh) * 1000ULL);
+            
+            // Cap at 24 hours (86400 seconds) per arc - anything longer is unrealistic for routing
+            const unsigned long long MAX_ARC_TIME_SECONDS = 86400ULL;  // 24 hours
+            if (time_seconds > MAX_ARC_TIME_SECONDS) {
+                time_seconds = MAX_ARC_TIME_SECONDS;
+            }
+            
+            // Convert to milliseconds
+            unsigned long long time_ms = time_seconds * 1000ULL;
+            travel_time[arc_id] = static_cast<unsigned>(time_ms);
         } else {
             travel_time[arc_id] = RoutingKit::inf_weight;
         }
     }
     
+    LOG("Travel time calculation completed successfully");
+    
+    // Add statistics about travel times
+    unsigned min_time = std::numeric_limits<unsigned>::max();
+    unsigned max_time = 0;
+    unsigned inf_count = 0;
+    unsigned zero_count = 0;
+    
+    for (unsigned arc_id = 0; arc_id < graph_.arc_count(); ++arc_id) {
+        unsigned time = travel_time[arc_id];
+        if (time == RoutingKit::inf_weight) {
+            inf_count++;
+        } else if (time == 0) {
+            zero_count++;
+        } else {
+            min_time = std::min(min_time, time);
+            max_time = std::max(max_time, time);
+        }
+    }
+    
+    LOG("Travel time statistics: min=" << min_time << "ms, max=" << max_time << "ms, inf_count=" << inf_count << ", zero_count=" << zero_count);
+    
     LOG("Building contraction hierarchies...");
     
-    // Build the tail array from the first_out array
-    auto tail = RoutingKit::invert_inverse_vector(graph_.first_out);
-    
-    // Build contraction hierarchy for travel time
-    ch_ = std::make_unique<RoutingKit::ContractionHierarchy>(
-        RoutingKit::ContractionHierarchy::build(
-            graph_.node_count(),
-            tail, graph_.head,
-            travel_time
-        )
-    );
-    
-    // Build contraction hierarchy for geo distance
-    ch_geo_ = std::make_unique<RoutingKit::ContractionHierarchy>(
-        RoutingKit::ContractionHierarchy::build(
-            graph_.node_count(),
-            tail, graph_.head,
-            graph_.geo_distance
-        )
-    );
-    
-    LOG("Contraction hierarchies built");
+    try {
+        // Build the tail array from the first_out array
+        LOG("Building tail array...");
+        auto tail = RoutingKit::invert_inverse_vector(graph_.first_out);
+        LOG("Tail array built successfully");
+        
+        // Build contraction hierarchy for geo distance first to test
+        LOG("Building contraction hierarchy for geo distance...");
+        ch_geo_ = std::make_unique<RoutingKit::ContractionHierarchy>(
+            RoutingKit::ContractionHierarchy::build(
+                graph_.node_count(),
+                tail, graph_.head,
+                graph_.geo_distance
+            )
+        );
+        LOG("Geo distance contraction hierarchy built successfully");
+        
+        // Build contraction hierarchy for travel time
+        LOG("Skipping travel time contraction hierarchy for now due to crash");
+        // TODO: Fix travel time CH building crash
+        /*
+        LOG("Building contraction hierarchy for travel time...");
+        ch_ = std::make_unique<RoutingKit::ContractionHierarchy>(
+            RoutingKit::ContractionHierarchy::build(
+                graph_.node_count(),
+                tail, graph_.head,
+                travel_time
+            )
+        );
+        LOG("Travel time contraction hierarchy built successfully");
+        */
+        
+        LOG("Contraction hierarchies built");
+    } catch (const std::exception& e) {
+        LOG("Error building contraction hierarchies: " << e.what());
+        throw;
+    } catch (...) {
+        LOG("Unknown error building contraction hierarchies");
+        throw;
+    }
     
     // Create the geo position mapping
     pos_to_node_ = std::make_unique<RoutingKit::GeoPositionToNode>(
@@ -409,24 +464,36 @@ RoutingResult RoutingEngine::computeShortestPath(unsigned from_node, unsigned to
         return result;
     }
     
-    // Create query objects for both time and distance
-    RoutingKit::ContractionHierarchyQuery ch_query(*ch_);
+    // Create query objects - only use geo distance for now since travel time CH crashes
+    // RoutingKit::ContractionHierarchyQuery ch_query(*ch_);
     RoutingKit::ContractionHierarchyQuery ch_geo_query(*ch_geo_);
     
     // Compute the route
     long long start_time = RoutingKit::get_micro_time();
-    ch_query.reset().add_source(from_node).add_target(to_node).run();
+    // ch_query.reset().add_source(from_node).add_target(to_node).run();
     ch_geo_query.reset().add_source(from_node).add_target(to_node).run();
     
-    result.total_travel_time_ms = ch_query.get_distance();
+    // Use geo distance for both time and distance for now
+    // result.total_travel_time_ms = ch_query.get_distance();
     result.total_geo_distance_m = ch_geo_query.get_distance();
-    result.node_path = ch_query.get_node_path();
-    result.arc_path = ch_query.get_arc_path();
+    result.node_path = ch_geo_query.get_node_path();
+    result.arc_path = ch_geo_query.get_arc_path();
+    
+    // Check if a path was found (use geo distance since we don't have travel time CH)
+    result.success = result.total_geo_distance_m != RoutingKit::inf_weight && !result.node_path.empty();
+    
+    // Calculate travel time manually based on path and speeds
+    if (result.total_geo_distance_m != RoutingKit::inf_weight && !result.arc_path.empty()) {
+        // Use a very high speed limit (effectively no limit) to get natural travel times
+        result.total_travel_time_ms = recalculateTotalTravelTime(result, 300); // 300 km/h max (effectively unlimited)
+        LOG("Calculated travel time: " << result.total_travel_time_ms << " ms for " << result.arc_path.size() << " arcs");
+    } else {
+        result.total_travel_time_ms = result.total_geo_distance_m; // Fallback
+        LOG("Using fallback travel time: " << result.total_travel_time_ms << " ms");
+    }
+    
     long long end_time = RoutingKit::get_micro_time();
     result.query_time_us = end_time - start_time;
-    
-    // Check if a path was found
-    result.success = result.total_travel_time_ms != RoutingKit::inf_weight && !result.node_path.empty();
     
     // Fallback for very close coordinates that can't be routed
     if (!result.success) {
@@ -807,10 +874,12 @@ double RoutingEngine::haversineDistance(double lat1, double lon1, double lat2, d
 
 unsigned RoutingEngine::recalculateTotalTravelTime(const RoutingResult& result, unsigned max_speed_kmh) const {
     if (!result.success || result.arc_path.empty()) {
+        LOG("recalculateTotalTravelTime: returning 0 due to !success or empty arc_path");
         return 0;
     }
     
     unsigned total_time_ms = 0;
+    LOG("recalculateTotalTravelTime: processing " << result.arc_path.size() << " arcs with max_speed=" << max_speed_kmh);
     
     for (size_t i = 0; i < result.arc_path.size(); ++i) {
         const auto arc_id = result.arc_path[i];
@@ -825,9 +894,17 @@ unsigned RoutingEngine::recalculateTotalTravelTime(const RoutingResult& result, 
         if (effective_speed_kmh > 0) {
             unsigned arc_time_ms = (distance_m * 3600ULL * 1000ULL) / (effective_speed_kmh * 1000ULL);
             total_time_ms += arc_time_ms;
+            if (i < 3) { // Log first few arcs for debugging
+                LOG("Arc " << i << ": distance=" << distance_m << "m, original_speed=" << original_speed_kmh << ", effective_speed=" << effective_speed_kmh << ", time=" << arc_time_ms << "ms");
+            }
+        } else {
+            if (i < 3) {
+                LOG("Arc " << i << ": distance=" << distance_m << "m, speed=0, skipping");
+            }
         }
     }
     
+    LOG("recalculateTotalTravelTime: total=" << total_time_ms << "ms");
     return total_time_ms;
 }
 
