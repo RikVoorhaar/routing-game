@@ -495,37 +495,84 @@ RoutingResult RoutingEngine::computeShortestPath(unsigned from_node, unsigned to
     long long end_time = RoutingKit::get_micro_time();
     result.query_time_us = end_time - start_time;
     
-    // Fallback for very close coordinates that can't be routed
-    if (!result.success) {
-        // Get coordinates for both nodes
-        double from_lat, from_lon, to_lat, to_lon;
-        getNodeCoordinates(from_node, from_lat, from_lon);
-        getNodeCoordinates(to_node, to_lat, to_lon);
-        
-        // Calculate the distance between the coordinates
-        double distance_m = haversineDistance(from_lat, from_lon, to_lat, to_lon);
-        
-        // If the coordinates are very close (within 200m), treat it as a successful route
-        if (distance_m <= 200.0) {
-            LOG("Very close coordinates (" << distance_m << "m apart) but no route found. Returning successful single-node route for gaming purposes.");
-            result.total_travel_time_ms = static_cast<unsigned>(distance_m * 3600 / 5); // Walking speed ~5 km/h
-            result.total_geo_distance_m = static_cast<unsigned>(distance_m);
-            result.node_path = {from_node}; // Use the starting node
-            result.arc_path = {}; // No arcs
-            result.success = true;
-            return result;
-        }
-        
-        // Add debug logging for failed routes
-        LOG("Route failed: from_node=" << from_node << ", to_node=" << to_node << 
-            ", travel_time=" << result.total_travel_time_ms << 
-            ", geo_distance=" << result.total_geo_distance_m << 
-            ", path_length=" << result.node_path.size() << 
-            ", actual_distance=" << distance_m << "m");
-            
-        LOG("From coordinates: (" << from_lat << "," << from_lon << ")");
-        LOG("To coordinates: (" << to_lat << "," << to_lon << ")");
+    // No fallback needed - use computeShortestPathFromCoordinates for better handling
+    return result;
+}
+
+RoutingResult RoutingEngine::computeShortestPathFromCoordinates(double from_lat, double from_lon, 
+                                                                double to_lat, double to_lon) const {
+    RoutingResult result;
+    result.success = false;
+    
+    // Find nearest nodes
+    unsigned from_node = findNearestNode(from_lat, from_lon);
+    unsigned to_node = findNearestNode(to_lat, to_lon);
+    
+    if (from_node == RoutingKit::invalid_id || to_node == RoutingKit::invalid_id) {
+        LOG("Failed to find nodes within range");
+        result.total_travel_time_ms = RoutingKit::inf_weight;
+        result.total_geo_distance_m = RoutingKit::inf_weight;
+        return result;
     }
+    
+    // Get node coordinates
+    double from_node_lat, from_node_lon, to_node_lat, to_node_lon;
+    getNodeCoordinates(from_node, from_node_lat, from_node_lon);
+    getNodeCoordinates(to_node, to_node_lat, to_node_lon);
+    
+    // Calculate walking distances (in meters)
+    double start_walking_distance = haversineDistance(from_lat, from_lon, from_node_lat, from_node_lon);
+    double end_walking_distance = haversineDistance(to_lat, to_lon, to_node_lat, to_node_lon);
+    
+    // Calculate walking times (6 km/h = 1.67 m/s)
+    unsigned start_walking_time_ms = static_cast<unsigned>(start_walking_distance * 1000.0 / 1.67); // 6 km/h walking speed
+    unsigned end_walking_time_ms = static_cast<unsigned>(end_walking_distance * 1000.0 / 1.67);
+    
+    result.source_node = from_node;
+    result.target_node = to_node;
+    
+    // Special case: if both coordinates map to the same node
+    if (from_node == to_node) {
+        LOG("Start and end coordinates map to same node: " << from_node);
+        result.total_travel_time_ms = start_walking_time_ms + end_walking_time_ms;
+        result.total_geo_distance_m = static_cast<unsigned>(start_walking_distance + end_walking_distance);
+        result.node_path = {from_node};
+        result.arc_path = {};
+        result.query_time_us = 0;
+        result.success = true;
+        
+        // Store walking segment info for later processing
+        result.start_walking_distance = start_walking_distance;
+        result.end_walking_distance = end_walking_distance;
+        result.start_lat = from_lat;
+        result.start_lon = from_lon;
+        result.end_lat = to_lat;
+        result.end_lon = to_lon;
+        return result;
+    }
+    
+    // Compute route between nodes
+    RoutingResult node_result = computeShortestPath(from_node, to_node);
+    
+    if (!node_result.success) {
+        LOG("Failed to find route between nodes");
+        return node_result;
+    }
+    
+    // Combine walking times and distances with route
+    result = node_result; // Copy all fields
+    result.total_travel_time_ms += start_walking_time_ms + end_walking_time_ms;
+    result.total_geo_distance_m += static_cast<unsigned>(start_walking_distance + end_walking_distance);
+    
+    // Store walking segment info for later processing
+    result.start_walking_distance = start_walking_distance;
+    result.end_walking_distance = end_walking_distance;
+    result.start_lat = from_lat;
+    result.start_lon = from_lon;
+    result.end_lat = to_lat;
+    result.end_lon = to_lon;
+    
+    LOG("Route with walking segments: start_walk=" << start_walking_distance << "m, end_walk=" << end_walking_distance << "m");
     
     return result;
 }
@@ -549,28 +596,71 @@ std::vector<RoutePoint> RoutingEngine::processPathIntoPoints(const RoutingResult
         return route_points;
     }
     
-    // If we only have a single node, add it with zero travel time and distance
+    // Check if we have walking segments
+    bool has_start_walking = result.start_walking_distance > 0.0;
+    bool has_end_walking = result.end_walking_distance > 0.0;
+    
+    // Add start walking segment if needed
+    if (has_start_walking) {
+        RoutePoint start_point;
+        start_point.latitude = static_cast<float>(result.start_lat);
+        start_point.longitude = static_cast<float>(result.start_lon);
+        start_point.node_id = RoutingKit::invalid_id;
+        start_point.time_ms = 0;
+        start_point.distance_m = 0;
+        start_point.max_speed_kmh = 6; // Walking speed
+        start_point.is_walking_segment = true;
+        route_points.push_back(start_point);
+    }
+    
+    // If we only have a single node, add it 
     if (result.node_path.size() == 1) {
-        RoutePoint point;
-        point.node_id = result.node_path[0];
+        RoutePoint node_point;
+        node_point.node_id = result.node_path[0];
         double lat, lon;
-        getNodeCoordinates(point.node_id, lat, lon);
-        point.latitude = static_cast<float>(lat);
-        point.longitude = static_cast<float>(lon);
-        point.time_ms = 0;
-        point.distance_m = 0;
-        point.max_speed_kmh = 0; // No arc for single point
-        route_points.push_back(point);
+        getNodeCoordinates(node_point.node_id, lat, lon);
+        node_point.latitude = static_cast<float>(lat);
+        node_point.longitude = static_cast<float>(lon);
+        
+        if (has_start_walking) {
+            // Time and distance to walk to this node
+            node_point.time_ms = static_cast<unsigned>(result.start_walking_distance * 1000.0 / 1.67);
+            node_point.distance_m = static_cast<unsigned>(result.start_walking_distance);
+        } else {
+            node_point.time_ms = 0;
+            node_point.distance_m = 0;
+        }
+        node_point.max_speed_kmh = 6; // Walking speed to reach this node
+        node_point.is_walking_segment = false;
+        route_points.push_back(node_point);
+        
+        // Add end walking segment if needed
+        if (has_end_walking) {
+            RoutePoint end_point;
+            end_point.latitude = static_cast<float>(result.end_lat);
+            end_point.longitude = static_cast<float>(result.end_lon);
+            end_point.node_id = RoutingKit::invalid_id;
+            end_point.time_ms = node_point.time_ms + static_cast<unsigned>(result.end_walking_distance * 1000.0 / 1.67);
+            end_point.distance_m = node_point.distance_m + static_cast<unsigned>(result.end_walking_distance);
+            end_point.max_speed_kmh = 6; // Walking speed
+            end_point.is_walking_segment = true;
+            route_points.push_back(end_point);
+        }
+        
         return route_points;
     }
     
-    // Calculate cumulative travel times and distances
+    // Calculate cumulative travel times and distances for the route between nodes
     std::vector<unsigned> cumulative_times(result.node_path.size(), 0);
     std::vector<unsigned> cumulative_distances(result.node_path.size(), 0);
     std::vector<unsigned> arc_speeds(result.arc_path.size());
     
-    cumulative_times[0] = 0; // First node is always at time 0
-    cumulative_distances[0] = 0; // First node is always at distance 0
+    // Start with walking time/distance if needed
+    unsigned start_walking_time = has_start_walking ? static_cast<unsigned>(result.start_walking_distance * 1000.0 / 1.67) : 0;
+    unsigned start_walking_dist = has_start_walking ? static_cast<unsigned>(result.start_walking_distance) : 0;
+    
+    cumulative_times[0] = start_walking_time;
+    cumulative_distances[0] = start_walking_dist;
     
     // Add up travel times and distances for each arc
     for (size_t i = 0; i < result.arc_path.size(); ++i) {
@@ -608,16 +698,34 @@ std::vector<RoutePoint> RoutingEngine::processPathIntoPoints(const RoutingResult
         point.longitude = static_cast<float>(lon);
         point.time_ms = cumulative_times[i];
         point.distance_m = cumulative_distances[i];
+        point.is_walking_segment = false;
         
-        // For the first node, there's no incoming arc, so use 0
+        // For the first node, use walking speed if we have a walking segment, otherwise 0
         // For subsequent nodes, use the speed of the arc that leads to this node
         if (i == 0) {
-            point.max_speed_kmh = 0; // No incoming arc
+            point.max_speed_kmh = has_start_walking ? 6 : 0; // Walking speed if walking segment
         } else {
             point.max_speed_kmh = arc_speeds[i - 1]; // Speed of arc leading to this node
         }
         
         route_points.push_back(point);
+    }
+    
+    // Add end walking segment if needed
+    if (has_end_walking) {
+        RoutePoint end_point;
+        end_point.latitude = static_cast<float>(result.end_lat);
+        end_point.longitude = static_cast<float>(result.end_lon);
+        end_point.node_id = RoutingKit::invalid_id;
+        
+        // Add walking time and distance to the last node's cumulative values
+        unsigned last_time = cumulative_times[result.node_path.size() - 1];
+        unsigned last_dist = cumulative_distances[result.node_path.size() - 1];
+        end_point.time_ms = last_time + static_cast<unsigned>(result.end_walking_distance * 1000.0 / 1.67);
+        end_point.distance_m = last_dist + static_cast<unsigned>(result.end_walking_distance);
+        end_point.max_speed_kmh = 6; // Walking speed
+        end_point.is_walking_segment = true;
+        route_points.push_back(end_point);
     }
     
     return route_points;

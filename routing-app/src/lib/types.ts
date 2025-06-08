@@ -14,13 +14,11 @@ export interface Coordinate {
 }
 
 export interface PathPoint {
-    coordinates: {
-        lat: number;
-        lon: number;
-    };
+    coordinates: Coordinate;
     cumulative_time_seconds: number;
     cumulative_distance_meters: number;
     max_speed_kmh: number;
+    is_walking_segment: boolean;
 }
 
 export interface RoutingResult {

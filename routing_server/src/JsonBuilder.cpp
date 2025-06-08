@@ -25,6 +25,7 @@ crow::json::wvalue JsonBuilder::buildRouteResponse(
         point_obj["cumulative_time_seconds"] = point.time_ms / 1000.0; // Convert to seconds
         point_obj["cumulative_distance_meters"] = point.distance_m; // Distance in meters
         point_obj["max_speed_kmh"] = point.max_speed_kmh; // Maximum speed on arc leading to this point
+        point_obj["is_walking_segment"] = point.is_walking_segment; // Whether this is a walking segment
         path_list.push_back(std::move(point_obj));
     }
     response["path"] = std::move(path_list);

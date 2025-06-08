@@ -39,11 +39,13 @@ describe('routing functions (integration)', () => {
                 expect(point).toHaveProperty('cumulative_time_seconds');
                 expect(point).toHaveProperty('cumulative_distance_meters');
                 expect(point).toHaveProperty('max_speed_kmh');
+                expect(point).toHaveProperty('is_walking_segment');
                 expect(typeof point.coordinates.lat).toBe('number');
                 expect(typeof point.coordinates.lon).toBe('number');
                 expect(typeof point.cumulative_time_seconds).toBe('number');
                 expect(typeof point.cumulative_distance_meters).toBe('number');
                 expect(typeof point.max_speed_kmh).toBe('number');
+                expect(typeof point.is_walking_segment).toBe('boolean');
             });
             
             // Check travel time
@@ -91,10 +93,13 @@ describe('routing functions (integration)', () => {
             expect(route).toHaveProperty('path');
             expect(route.path.length).toBeGreaterThan(0);
             
-            // Check that all max_speed_kmh values are at or below the limit (except for starting point which is 0)
+            // Check that all max_speed_kmh values are at or below the limit (except for walking segments and starting point)
             route.path.forEach((point, index) => {
-                if (index === 0) {
-                    expect(point.max_speed_kmh).toBe(0); // Starting point has no incoming arc
+                if (point.is_walking_segment) {
+                    expect(point.max_speed_kmh).toBe(6); // Walking segments are always 6 km/h
+                } else if (index === 0 && !point.is_walking_segment) {
+                    // First non-walking point might have 0 or 6 depending on if there's a walking segment before it
+                    expect(point.max_speed_kmh).toBeGreaterThanOrEqual(0);
                 } else {
                     expect(point.max_speed_kmh).toBeLessThanOrEqual(maxSpeed);
                 }
@@ -140,6 +145,7 @@ describe('routing functions (integration)', () => {
                 expect(point).toHaveProperty('cumulative_time_seconds');
                 expect(point).toHaveProperty('cumulative_distance_meters');
                 expect(point).toHaveProperty('max_speed_kmh');
+                expect(point).toHaveProperty('is_walking_segment');
             });
         });
 
@@ -175,12 +181,16 @@ describe('routing functions (integration)', () => {
                 expect(point).toHaveProperty('cumulative_time_seconds');
                 expect(point).toHaveProperty('cumulative_distance_meters');
                 expect(point).toHaveProperty('max_speed_kmh');
+                expect(point).toHaveProperty('is_walking_segment');
             });
             
             // Verify max speed is respected
             data.path.forEach((point: any, index: number) => {
-                if (index === 0) {
-                    expect(point.max_speed_kmh).toBe(0); // Starting point has no incoming arc
+                if (point.is_walking_segment) {
+                    expect(point.max_speed_kmh).toBe(6); // Walking segments are always 6 km/h
+                } else if (index === 0 && !point.is_walking_segment) {
+                    // First non-walking point might have 0 or 6 depending on walking segments
+                    expect(point.max_speed_kmh).toBeGreaterThanOrEqual(0);
                 } else {
                     expect(point.max_speed_kmh).toBeLessThanOrEqual(20);
                 }
@@ -221,6 +231,7 @@ describe('routing functions (integration)', () => {
                 expect(point).toHaveProperty('cumulative_time_seconds');
                 expect(point).toHaveProperty('cumulative_distance_meters');
                 expect(point).toHaveProperty('max_speed_kmh');
+                expect(point).toHaveProperty('is_walking_segment');
             });
         });
     });

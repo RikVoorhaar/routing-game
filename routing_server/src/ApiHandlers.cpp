@@ -52,36 +52,21 @@ crow::response ApiHandlers::handleShortestPath(const crow::request& req) {
     
     LOG("Routing from (" << from_lat << "," << from_lon << ") to (" << to_lat << "," << to_lon << ")");
     
-    // Find nearest nodes
-    LOG("Finding nearest nodes...");
-    unsigned from_node = engine_->findNearestNode(from_lat, from_lon);
-    if (from_node == RoutingKit::invalid_id) {
-        auto error_response = JsonBuilder::buildErrorResponse(
-            "No node within 1000m from source position"
-        );
-        long long end_time = RoutingKit::get_micro_time();
-        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
-        return crow::response(404, error_response);
-    }
-    
-    unsigned to_node = engine_->findNearestNode(to_lat, to_lon);
-    if (to_node == RoutingKit::invalid_id) {
-        auto error_response = JsonBuilder::buildErrorResponse(
-            "No node within 1000m from target position"
-        );
-        long long end_time = RoutingKit::get_micro_time();
-        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
-        return crow::response(404, error_response);
-    }
-    
-    LOG("Found nodes: from=" << from_node << ", to=" << to_node);
-    
-    // Compute the shortest path
-    LOG("Computing route...");
-    RoutingResult result = engine_->computeShortestPath(from_node, to_node);
+    // Compute the shortest path with walking segments
+    LOG("Computing route with walking segments...");
+    RoutingResult result = engine_->computeShortestPathFromCoordinates(from_lat, from_lon, to_lat, to_lon);
     
     LOG("Route computed in " << result.query_time_us << " microseconds");
     LOG("Path length: " << result.node_path.size() << " nodes, travel time: " << result.total_travel_time_ms << " ms");
+    
+    if (!result.success) {
+        auto error_response = JsonBuilder::buildErrorResponse(
+            "No route found between coordinates"
+        );
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
+        return crow::response(404, error_response);
+    }
     
     // Check for optional max_speed parameter
     std::optional<unsigned> max_speed_kmh;

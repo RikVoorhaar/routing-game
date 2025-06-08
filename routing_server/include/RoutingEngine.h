@@ -26,16 +26,25 @@ struct RoutingResult {
     std::vector<unsigned> arc_path;
     long long query_time_us;
     bool success;
+    
+    // Walking segment information (for exact coordinate routing)
+    double start_walking_distance = 0.0;
+    double end_walking_distance = 0.0;
+    double start_lat = 0.0;
+    double start_lon = 0.0;
+    double end_lat = 0.0;
+    double end_lon = 0.0;
 };
 
 // Point on the route with travel time and distance
 struct RoutePoint {
     float latitude;
     float longitude;
-    unsigned node_id;
+    unsigned node_id; // Will be RoutingKit::invalid_id for walking segments
     unsigned time_ms;
     unsigned distance_m;
-    unsigned max_speed_kmh; // Maximum speed on the arc leading to this point
+    unsigned max_speed_kmh; // Maximum speed on the arc leading to this point (6 for walking)
+    bool is_walking_segment; // True if this is a walking segment to/from exact coordinates
 };
 
 // Address information
@@ -100,6 +109,10 @@ public:
     
     // Compute shortest path between two nodes
     RoutingResult computeShortestPath(unsigned from_node, unsigned to_node) const;
+    
+    // Compute shortest path between two coordinates (includes walking segments)
+    RoutingResult computeShortestPathFromCoordinates(double from_lat, double from_lon, 
+                                                     double to_lat, double to_lon) const;
     
     // Recalculate total travel time with maximum speed limit applied
     unsigned recalculateTotalTravelTime(const RoutingResult& result, unsigned max_speed_kmh) const;

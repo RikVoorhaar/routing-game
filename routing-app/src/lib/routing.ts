@@ -9,6 +9,7 @@ interface ServerPathPoint {
     cumulative_time_seconds: number;
     cumulative_distance_meters: number;
     max_speed_kmh: number;
+    is_walking_segment: boolean;
 }
 
 /**
@@ -117,7 +118,8 @@ async function getShortestPath(from: Coordinate, to: Coordinate, maxSpeed?: numb
         coordinates: { lat: point.coordinates.lat, lon: point.coordinates.lon },
         cumulative_time_seconds: point.cumulative_time_seconds,
         cumulative_distance_meters: point.cumulative_distance_meters,
-        max_speed_kmh: point.max_speed_kmh
+        max_speed_kmh: point.max_speed_kmh,
+        is_walking_segment: point.is_walking_segment
     }));
 
     return {
