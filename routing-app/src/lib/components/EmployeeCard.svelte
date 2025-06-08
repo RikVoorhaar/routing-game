@@ -11,12 +11,15 @@
     const dispatch = createEventDispatcher<{
         generateRoutes: { employeeId: string };
         assignRoute: { employeeId: string; routeId: string };
+        routeCompleted: { employeeId: string; reward: number; newBalance: number };
     }>();
 
     let isGenerating = false;
     let isAssigning = false;
+    let isCompletingRoute = false;
     let selectedRouteId = '';
     let error = '';
+    let previouslyCompleted = false; // Track if we've already processed completion
 
     // Parse employee location
     $: location = employee.location ? JSON.parse(employee.location as string) as Address : null;
@@ -34,6 +37,17 @@
     // Route progress calculation
     $: routeProgress = currentRoute && currentRoute.startTime ? 
         calculateRouteProgress(currentRoute) : null;
+
+    // Detect route completion and handle it
+    $: if (routeProgress && routeProgress.isComplete && !previouslyCompleted && currentRoute) {
+        handleRouteCompletion();
+        previouslyCompleted = true;
+    }
+
+    // Reset completion tracking when route changes or employee has no current route
+    $: if (!currentRoute || (currentRoute && previouslyCompleted && !routeProgress?.isComplete)) {
+        previouslyCompleted = false;
+    }
 
     function calculateRouteProgress(route: Route) {
         if (!route.startTime) return null;
@@ -71,8 +85,8 @@
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
             currency: 'EUR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
         }).format(amount);
     }
 
@@ -143,6 +157,44 @@
             isAssigning = false;
         }
     }
+
+    async function handleRouteCompletion() {
+        if (!currentRoute || isCompletingRoute) return;
+        
+        isCompletingRoute = true;
+        error = '';
+        
+        try {
+            const response = await fetch('/api/employees', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'completeRoute',
+                    employeeId: employee.id,
+                    gameStateId,
+                    routeId: currentRoute.id
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to complete route');
+            }
+
+            const result = await response.json();
+            console.log(`Route completed! Earned ${result.reward}. New balance: ${result.newBalance}`);
+            
+            // Dispatch event to refresh employee data
+            dispatch('routeCompleted', { employeeId: employee.id, reward: result.reward, newBalance: result.newBalance });
+        } catch (err) {
+            console.error('Error completing route:', err);
+            error = err instanceof Error ? err.message : 'Failed to complete route';
+            // Reset completion state on error so user can retry
+            previouslyCompleted = false;
+        } finally {
+            isCompletingRoute = false;
+        }
+    }
 </script>
 
 <div class="card bg-base-100 shadow-lg border">
@@ -181,6 +233,15 @@
                 {#if routeProgress && !routeProgress.isComplete}
                     <div class="text-xs text-base-content/70 mt-1">
                         ETA: {formatTime(routeProgress.remainingTimeMs)}
+                    </div>
+                {:else if routeProgress && routeProgress.isComplete}
+                    <div class="text-xs text-success mt-1 font-medium">
+                        {#if isCompletingRoute}
+                            <span class="loading loading-spinner loading-xs"></span>
+                            Processing completion...
+                        {:else}
+                            ✅ Route Completed!
+                        {/if}
                     </div>
                 {/if}
 

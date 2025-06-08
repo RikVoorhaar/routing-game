@@ -179,6 +179,68 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 
             return json({ success: true, message: 'Route assigned successfully' });
 
+        } else if (action === 'completeRoute') {
+            if (!routeId) {
+                return error(400, 'Route ID is required for route completion');
+            }
+
+            // Verify the employee is currently on this route
+            if (employee.currentRoute !== routeId) {
+                return error(400, 'Employee is not currently on this route');
+            }
+
+            // Get the route to calculate reward
+            const [route] = await db
+                .select()
+                .from(routes)
+                .where(eq(routes.id, routeId))
+                .limit(1);
+
+            if (!route) {
+                return error(404, 'Route not found');
+            }
+
+            // Verify the route is actually completed
+            if (!route.startTime) {
+                return error(400, 'Route has not been started');
+            }
+
+            const routeStartTime = new Date(route.startTime).getTime();
+            const currentTime = Date.now();
+            const routeDuration = route.lengthTime * 1000; // Convert to milliseconds
+            
+            if (currentTime - routeStartTime < routeDuration) {
+                return error(400, 'Route is not yet completed');
+            }
+
+            // Use a transaction to ensure consistency
+            await db.transaction(async (tx) => {
+                // Update employee: clear current route, update location to end location
+                await tx.update(employees)
+                    .set({ 
+                        currentRoute: null,
+                        location: route.endLocation
+                    })
+                    .where(eq(employees.id, employeeId));
+
+                // Mark route as completed
+                await tx.update(routes)
+                    .set({ endTime: new Date(Date.now()) })
+                    .where(eq(routes.id, routeId));
+
+                // Award the route reward to the game state
+                await tx.update(gameStates)
+                    .set({ money: gameState.money + route.reward })
+                    .where(eq(gameStates.id, gameStateId));
+            });
+
+            return json({ 
+                success: true, 
+                message: 'Route completed successfully',
+                reward: route.reward,
+                newBalance: gameState.money + route.reward
+            });
+
         } else {
             return error(400, 'Invalid action');
         }

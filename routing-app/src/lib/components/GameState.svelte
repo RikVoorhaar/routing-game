@@ -158,12 +158,55 @@
         }
     }
 
+    async function handleEmployeeRouteCompleted(event: CustomEvent<{ employeeId: string; reward: number; newBalance: number }>) {
+        // Update game state money and refresh employee data
+        const { employeeId, newBalance } = event.detail;
+        
+        try {
+            // Update game state money immediately
+            gameState.money = newBalance;
+            gameState = { ...gameState }; // Trigger reactivity
+            
+            // Update employee state directly - clear current route since it's completed
+            employees = employees.map(emp => {
+                if (emp.id === employeeId) {
+                    return {
+                        ...emp,
+                        currentRoute: null
+                        // Note: location is updated by the backend, but we could also update it here
+                        // if we had access to the route's end location
+                    };
+                }
+                return emp;
+            });
+            
+            // Clear the current route from our local state
+            currentRoutes = {
+                ...currentRoutes,
+                [employeeId]: null
+            };
+            
+            // Optional: Still refresh from server to ensure consistency
+            const response = await fetch(`/api/employees/${employeeId}`);
+            if (response.ok) {
+                const updatedEmployee = await response.json();
+                employees = employees.map(emp => 
+                    emp.id === employeeId ? updatedEmployee : emp
+                );
+            }
+            
+            console.log(`🎉 Route completed! Employee ${employeeId} earned ${event.detail.reward}`);
+        } catch (error) {
+            console.error('Error refreshing data after route completion:', error);
+        }
+    }
+
     function formatMoney(amount: number): string {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
             currency: 'EUR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
         }).format(amount);
     }
 </script>
@@ -245,6 +288,7 @@
                                 gameStateId={gameState.id}
                                 on:generateRoutes={handleEmployeeRouteGenerated}
                                 on:assignRoute={handleEmployeeRouteAssigned}
+                                on:routeCompleted={handleEmployeeRouteCompleted}
                             />
                         {/each}
                     </div>
