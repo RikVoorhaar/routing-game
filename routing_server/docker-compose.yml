@@ -9,7 +9,7 @@ services:
     volumes:
       - ../osm_files:/data/osm
     environment:
-      - OSM_FILE=/data/osm/utrecht-latest.osm.pbf
+      - OSM_FILE=/data/osm/utrecht-latest.trimmed.osm.pbf
       - ADDRESS_FILE=/data/osm/utrecht-latest.addresses.csv.gz
     restart: unless-stopped
     healthcheck:

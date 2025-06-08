@@ -143,6 +143,50 @@ describe('routing functions (integration)', () => {
             });
         });
 
+        it('handles the originally failing route with trimmed OSM data', async () => {
+            // This is the route that was failing due to disconnected components
+            const from: Coordinate = { lat: 52.09082916316217, lon: 5.12112919278711 };
+            const to: Coordinate = { lat: 52.095032, lon: 5.121974 };
+            
+            // Make a direct routing request with max speed
+            const response = await fetch(
+                `http://localhost:8050/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}&max_speed=20`
+            );
+            
+            expect(response.ok).toBe(true);
+            const data = await response.json();
+            
+            // Should now work with trimmed OSM data (only largest connected component)
+            expect(data.success).toBe(true);
+            expect(data).toHaveProperty('path');
+            expect(data).toHaveProperty('travel_time_seconds');
+            expect(data).toHaveProperty('total_distance_meters');
+            
+            expect(Array.isArray(data.path)).toBe(true);
+            expect(data.path.length).toBeGreaterThan(0);
+            expect(data.travel_time_seconds).toBeGreaterThan(0);
+            expect(data.total_distance_meters).toBeGreaterThan(0);
+            
+            // Verify path structure
+            data.path.forEach((point: any) => {
+                expect(point).toHaveProperty('coordinates');
+                expect(point.coordinates).toHaveProperty('lat');
+                expect(point.coordinates).toHaveProperty('lon');
+                expect(point).toHaveProperty('cumulative_time_seconds');
+                expect(point).toHaveProperty('cumulative_distance_meters');
+                expect(point).toHaveProperty('max_speed_kmh');
+            });
+            
+            // Verify max speed is respected
+            data.path.forEach((point: any, index: number) => {
+                if (index === 0) {
+                    expect(point.max_speed_kmh).toBe(0); // Starting point has no incoming arc
+                } else {
+                    expect(point.max_speed_kmh).toBeLessThanOrEqual(20);
+                }
+            });
+        });
+
         it('handles very close coordinates with fallback mechanism', async () => {
             // Test coordinates that are very close but map to disconnected nodes
             const from: Coordinate = { lat: 52.0907, lon: 5.1214 };
