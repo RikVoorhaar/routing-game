@@ -293,9 +293,9 @@
                 {#if availableRoutes.length > 0}
                     <!-- Route Selection -->
                     <div class="form-control">
-                        <label class="label py-1">
+                        <div class="label py-1">
                             <span class="label-text text-xs">Available Routes</span>
-                        </label>
+                        </div>
                         
                         <!-- Route Cards -->
                         <div class="space-y-2 max-h-60 overflow-y-auto">

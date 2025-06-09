@@ -360,9 +360,9 @@
             {/if}
             
             <div class="form-control mb-6">
-                <label class="label">
+                <div class="label">
                     <span class="label-text">Employee Name</span>
-                </label>
+                </div>
                 <div class="p-3 bg-base-200 rounded-lg border-2 border-dashed border-base-300">
                     <div class="flex items-center gap-2">
                         <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">

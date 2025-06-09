@@ -170,9 +170,9 @@
                     on:keydown={(e) => e.key === 'Enter' && handleCreateCharacter()}
                 />
                 {#if createError}
-                    <label class="label">
+                    <div class="label">
                         <span class="label-text-alt text-error">{createError}</span>
-                    </label>
+                    </div>
                 {/if}
             </div>
             
