@@ -66,7 +66,7 @@
         
         <div class="card-actions justify-end mt-4">
             <button 
-                class="btn btn-primary btn-sm"
+                class="btn btn-success btn-sm"
                 on:click={handleSelectCharacter}
             >
                 Select Character

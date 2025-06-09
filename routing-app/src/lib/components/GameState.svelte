@@ -2,8 +2,11 @@
     import { onMount, onDestroy } from 'svelte';
     import type { GameState, Employee, Route } from '$lib/types';
     import { computeEmployeeCosts } from '$lib/types';
+    import { formatMoney } from '$lib/formatting';
     import EmployeeCard from './EmployeeCard.svelte';
+    import ErrorOverlay from './ErrorOverlay.svelte';
     import { faker } from '@faker-js/faker';
+    import { addError } from '$lib/stores/errors';
 
     export let gameState: GameState;
     export let employees: Employee[] = [];
@@ -66,6 +69,8 @@
             currentRoutes = { ...currentRoutes };
         } catch (error) {
             console.error('Error loading employee routes:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Failed to load employee routes';
+            addError(`Failed to load routes: ${errorMessage}`, 'error');
         }
     }
 
@@ -113,6 +118,7 @@
             handleHireModalClose();
         } catch (error) {
             hireError = error instanceof Error ? error.message : 'Failed to hire employee';
+            addError(`Failed to hire employee: ${hireError}`, 'error');
         } finally {
             isHiring = false;
         }
@@ -135,6 +141,8 @@
             await loadEmployeeRoutes();
         } catch (error) {
             console.error('Error refreshing employee data:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Failed to refresh employee data';
+            addError(`Failed to refresh employee: ${errorMessage}`, 'error');
         }
     }
 
@@ -155,6 +163,8 @@
             await loadEmployeeRoutes();
         } catch (error) {
             console.error('Error refreshing employee data:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Failed to refresh employee data';
+            addError(`Failed to refresh employee: ${errorMessage}`, 'error');
         }
     }
 
@@ -196,18 +206,12 @@
             }
             
             console.log(`🎉 Route completed! Employee ${employeeId} earned ${event.detail.reward}`);
+            addError(`🎉 Route completed! Earned ${formatMoney(event.detail.reward)}`, 'info', true, 3000);
         } catch (error) {
             console.error('Error refreshing data after route completion:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Failed to refresh data after route completion';
+            addError(`Failed to update after route completion: ${errorMessage}`, 'error');
         }
-    }
-
-    function formatMoney(amount: number): string {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'EUR',
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }).format(amount);
     }
 </script>
 
@@ -394,3 +398,6 @@
         </div>
     </div>
 {/if} 
+
+<!-- Global Error Overlay -->
+<ErrorOverlay /> 

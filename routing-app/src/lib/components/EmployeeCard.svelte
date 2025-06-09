@@ -1,7 +1,12 @@
 <script lang="ts">
     import { createEventDispatcher } from 'svelte';
+    import { onDestroy } from 'svelte';
     import type { Employee, Route, Address } from '$lib/types';
     import { MIN_ROUTE_REGEN_INTERVAL } from '$lib/types';
+    import { addError } from '$lib/stores/errors';
+    import { selectedRoute, clearSelection } from '$lib/stores/selectedRoute';
+    import { formatMoney, formatAddress, formatTimeFromMs } from '$lib/formatting';
+    import RouteCard from './RouteCard.svelte';
 
     export let employee: Employee;
     export let availableRoutes: Route[] = [];
@@ -17,9 +22,17 @@
     let isGenerating = false;
     let isAssigning = false;
     let isCompletingRoute = false;
-    let selectedRouteId = '';
-    let error = '';
     let previouslyCompleted = false; // Track if we've already processed completion
+    let lastCompletedRouteId = ''; // Track which route was last completed
+    let routeCompletionState: 'pending' | 'processing' | 'completed' | 'error' = 'pending';
+    let completionTimeout: any = null;
+
+    // Cleanup timeout on component destroy
+    onDestroy(() => {
+        if (completionTimeout) {
+            clearTimeout(completionTimeout);
+        }
+    });
 
     // Parse employee location
     $: location = employee.location ? JSON.parse(employee.location as string) as Address : null;
@@ -38,15 +51,47 @@
     $: routeProgress = currentRoute && currentRoute.startTime ? 
         calculateRouteProgress(currentRoute) : null;
 
-    // Detect route completion and handle it
-    $: if (routeProgress && routeProgress.isComplete && !previouslyCompleted && currentRoute) {
-        handleRouteCompletion();
-        previouslyCompleted = true;
+    // Handle route completion with debouncing and state machine
+    $: {
+        if (currentRoute && routeProgress?.isComplete && 
+            routeCompletionState === 'pending' && 
+            lastCompletedRouteId !== currentRoute.id) {
+            
+            // Set state to processing immediately to prevent multiple triggers
+            routeCompletionState = 'processing';
+            
+            // Clear any existing timeout
+            if (completionTimeout) {
+                clearTimeout(completionTimeout);
+            }
+            
+            // Debounce the completion call
+            completionTimeout = setTimeout(() => {
+                handleRouteCompletion();
+            }, 100); // 100ms debounce
+        }
     }
 
-    // Reset completion tracking when route changes or employee has no current route
-    $: if (!currentRoute || (currentRoute && previouslyCompleted && !routeProgress?.isComplete)) {
-        previouslyCompleted = false;
+    // Reset completion state when route changes or is cleared
+    $: if (!currentRoute) {
+        routeCompletionState = 'pending';
+        lastCompletedRouteId = '';
+        if (completionTimeout) {
+            clearTimeout(completionTimeout);
+            completionTimeout = null;
+        }
+    } else if (currentRoute && lastCompletedRouteId !== currentRoute.id) {
+        // New route started, reset completion state
+        routeCompletionState = 'pending';
+        if (completionTimeout) {
+            clearTimeout(completionTimeout);
+            completionTimeout = null;
+        }
+    }
+
+    // Clear route selection when employee goes on a route or when available routes change
+    $: if (currentRoute || availableRoutes.length === 0) {
+        clearSelection();
     }
 
     function calculateRouteProgress(route: Route) {
@@ -66,41 +111,8 @@
         };
     }
 
-    function formatTime(milliseconds: number): string {
-        const totalSeconds = Math.floor(milliseconds / 1000);
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-
-        if (hours > 0) {
-            return `${hours}h ${minutes}m ${seconds}s`;
-        } else if (minutes > 0) {
-            return `${minutes}m ${seconds}s`;
-        } else {
-            return `${seconds}s`;
-        }
-    }
-
-    function formatMoney(amount: number): string {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'EUR',
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }).format(amount);
-    }
-
-    function formatAddress(address: Address): string {
-        const parts = [];
-        if (address.street) parts.push(address.street);
-        if (address.house_number) parts.push(address.house_number);
-        if (address.city) parts.push(address.city);
-        return parts.join(' ') || `${address.lat.toFixed(4)}, ${address.lon.toFixed(4)}`;
-    }
-
     async function handleGenerateRoutes() {
         isGenerating = true;
-        error = '';
         
         try {
             const response = await fetch('/api/employees', {
@@ -120,17 +132,17 @@
 
             dispatch('generateRoutes', { employeeId: employee.id });
         } catch (err) {
-            error = err instanceof Error ? err.message : 'Failed to generate routes';
+            const errorMessage = err instanceof Error ? err.message : 'Failed to generate routes';
+            addError(`Route generation failed: ${errorMessage}`, 'error');
         } finally {
             isGenerating = false;
         }
     }
 
     async function handleAssignRoute() {
-        if (!selectedRouteId) return;
+        if (!$selectedRoute) return;
         
         isAssigning = true;
-        error = '';
         
         try {
             const response = await fetch('/api/employees', {
@@ -140,7 +152,7 @@
                     action: 'assignRoute',
                     employeeId: employee.id,
                     gameStateId,
-                    routeId: selectedRouteId
+                    routeId: $selectedRoute
                 })
             });
 
@@ -149,22 +161,32 @@
                 throw new Error(errorData.message || 'Failed to assign route');
             }
 
-            dispatch('assignRoute', { employeeId: employee.id, routeId: selectedRouteId });
-            selectedRouteId = '';
+            dispatch('assignRoute', { employeeId: employee.id, routeId: $selectedRoute });
+            clearSelection(); // Clear selection after successful assignment
         } catch (err) {
-            error = err instanceof Error ? err.message : 'Failed to assign route';
+            const errorMessage = err instanceof Error ? err.message : 'Failed to assign route';
+            addError(`Route assignment failed: ${errorMessage}`, 'error');
         } finally {
             isAssigning = false;
         }
     }
 
     async function handleRouteCompletion() {
-        if (!currentRoute || isCompletingRoute) return;
+        if (!currentRoute || routeCompletionState !== 'processing') {
+            console.log('Route completion skipped:', { hasRoute: !!currentRoute, state: routeCompletionState });
+            return;
+        }
         
-        isCompletingRoute = true;
-        error = '';
+        // Additional safety check
+        if (lastCompletedRouteId === currentRoute.id) {
+            console.log('Route already completed:', currentRoute.id);
+            routeCompletionState = 'completed';
+            return;
+        }
         
         try {
+            console.log('Starting route completion for:', currentRoute.id);
+            
             const response = await fetch('/api/employees', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -182,17 +204,23 @@
             }
 
             const result = await response.json();
-            console.log(`Route completed! Earned ${result.reward}. New balance: ${result.newBalance}`);
+            console.log(`Route completed successfully! Earned ${result.reward}. New balance: ${result.newBalance}`);
+            
+            // Mark as completed and track the route ID
+            routeCompletionState = 'completed';
+            lastCompletedRouteId = currentRoute.id;
             
             // Dispatch event to refresh employee data
             dispatch('routeCompleted', { employeeId: employee.id, reward: result.reward, newBalance: result.newBalance });
         } catch (err) {
             console.error('Error completing route:', err);
-            error = err instanceof Error ? err.message : 'Failed to complete route';
-            // Reset completion state on error so user can retry
-            previouslyCompleted = false;
-        } finally {
-            isCompletingRoute = false;
+            const errorMessage = err instanceof Error ? err.message : 'Failed to complete route';
+            
+            // Use error store instead of local error state
+            addError(`Route completion failed: ${errorMessage}`, 'error');
+            
+            // Set error state but don't reset to pending - let user handle manually
+            routeCompletionState = 'error';
         }
     }
 </script>
@@ -203,15 +231,6 @@
             <h3 class="card-title text-lg font-bold text-primary">{employee.name}</h3>
             <div class="badge badge-secondary">{upgradeState.vehicleType}</div>
         </div>
-
-        {#if error}
-            <div class="alert alert-error alert-sm mb-3">
-                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-4 w-4" fill="none" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span class="text-xs">{error}</span>
-            </div>
-        {/if}
 
         <!-- Current Status -->
         {#if currentRoute}
@@ -232,13 +251,17 @@
                 
                 {#if routeProgress && !routeProgress.isComplete}
                     <div class="text-xs text-base-content/70 mt-1">
-                        ETA: {formatTime(routeProgress.remainingTimeMs)}
+                        ETA: {formatTimeFromMs(routeProgress.remainingTimeMs)}
                     </div>
                 {:else if routeProgress && routeProgress.isComplete}
                     <div class="text-xs text-success mt-1 font-medium">
-                        {#if isCompletingRoute}
+                        {#if routeCompletionState === 'processing'}
                             <span class="loading loading-spinner loading-xs"></span>
                             Processing completion...
+                        {:else if routeCompletionState === 'completed'}
+                            ✅ Route Completed!
+                        {:else if routeCompletionState === 'error'}
+                            ❌ Completion failed - check errors
                         {:else}
                             ✅ Route Completed!
                         {/if}
@@ -271,31 +294,31 @@
                     <!-- Route Selection -->
                     <div class="form-control">
                         <label class="label py-1">
-                            <span class="label-text text-xs">Select Route</span>
+                            <span class="label-text text-xs">Available Routes</span>
                         </label>
-                        <div class="flex gap-2">
-                            <select 
-                                class="select select-bordered select-sm flex-1"
-                                bind:value={selectedRouteId}
-                                disabled={isAssigning}
-                            >
-                                <option value="">Choose a route...</option>
-                                {#each availableRoutes as route}
-                                    <option value={route.id}>
-                                        {route.goodsType} - {formatMoney(route.reward)} 
-                                        ({Math.round(route.lengthTime / 60)}min)
-                                    </option>
-                                {/each}
-                            </select>
+                        
+                        <!-- Route Cards -->
+                        <div class="space-y-2 max-h-60 overflow-y-auto">
+                            {#each availableRoutes as route (route.id)}
+                                <RouteCard {route} />
+                            {/each}
+                        </div>
+                        
+                        <!-- Go Button -->
+                        <div class="mt-3 pl-4">
                             <button 
-                                class="btn btn-primary btn-sm"
+                                class="btn btn-success btn-md max-w-lg"
                                 on:click={handleAssignRoute}
-                                disabled={!selectedRouteId || isAssigning}
+                                disabled={!$selectedRoute || isAssigning}
                             >
                                 {#if isAssigning}
                                     <span class="loading loading-spinner loading-xs"></span>
+                                    Assigning...
                                 {:else}
-                                    Go
+                                    <svg class="w-4 h-4 mr-2 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                    </svg>
+                                    Start Route
                                 {/if}
                             </button>
                         </div>

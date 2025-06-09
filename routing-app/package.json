@@ -26,8 +26,7 @@
 		"@sveltejs/adapter-auto": "^6.0.0",
 		"@sveltejs/kit": "^2.16.0",
 		"@sveltejs/vite-plugin-svelte": "^5.0.0",
-		"@tailwindcss/typography": "^0.5.15",
-		"@tailwindcss/vite": "^4.0.0",
+		"@tailwindcss/vite": "^4.1.8",
 		"@testing-library/jest-dom": "^6.6.3",
 		"@testing-library/svelte": "^5.2.4",
 		"@types/node": "^22",
@@ -60,6 +59,7 @@
 		"@node-rs/argon2": "^2.0.2",
 		"@oslojs/crypto": "^1.0.1",
 		"@oslojs/encoding": "^1.1.0",
+		"@tailwindcss/typography": "^0.5.16",
 		"@turf/turf": "^7.2.0",
 		"drizzle-orm": "^0.43.1",
 		"nanoid": "^5.1.5"
