@@ -241,7 +241,7 @@
     <div class="container mx-auto px-4 py-6">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Left Panel - Employees -->
-            <div class="lg:col-span-2">
+            <div class="lg:col-span-1">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-bold">Employees ({employees.length})</h2>
                     <button 

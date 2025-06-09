@@ -225,7 +225,7 @@
     }
 </script>
 
-<div class="card bg-base-100 shadow-lg border">
+<div class="card bg-base-200 shadow-lg border">
     <div class="card-body p-4">
         <div class="flex justify-between items-start mb-3">
             <h3 class="card-title text-lg font-bold text-primary">{employee.name}</h3>
@@ -298,7 +298,7 @@
                         </div>
                         
                         <!-- Route Cards -->
-                        <div class="space-y-2 max-h-60 overflow-y-auto">
+                        <div class="space-y-2 max-h-120 overflow-y-auto">
                             {#each availableRoutes as route (route.id)}
                                 <RouteCard {route} />
                             {/each}
