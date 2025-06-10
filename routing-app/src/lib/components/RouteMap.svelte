@@ -10,6 +10,10 @@
     import type { Employee, Route, PathPoint, Address, Coordinate } from '$lib/types';
     import { DEFAULT_EMPLOYEE_LOCATION } from '$lib/types';
 
+    // Animation configuration
+    const ANIMATION_FPS = 30; // Frames per second for smooth animation
+    const ANIMATION_INTERVAL_MS = 1000 / ANIMATION_FPS; // ~33ms for 30 FPS
+
     // Map configuration
     let mapElement: HTMLDivElement;
     let leafletMap: any = null;
@@ -227,7 +231,7 @@
             if (hasAnimatedEmployees) {
                 updateMap();
             }
-        }, 100); // Update every 100ms for smooth animation
+        }, ANIMATION_INTERVAL_MS); // Update every ~33ms for smooth animation
     }
 
     onMount(() => {

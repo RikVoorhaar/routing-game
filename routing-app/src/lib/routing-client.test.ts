@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { interpolateLocationAtTime } from './routing';
+import { interpolateLocationAtTime } from './routing-client';
 import type { PathPoint } from './types';
 
 describe('interpolateLocationAtTime', () => {
@@ -9,19 +9,22 @@ describe('interpolateLocationAtTime', () => {
             coordinates: { lat: 52.0907, lon: 5.1214 },
             cumulative_time_seconds: 0,
             cumulative_distance_meters: 0,
-            max_speed_kmh: 0
+            max_speed_kmh: 0,
+            is_walking_segment: true
         },
         {
             coordinates: { lat: 52.0905, lon: 5.1212 },
             cumulative_time_seconds: 10,
             cumulative_distance_meters: 250,
-            max_speed_kmh: 30
+            max_speed_kmh: 30,
+            is_walking_segment: false
         },
         {
             coordinates: { lat: 52.0903, lon: 5.1210 },
             cumulative_time_seconds: 20,
             cumulative_distance_meters: 500,
-            max_speed_kmh: 50
+            max_speed_kmh: 50,
+            is_walking_segment: false
         }
     ];
 
@@ -78,7 +81,8 @@ describe('interpolateLocationAtTime', () => {
             coordinates: { lat: 52.0907, lon: 5.1214 },
             cumulative_time_seconds: 0,
             cumulative_distance_meters: 0,
-            max_speed_kmh: 0
+            max_speed_kmh: 0,
+            is_walking_segment: true
         }];
         
         const result = interpolateLocationAtTime(singlePointPath, 5);
@@ -96,11 +100,11 @@ describe('interpolateLocationAtTime', () => {
 
     it('interpolates along a longer path', () => {
         const longerPath: PathPoint[] = [
-            { coordinates: { lat: 52.0907, lon: 5.1214 }, cumulative_time_seconds: 0, cumulative_distance_meters: 0, max_speed_kmh: 0 },
-            { coordinates: { lat: 52.0905, lon: 5.1212 }, cumulative_time_seconds: 10, cumulative_distance_meters: 250, max_speed_kmh: 30 },
-            { coordinates: { lat: 52.0903, lon: 5.1210 }, cumulative_time_seconds: 20, cumulative_distance_meters: 500, max_speed_kmh: 50 },
-            { coordinates: { lat: 52.0901, lon: 5.1208 }, cumulative_time_seconds: 30, cumulative_distance_meters: 750, max_speed_kmh: 30 },
-            { coordinates: { lat: 52.0899, lon: 5.1206 }, cumulative_time_seconds: 40, cumulative_distance_meters: 1000, max_speed_kmh: 20 }
+            { coordinates: { lat: 52.0907, lon: 5.1214 }, cumulative_time_seconds: 0, cumulative_distance_meters: 0, max_speed_kmh: 0, is_walking_segment: true },
+            { coordinates: { lat: 52.0905, lon: 5.1212 }, cumulative_time_seconds: 10, cumulative_distance_meters: 250, max_speed_kmh: 30, is_walking_segment: false },
+            { coordinates: { lat: 52.0903, lon: 5.1210 }, cumulative_time_seconds: 20, cumulative_distance_meters: 500, max_speed_kmh: 50, is_walking_segment: false },
+            { coordinates: { lat: 52.0901, lon: 5.1208 }, cumulative_time_seconds: 30, cumulative_distance_meters: 750, max_speed_kmh: 30, is_walking_segment: false },
+            { coordinates: { lat: 52.0899, lon: 5.1206 }, cumulative_time_seconds: 40, cumulative_distance_meters: 1000, max_speed_kmh: 20, is_walking_segment: true }
         ];
 
         // Test interpolation at various points

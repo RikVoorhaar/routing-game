@@ -64,7 +64,7 @@ struct Address {
         json["lat"] = latitude;
         json["lon"] = longitude;
         json["street"] = street;
-        json["housenumber"] = housenumber;
+        json["house_number"] = housenumber;
         json["postcode"] = postcode;
         json["city"] = city;
         return json;

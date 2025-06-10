@@ -989,6 +989,23 @@ unsigned RoutingEngine::recalculateTotalTravelTime(const RoutingResult& result, 
     unsigned total_time_ms = 0;
     LOG("recalculateTotalTravelTime: processing " << result.arc_path.size() << " arcs with max_speed=" << max_speed_kmh);
     
+    // Add walking segment times first (these are not affected by maxSpeed)
+    unsigned start_walking_time_ms = 0;
+    unsigned end_walking_time_ms = 0;
+    
+    if (result.start_walking_distance > 0.0) {
+        start_walking_time_ms = static_cast<unsigned>(result.start_walking_distance * 1000.0 / 1.67); // 6 km/h walking speed
+        total_time_ms += start_walking_time_ms;
+        LOG("Adding start walking time: " << start_walking_time_ms << "ms");
+    }
+    
+    if (result.end_walking_distance > 0.0) {
+        end_walking_time_ms = static_cast<unsigned>(result.end_walking_distance * 1000.0 / 1.67); // 6 km/h walking speed
+        total_time_ms += end_walking_time_ms;
+        LOG("Adding end walking time: " << end_walking_time_ms << "ms");
+    }
+    
+    // Add road segment times with maxSpeed applied
     for (size_t i = 0; i < result.arc_path.size(); ++i) {
         const auto arc_id = result.arc_path[i];
         unsigned way_id = graph_.way[arc_id];
@@ -1012,7 +1029,7 @@ unsigned RoutingEngine::recalculateTotalTravelTime(const RoutingResult& result, 
         }
     }
     
-    LOG("recalculateTotalTravelTime: total=" << total_time_ms << "ms");
+    LOG("recalculateTotalTravelTime: total=" << total_time_ms << "ms (including walking: start=" << start_walking_time_ms << "ms, end=" << end_walking_time_ms << "ms)");
     return total_time_ms;
 }
 
