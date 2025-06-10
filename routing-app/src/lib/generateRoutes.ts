@@ -71,6 +71,12 @@ export async function generateSingleRoute(
         maxSpeed
     );
 
+    // Debug: Log the destination information
+    console.log('Route generation debug:');
+    console.log('Generated destination:', routeResult.destination);
+    console.log('Destination type:', typeof routeResult.destination);
+    console.log('Destination has street:', 'street' in routeResult.destination);
+
     // Use the actual distance from the routing result
     const distanceKm = routeResult.totalDistanceMeters / 1000;
     const weight = computeWeight();

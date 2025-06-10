@@ -2,7 +2,7 @@
     import { page } from '$app/stores';
     import GameState from '$lib/components/GameState.svelte';
     
-    $: ({ session, gameState, employees } = $page.data);
+    $: ({ session, gameState, employees, cheatsEnabled } = $page.data);
 </script>
 
 <svelte:head>
@@ -11,7 +11,7 @@
 </svelte:head>
 
 {#if gameState}
-    <GameState {gameState} {employees} />
+    <GameState {gameState} {employees} {cheatsEnabled} />
 {:else}
     <div class="min-h-screen bg-base-200 flex items-center justify-center">
         <div class="card bg-base-100 shadow-xl">

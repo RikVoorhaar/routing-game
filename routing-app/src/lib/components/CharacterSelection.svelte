@@ -16,9 +16,11 @@
     let newCharacterName = '';
     let isCreating = false;
     let createError = '';
+    let isUpdatingCheats = false;
     
     // Reactive statement to update gameStates when page data changes
     $: gameStates = $page.data.gameStates ?? gameStates;
+    $: cheatsEnabled = $page.data.cheatsEnabled ?? false;
     
     async function handleCreateCharacter() {
         if (!newCharacterName.trim()) {
@@ -97,6 +99,29 @@
         showCreateModal = false;
         createError = '';
         newCharacterName = '';
+    }
+
+    async function handleToggleCheats() {
+        isUpdatingCheats = true;
+        
+        try {
+            const response = await fetch('/api/cheats/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: !cheatsEnabled })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to update cheats setting');
+            }
+
+            // Refresh the page to get updated data
+            window.location.reload();
+        } catch (error) {
+            console.error('Error toggling cheats:', error);
+        } finally {
+            isUpdatingCheats = false;
+        }
     }
 </script>
 
@@ -199,4 +224,24 @@
             </div>
         </div>
     </div>
-{/if} 
+{/if}
+
+<!-- Developer Cheats Toggle -->
+<div class="fixed bottom-4 right-4">
+    <div class="card bg-base-100 shadow-lg">
+        <div class="card-body p-4">
+            <div class="form-control">
+                <label class="label cursor-pointer">
+                    <span class="label-text mr-3">Enable Cheats (Dev Mode)</span>
+                    <input 
+                        type="checkbox" 
+                        class="toggle toggle-warning" 
+                        checked={cheatsEnabled}
+                        disabled={isUpdatingCheats}
+                        on:change={handleToggleCheats}
+                    />
+                </label>
+            </div>
+        </div>
+    </div>
+</div> 

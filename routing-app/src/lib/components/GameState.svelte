@@ -5,11 +5,13 @@
     import { formatMoney } from '$lib/formatting';
     import EmployeeCard from './EmployeeCard.svelte';
     import ErrorOverlay from './ErrorOverlay.svelte';
+    import Cheats from './Cheats.svelte';
     import { faker } from '@faker-js/faker';
     import { addError } from '$lib/stores/errors';
 
     export let gameState: GameState;
     export let employees: Employee[] = [];
+    export let cheatsEnabled: boolean = false;
 
     let showHireModal = false;
     let newEmployeeName = '';
@@ -200,6 +202,8 @@
             const response = await fetch(`/api/employees/${employeeId}`);
             if (response.ok) {
                 const updatedEmployee = await response.json();
+                console.log('Route completion - updated employee data:', updatedEmployee);
+                console.log('Updated employee location:', updatedEmployee.location);
                 employees = employees.map(emp => 
                     emp.id === employeeId ? updatedEmployee : emp
                 );
@@ -212,6 +216,12 @@
             const errorMessage = error instanceof Error ? error.message : 'Failed to refresh data after route completion';
             addError(`Failed to update after route completion: ${errorMessage}`, 'error');
         }
+    }
+
+    async function handleCheatMoneyUpdated(event: CustomEvent<{ newBalance: number }>) {
+        // Update game state money from cheat
+        gameState.money = event.detail.newBalance;
+        gameState = { ...gameState }; // Trigger reactivity
     }
 </script>
 
@@ -239,6 +249,13 @@
 
     <!-- Main Content -->
     <div class="container mx-auto px-4 py-6">
+        <!-- Cheats Component (only shows when cheats are enabled) -->
+        <Cheats 
+            {gameState} 
+            {cheatsEnabled}
+            on:moneyUpdated={handleCheatMoneyUpdated}
+        />
+
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Left Panel - Employees -->
             <div class="lg:col-span-1">

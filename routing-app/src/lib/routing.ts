@@ -144,5 +144,11 @@ export async function getRandomRouteInAnnulus(
     const destination = await getRandomAddressInAnnulus(from, minDistance, maxDistance);
     
     // Get the route to that destination
-    return getShortestPath(from, destination, maxSpeed);
+    const routingResult = await getShortestPath(from, destination, maxSpeed);
+    
+    // Preserve the full destination address information
+    return {
+        ...routingResult,
+        destination
+    };
 } 

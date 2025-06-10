@@ -16,6 +16,7 @@ import {
 	image: text('image'),
 	// Optional user-specific fields (not part of Auth.js schema)
 	username: text('username').unique(),
+	cheatsEnabled: integer('cheats_enabled', { mode: 'boolean' }).notNull().default(false),
   });
   
   // Game state table - tracks user's game progress

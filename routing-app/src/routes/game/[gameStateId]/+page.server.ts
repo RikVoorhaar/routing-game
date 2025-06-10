@@ -1,7 +1,7 @@
 import { redirect, error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db';
-import { gameStates, employees } from '$lib/server/db/schema';
+import { gameStates, employees, users } from '$lib/server/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { processCompletedRoutes } from '$lib/server/routeCompletion';
 
@@ -40,10 +40,18 @@ export const load: PageServerLoad = async ({ locals, params }) => {
             .from(employees)
             .where(eq(employees.gameId, gameStateId));
 
+        // Get user's cheat status
+        const [user] = await db
+            .select({ cheatsEnabled: users.cheatsEnabled })
+            .from(users)
+            .where(eq(users.id, session.user.id))
+            .limit(1);
+
         return {
             session,
             gameState,
-            employees: gameEmployees
+            employees: gameEmployees,
+            cheatsEnabled: user?.cheatsEnabled || false
         };
     } catch (err) {
         console.error('Error loading game state:', err);

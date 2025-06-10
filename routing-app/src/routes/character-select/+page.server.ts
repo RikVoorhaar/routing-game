@@ -25,20 +25,30 @@ export const load: ServerLoad = async ({ locals }) => {
     }
     
     try {
+        // Get user game states
         const userGameStates = await db
             .select()
             .from(gameStates)
             .where(eq(gameStates.userId, session.user.id!));
 
+        // Get user's cheat status
+        const [user] = await db
+            .select({ cheatsEnabled: users.cheatsEnabled })
+            .from(users)
+            .where(eq(users.id, session.user.id!))
+            .limit(1);
+
         return {
             session,
-            gameStates: userGameStates
+            gameStates: userGameStates,
+            cheatsEnabled: user?.cheatsEnabled || false
         };
     } catch (err) {
         console.error('Error loading game states:', err);
         return {
             session,
-            gameStates: []
+            gameStates: [],
+            cheatsEnabled: false
         };
     }
 }; 

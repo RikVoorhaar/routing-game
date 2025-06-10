@@ -145,8 +145,30 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
                 }
             }
 
-            // Generate routes for the employee
-            const employeeWithGameState = { ...employee, gameState };
+            // Re-fetch employee data to ensure we have the most up-to-date location
+            const [currentEmployee] = await db
+                .select()
+                .from(employees)
+                .where(
+                    and(
+                        eq(employees.id, employeeId),
+                        eq(employees.gameId, gameStateId)
+                    )
+                )
+                .limit(1);
+
+            if (!currentEmployee) {
+                return error(404, 'Employee not found during route generation');
+            }
+
+            // Debug: Log the employee location being used for route generation
+            console.log('Generate routes debug:');
+            console.log('Employee ID:', employeeId);
+            console.log('Original employee location:', employee.location);
+            console.log('Current employee location for route generation:', currentEmployee.location);
+
+            // Generate routes for the employee using current data
+            const employeeWithGameState = { ...currentEmployee, gameState };
             await updateEmployeeRoutes(employeeWithGameState);
 
             return json({ success: true, message: 'Routes generated successfully' });
@@ -215,6 +237,13 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 
             // Use a transaction to ensure consistency
             await db.transaction(async (tx) => {
+                // Debug: Log the current employee location and route end location
+                console.log('Route completion debug:');
+                console.log('Employee ID:', employeeId);
+                console.log('Current employee location:', employee.location);
+                console.log('Route end location:', route.endLocation);
+                console.log('Route end location type:', typeof route.endLocation);
+                
                 // Update employee: clear current route, update location to end location
                 await tx.update(employees)
                     .set({ 
