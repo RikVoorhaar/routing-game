@@ -3,7 +3,7 @@ import { employees, gameStates, routes } from './server/db/schema';
 import { getRandomRouteInAnnulus } from './routing';
 import { type Address, type Coordinate } from './types';
 import { db } from './server/db';
-import { eq } from 'drizzle-orm';
+import { eq, inArray, and, isNotNull, lt } from 'drizzle-orm';
 
 // Constants for route generation
 export const ROUTE_DISTANCES_KM = [
@@ -133,9 +133,148 @@ export async function generateRoutesForEmployee(
 }
 
 /**
+ * Deletes old routes associated with an employee
+ */
+async function deleteEmployeeRoutes(employeeId: string): Promise<void> {
+    const employee = await db.select().from(employees).where(eq(employees.id, employeeId)).limit(1);
+    if (employee.length === 0) return;
+    
+    const availableRouteIds = JSON.parse(employee[0].availableRoutes as string) as string[];
+    
+    if (availableRouteIds.length > 0) {
+        await db.delete(routes).where(inArray(routes.id, availableRouteIds));
+        console.log(`Deleted ${availableRouteIds.length} old routes for employee ${employeeId}`);
+    }
+}
+
+/**
+ * Cleans up expired routes (completed routes older than 1 hour)
+ */
+export async function cleanupExpiredRoutes(): Promise<void> {
+    const oneHourAgo = Date.now() - 60 * 60 * 1000; // Get timestamp in milliseconds
+    
+    try {
+        // Get all routes to check which ones should be deleted
+        const routesBefore = await db.select().from(routes);
+        
+        // Filter expired routes in JavaScript to avoid Drizzle timestamp issues
+        const routesToDelete = routesBefore.filter(route => 
+            route.endTime && typeof route.endTime === 'number' && route.endTime < oneHourAgo
+        );
+        
+        if (routesToDelete.length === 0) {
+            console.log('No expired routes to clean up');
+            return;
+        }
+        
+        const routeIdsToDelete = routesToDelete.map(r => r.id);
+        console.log(`Found ${routesToDelete.length} expired routes to clean up`);
+        
+        // First, clean up any employee references to these routes to avoid foreign key issues
+        const allEmployees = await db.select().from(employees);
+        for (const employee of allEmployees) {
+            let needsUpdate = false;
+            let availableRouteIds = JSON.parse(employee.availableRoutes as string) as string[];
+            let currentRoute = employee.currentRoute;
+            
+            // Remove expired routes from available routes
+            const filteredRouteIds = availableRouteIds.filter(id => !routeIdsToDelete.includes(id));
+            if (filteredRouteIds.length !== availableRouteIds.length) {
+                availableRouteIds = filteredRouteIds;
+                needsUpdate = true;
+            }
+            
+            // Clear current route if it's being deleted
+            if (currentRoute && routeIdsToDelete.includes(currentRoute)) {
+                currentRoute = null;
+                needsUpdate = true;
+            }
+            
+            if (needsUpdate) {
+                await db.update(employees)
+                    .set({
+                        availableRoutes: JSON.stringify(availableRouteIds),
+                        currentRoute: currentRoute
+                    })
+                    .where(eq(employees.id, employee.id));
+                
+                console.log(`Cleaned up route references for employee ${employee.id}`);
+            }
+        }
+        
+        // Now delete the expired routes (should work without foreign key issues)
+        await db.delete(routes).where(inArray(routes.id, routeIdsToDelete));
+        console.log(`Cleaned up ${routesToDelete.length} expired routes`);
+        
+    } catch (error) {
+        console.error('Error cleaning up expired routes:', error);
+    }
+}
+
+/**
+ * Cleans up route references in employees that point to non-existent routes
+ */
+async function cleanupOrphanedRouteReferences(): Promise<void> {
+    try {
+        const allEmployees = await db.select().from(employees);
+        
+        for (const employee of allEmployees) {
+            let needsUpdate = false;
+            let availableRouteIds = JSON.parse(employee.availableRoutes as string) as string[];
+            
+            // Check if available routes still exist
+            if (availableRouteIds.length > 0) {
+                const existingRoutes = await db.select({ id: routes.id })
+                    .from(routes)
+                    .where(inArray(routes.id, availableRouteIds));
+                
+                const existingRouteIds = existingRoutes.map(r => r.id);
+                const filteredRouteIds = availableRouteIds.filter(id => existingRouteIds.includes(id));
+                
+                if (filteredRouteIds.length !== availableRouteIds.length) {
+                    availableRouteIds = filteredRouteIds;
+                    needsUpdate = true;
+                }
+            }
+            
+            // Check if current route still exists
+            let currentRoute = employee.currentRoute;
+            if (currentRoute) {
+                const routeExists = await db.select({ id: routes.id })
+                    .from(routes)
+                    .where(eq(routes.id, currentRoute))
+                    .limit(1);
+                
+                if (routeExists.length === 0) {
+                    currentRoute = null;
+                    needsUpdate = true;
+                }
+            }
+            
+            // Update employee if needed
+            if (needsUpdate) {
+                await db.update(employees)
+                    .set({
+                        availableRoutes: JSON.stringify(availableRouteIds),
+                        currentRoute: currentRoute
+                    })
+                    .where(eq(employees.id, employee.id));
+                
+                console.log(`Cleaned up orphaned route references for employee ${employee.id}`);
+            }
+        }
+    } catch (error) {
+        console.error('Error cleaning up orphaned route references:', error);
+    }
+}
+
+/**
  * Updates the database with new routes for an employee
  */
 export async function updateEmployeeRoutes(employee: EmployeeWithGameState): Promise<void> {
+    // First, delete old routes associated with this employee
+    await deleteEmployeeRoutes(employee.id);
+    
     // Generate new routes
     const newRoutes = await generateRoutesForEmployee(employee);
 
@@ -150,6 +289,8 @@ export async function updateEmployeeRoutes(employee: EmployeeWithGameState): Pro
             timeRoutesGenerated: new Date(Date.now())
         })
         .where(eq(employees.id, employee.id));
+    
+    console.log(`Generated ${newRoutes.length} new routes for employee ${employee.id}`);
 }
 
 /**

@@ -367,6 +367,121 @@ export const gameDataAPI = {
             addError(`Failed to delete game state: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
             throw error;
         }
+    },
+
+    // Instantly complete all active routes using cheats API
+    async completeAllRoutes() {
+        const gameState = get(currentGameState);
+        const user = get(currentUser);
+        
+        console.log('[CHEAT UI] Starting completeAllRoutes');
+        console.log('[CHEAT UI] Game state:', gameState?.id);
+        console.log('[CHEAT UI] User cheats enabled:', user?.cheatsEnabled);
+        
+        if (!gameState || !user?.cheatsEnabled) {
+            const error = 'Cannot complete routes: No game state or cheats not enabled';
+            console.error('[CHEAT UI]', error);
+            throw new Error(error);
+        }
+
+        try {
+            console.log('[CHEAT UI] Making API call to /api/cheats/complete-routes');
+            const response = await fetch('/api/cheats/complete-routes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    gameStateId: gameState.id
+                })
+            });
+
+            console.log('[CHEAT UI] API response status:', response.status);
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('[CHEAT UI] API error response:', errorData);
+                throw new Error(errorData.message || 'Failed to complete routes');
+            }
+
+            const result = await response.json();
+            console.log('[CHEAT UI] API success response:', result);
+            
+            // Update the store with the new balance if money was added
+            if (result.newBalance) {
+                console.log('[CHEAT UI] Updating money in store:', result.newBalance);
+                gameDataActions.updateMoney(result.newBalance);
+            }
+            
+            // Refresh employee data and routes to reflect the changes
+            console.log('[CHEAT UI] Refreshing employee data...');
+            await this.refreshEmployees();
+            console.log('[CHEAT UI] Loading employee routes...');
+            await this.loadAllEmployeeRoutes();
+            
+            console.log('[CHEAT UI] Complete routes cheat finished successfully');
+            return result;
+        } catch (error) {
+            console.error('[CHEAT UI] Error completing routes:', error);
+            addError(`Failed to complete routes: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+            throw error;
+        }
+    },
+
+    // Regenerate routes for all employees using cheats API
+    async regenerateAllRoutes() {
+        const gameState = get(currentGameState);
+        const user = get(currentUser);
+        
+        if (!gameState || !user?.cheatsEnabled) {
+            throw new Error('Cannot regenerate routes: No game state or cheats not enabled');
+        }
+
+        try {
+            const response = await fetch('/api/cheats/regenerate-routes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    gameStateId: gameState.id
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to regenerate routes');
+            }
+
+            const result = await response.json();
+            
+            // Refresh employee data and routes to reflect the changes
+            await this.refreshEmployees();
+            await this.loadAllEmployeeRoutes();
+            
+            return result;
+        } catch (error) {
+            console.error('Error regenerating routes:', error);
+            addError(`Failed to regenerate routes: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+            throw error;
+        }
+    },
+
+    // Refresh all employee data from server
+    async refreshEmployees() {
+        const gameState = get(currentGameState);
+        if (!gameState) {
+            throw new Error('No game state available');
+        }
+
+        try {
+            // This would require a new endpoint to get all employees for a game state
+            // For now, let's refresh each employee individually
+            const currentEmployees = get(employees);
+            for (const employee of currentEmployees) {
+                await this.refreshEmployee(employee.id);
+            }
+        } catch (error) {
+            console.error('Error refreshing employees:', error);
+            addError('Failed to refresh employees', 'error');
+            throw error;
+        }
     }
 };
 

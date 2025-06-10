@@ -4,6 +4,7 @@ import { db } from '$lib/server/db';
 import { gameStates, employees, users } from '$lib/server/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { processCompletedRoutes } from '$lib/server/routeCompletion';
+import { cleanupExpiredRoutes } from '$lib/generateRoutes';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
     const session = await locals.auth();
@@ -15,6 +16,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     const { gameStateId } = params;
 
     try {
+        // Clean up expired routes first
+        await cleanupExpiredRoutes();
+        
         // Process any completed routes first
         await processCompletedRoutes(gameStateId);
 

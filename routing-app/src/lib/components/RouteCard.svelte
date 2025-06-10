@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { Route, Address } from '$lib/types';
     import { selectedRoute, selectRoute } from '$lib/stores/selectedRoute';
-    import { formatMoney, formatAddress, formatTimeFromSeconds, formatWeight } from '$lib/formatting';
+    import { formatMoney, formatAddress, formatRouteDuration, formatWeight } from '$lib/formatting';
 
     export let route: Route;
 
@@ -71,7 +71,7 @@
             <div class="grid grid-cols-2 gap-2 text-xs">
                 <div class="flex justify-between">
                     <span class="opacity-70">Duration:</span>
-                    <span class="font-medium">{formatTimeFromSeconds(route.lengthTime)}</span>
+                    <span class="font-medium">{formatRouteDuration(route.lengthTime)}</span>
                 </div>
                 <div class="flex justify-between">
                     <span class="opacity-70">Weight:</span>

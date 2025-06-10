@@ -1,39 +1,47 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { user } from '$lib/server/db/schema';
-import * as argon2 from '@node-rs/argon2';
+import { users, credentials } from '$lib/server/db/schema';
+import { hashPassword } from '$lib/server/auth/password';
 import { eq } from 'drizzle-orm';
-import { randomUUID } from 'crypto';
+import { nanoid } from 'nanoid';
 
 export async function POST() {
     try {
         // Check if test user already exists
-        const existingUser = await db.query.user.findFirst({
-            where: eq(user.username, 'testuser')
-        });
+        const existingUser = await db.select().from(users)
+            .where(eq(users.username, 'testuser'))
+            .limit(1);
         
-        if (existingUser) {
+        if (existingUser.length > 0) {
             return json({ 
                 success: true, 
                 message: 'Test user already exists', 
                 user: { 
-                    id: existingUser.id, 
-                    username: existingUser.username 
+                    id: existingUser[0].id, 
+                    username: existingUser[0].username 
                 } 
             });
         }
         
         // Create password hash
-        const passwordHash = await argon2.hash('password123');
+        const hashedPassword = await hashPassword('password123');
+        const userId = nanoid();
         
         // Insert test user
-        const [newUser] = await db.insert(user).values({
-            id: randomUUID(),
+        const [newUser] = await db.insert(users).values({
+            id: userId,
             username: 'testuser',
-            passwordHash,
-            age: 30
+            name: 'Test User',
+            email: 'test@example.com'
         }).returning();
         
+        // Insert credentials
+        await db.insert(credentials).values({
+            id: nanoid(),
+            userId: userId,
+            hashedPassword
+        });
+
         return json({ 
             success: true, 
             message: 'Test user created successfully', 
