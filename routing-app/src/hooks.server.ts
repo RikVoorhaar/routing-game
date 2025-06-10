@@ -13,7 +13,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		return await authHandle({ event, resolve });
 	} catch (error) {
 		// Don't log Chrome DevTools related errors
-		if (!error?.message?.includes('chrome.devtools')) {
+		if (!(error instanceof Error) || !error.message?.includes('chrome.devtools')) {
 			console.error('Authentication error:', error);
 		}
 		throw error;

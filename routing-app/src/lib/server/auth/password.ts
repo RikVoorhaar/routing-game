@@ -8,8 +8,8 @@ export async function hashPassword(password: string): Promise<string> {
     memoryCost: 65536, // 64MB
     timeCost: 3, // iterations
     parallelism: 1, // threads
-    outputLen: 32, // bytes
-    type: 'argon2id' // Argon2id variant - recommended for password hashing
+    outputLen: 32 // bytes
+    // Note: @node-rs/argon2 uses argon2id by default, no need to specify type
   });
 }
 

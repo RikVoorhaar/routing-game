@@ -1,6 +1,5 @@
 import { getRandomAddressInAnnulus } from './addresses';
 import type { Coordinate, RoutingResult, PathPoint } from './types';
-import * as turf from '@turf/turf';
 
 const ROUTING_SERVER_URL = 'http://localhost:8050';
 

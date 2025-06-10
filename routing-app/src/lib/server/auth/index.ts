@@ -3,7 +3,7 @@ import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import CredentialsProvider from "@auth/core/providers/credentials";
 import * as argon2 from "@node-rs/argon2";
 import { db } from "$lib/server/db";
-import { user, session } from "$lib/server/db/schema";
+import { users, credentials } from "$lib/server/db/schema";
 import { eq } from "drizzle-orm";
 import type { Handle } from "@sveltejs/kit";
 
@@ -26,24 +26,33 @@ const auth = SvelteKitAuth({
         username: { label: "Username", type: "text" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials) {
-        if (!credentials?.username || !credentials?.password) {
+      async authorize(credentials_input) {
+        if (!credentials_input?.username || !credentials_input?.password) {
           return null;
         }
 
-        const username = credentials.username as string;
-        const password = credentials.password as string;
+        const username = credentials_input.username as string;
+        const password = credentials_input.password as string;
 
-        const userRecord = await db.query.user.findFirst({
-          where: eq(user.username, username)
+        const userRecord = await db.query.users.findFirst({
+          where: eq(users.username, username)
         });
 
         if (!userRecord) {
           return null;
         }
 
+        // Get the user's credentials (password hash)
+        const userCredentials = await db.query.credentials.findFirst({
+          where: eq(credentials.userId, userRecord.id)
+        });
+
+        if (!userCredentials) {
+          return null;
+        }
+
         const passwordMatches = await argon2.verify(
-          userRecord.passwordHash,
+          userCredentials.hashedPassword,
           password
         );
 
