@@ -19,7 +19,7 @@
 </script>
 
 <div 
-    class="card p-2 border-2 cursor-pointer transition-all duration-300 ease-in-out hover:shadow-md transform hover:scale-[1.0] scale-[0.98]"
+    class="card p-2 border-2 cursor-pointer transition-all duration-200 ease-in-out hover:shadow-md transform"
     class:border-blue-500={isSelected}
     class:bg-blue-600={isSelected}
     class:text-white={isSelected}
@@ -27,10 +27,14 @@
     class:bg-base-100={!isSelected}
     class:hover:border-blue-400={!isSelected}
     class:shadow-lg={isSelected}
+    class:scale-[1.02]={isSelected}
+    class:hover:scale-[1.01]={!isSelected}
     on:click={handleClick}
     on:keydown={(e) => e.key === 'Enter' && handleClick()}
     role="button"
     tabindex="0"
+    aria-pressed={isSelected}
+    aria-label="Route from {formatAddress(startLocation)} to {formatAddress(endLocation)}"
 >
     <div class="card-body p-2">
         <!-- Header with goods type and reward -->

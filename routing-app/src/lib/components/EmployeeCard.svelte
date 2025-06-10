@@ -89,9 +89,23 @@
         }
     }
 
-    // Clear route selection when employee goes on a route or when available routes change
-    $: if (currentRoute || availableRoutes.length === 0) {
-        clearSelection();
+    // Clear route selection only when it's relevant to this specific employee
+    $: {
+        if ($selectedRoute) {
+            // Check if the selected route belongs to this employee
+            const selectedRouteIsForThisEmployee = availableRoutes.some(route => route.id === $selectedRoute);
+            
+            if (selectedRouteIsForThisEmployee) {
+                // Clear selection if this employee goes on a route (any route)
+                if (currentRoute) {
+                    clearSelection();
+                }
+                // Clear selection if the selected route is no longer available for this employee
+                else if (availableRoutes.length === 0) {
+                    clearSelection();
+                }
+            }
+        }
     }
 
     function calculateRouteProgress(route: Route) {
