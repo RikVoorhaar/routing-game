@@ -1,13 +1,8 @@
 <script lang="ts">
     import { createEventDispatcher } from 'svelte';
+    import type { GameState } from '$lib/types';
     
-    export let character: {
-        id: string;
-        name: string;
-        money: number;
-        routeLevel: number;
-        createdAt: number;
-    };
+    export let character: GameState;
     
     const dispatch = createEventDispatcher<{
         delete: { id: string; name: string };
@@ -39,8 +34,9 @@
         }).format(amount);
     }
     
-    function formatDate(timestamp: number): string {
-        return new Date(timestamp).toLocaleDateString();
+    function formatDate(date: string | Date): string {
+        const dateObj = date instanceof Date ? date : new Date(date);
+        return dateObj.toLocaleDateString();
     }
 </script>
 

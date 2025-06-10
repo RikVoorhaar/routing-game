@@ -2,17 +2,11 @@
     import { goto } from '$app/navigation';
     import { page } from '$app/stores';
     import CharacterCard from './CharacterCard.svelte';
-    import { gameDataActions, gameDataAPI, cheatsEnabled } from '$lib/stores/gameData';
+    import { gameDataActions, gameDataAPI, cheatsEnabled, availableGameStates } from '$lib/stores/gameData';
+    import type { GameState } from '$lib/types';
     import { onMount } from 'svelte';
     
-    export let gameStates: Array<{
-        id: string;
-        name: string;
-        money: number;
-        routeLevel: number;
-        createdAt: number;
-        userId: string;
-    }>;
+    export let gameStates: GameState[];
     
     let showCreateModal = false;
     let newCharacterName = '';
@@ -23,13 +17,11 @@
     // Initialize stores with page data
     onMount(() => {
         gameDataActions.init({
-            cheatsEnabled: $page.data.cheatsEnabled
+            cheatsEnabled: $page.data.cheatsEnabled,
+            gameStates: gameStates
         });
     });
     
-    // Reactive statement to update gameStates when page data changes
-    $: gameStates = $page.data.gameStates ?? gameStates;
-
     async function handleCreateCharacter() {
         if (!newCharacterName.trim()) {
             createError = 'Character name is required';
@@ -40,21 +32,7 @@
         createError = '';
         
         try {
-            const response = await fetch('/api/game-states', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ name: newCharacterName.trim() })
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to create character');
-            }
-            
-            const newCharacter = await response.json();
-            gameStates = [...gameStates, newCharacter];
+            await gameDataAPI.createGameState(newCharacterName.trim());
             
             // Reset form
             newCharacterName = '';
@@ -71,23 +49,10 @@
         const { id } = event.detail;
         
         try {
-            const response = await fetch('/api/game-states', {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ gameStateId: id })
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to delete character');
-            }
-            
-            // Remove the character from the list
-            gameStates = gameStates.filter(character => character.id !== id);
+            await gameDataAPI.deleteGameState(id);
         } catch (error) {
             console.error('Error deleting character:', error);
-            // You might want to show a toast notification here
+            // Error is handled by the store and shown via error system
         }
     }
     
@@ -128,7 +93,7 @@
         <p class="text-lg text-base-content/70">Choose a character to continue your routing adventure</p>
     </div>
     
-    {#if gameStates.length === 0}
+    {#if $availableGameStates.length === 0}
         <div class="text-center py-16">
             <div class="mb-8">
                 <svg class="w-24 h-24 mx-auto text-base-content/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -148,7 +113,7 @@
         </div>
     {:else}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {#each gameStates as character (character.id)}
+            {#each $availableGameStates as character (character.id)}
                 <CharacterCard 
                     {character} 
                     on:delete={handleDeleteCharacter}

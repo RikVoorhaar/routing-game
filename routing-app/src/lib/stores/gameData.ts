@@ -16,6 +16,9 @@ export const currentUser = writable<UserData | null>(null);
 // Game state store
 export const currentGameState = writable<GameState | null>(null);
 
+// Available game states store (for character selection)
+export const availableGameStates = writable<GameState[]>([]);
+
 // Employees store
 export const employees = writable<Employee[]>([]);
 
@@ -48,6 +51,7 @@ export const gameDataActions = {
     init(data: {
         user?: UserData;
         gameState?: GameState;
+        gameStates?: GameState[];
         employees?: Employee[];
         cheatsEnabled?: boolean;
     }) {
@@ -60,6 +64,10 @@ export const gameDataActions = {
         
         if (data.gameState) {
             currentGameState.set(data.gameState);
+        }
+        
+        if (data.gameStates) {
+            availableGameStates.set(data.gameStates);
         }
         
         if (data.employees) {
@@ -80,6 +88,21 @@ export const gameDataActions = {
     // Update game state
     setGameState(gameState: GameState) {
         currentGameState.set(gameState);
+    },
+
+    // Update available game states
+    setAvailableGameStates(gameStates: GameState[]) {
+        availableGameStates.set(gameStates);
+    },
+
+    // Add a new game state to available list
+    addGameState(gameState: GameState) {
+        availableGameStates.update(states => [...states, gameState]);
+    },
+
+    // Remove a game state from available list
+    removeGameState(gameStateId: string) {
+        availableGameStates.update(states => states.filter(state => state.id !== gameStateId));
     },
 
     // Update money in game state
@@ -293,6 +316,57 @@ export const gameDataAPI = {
             addError(`Failed to toggle cheats: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
             throw error;
         }
+    },
+
+    // Create a new game state
+    async createGameState(name: string) {
+        try {
+            const response = await fetch('/api/game-states', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to create game state');
+            }
+
+            const newGameState = await response.json();
+            
+            // Add to the store
+            gameDataActions.addGameState(newGameState);
+            
+            return newGameState;
+        } catch (error) {
+            console.error('Error creating game state:', error);
+            addError(`Failed to create game state: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+            throw error;
+        }
+    },
+
+    // Delete a game state
+    async deleteGameState(gameStateId: string) {
+        try {
+            const response = await fetch('/api/game-states', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ gameStateId })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to delete game state');
+            }
+
+            // Remove from the store
+            gameDataActions.removeGameState(gameStateId);
+            
+            return true;
+        } catch (error) {
+            console.error('Error deleting game state:', error);
+            addError(`Failed to delete game state: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+            throw error;
+        }
     }
 };
 
@@ -301,4 +375,4 @@ export function getEmployeeRoutes(employeeId: string) {
     return derived(routesByEmployee, ($routesByEmployee) => {
         return $routesByEmployee[employeeId] || { available: [], current: null };
     });
-} 
+}
