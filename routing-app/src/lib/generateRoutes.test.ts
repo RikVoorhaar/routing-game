@@ -9,6 +9,32 @@ vi.mock('./server/db', () => {
     const mockValues = vi.fn().mockResolvedValue(undefined);
     const mockSet = vi.fn().mockReturnThis();
     const mockWhere = vi.fn().mockResolvedValue(undefined);
+    const mockFrom = vi.fn().mockReturnThis();
+    const mockLimit = vi.fn().mockResolvedValue([]);
+    const mockSelect = vi.fn().mockReturnValue({
+        from: mockFrom
+    });
+    const mockDelete = vi.fn().mockReturnValue({
+        where: mockWhere
+    });
+    const mockUpdate = vi.fn().mockReturnValue({
+        set: mockSet
+    });
+    const mockInsert = vi.fn().mockReturnValue({
+        values: mockValues
+    });
+    
+    // Create a chain that handles the common query patterns
+    mockFrom.mockImplementation(() => ({
+        where: vi.fn().mockReturnValue({
+            limit: mockLimit
+        })
+    }));
+    
+    mockSet.mockImplementation(() => ({
+        where: mockWhere
+    }));
+    
     // Expose for assertions
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).mockValues = mockValues;
@@ -16,10 +42,13 @@ vi.mock('./server/db', () => {
     (globalThis as any).mockSet = mockSet;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).mockWhere = mockWhere;
+    
     return {
         db: {
-            insert: vi.fn().mockReturnValue({ values: mockValues }),
-            update: vi.fn().mockReturnValue({ set: mockSet, where: mockWhere })
+            select: mockSelect,
+            insert: mockInsert,
+            update: mockUpdate,
+            delete: mockDelete
         }
     };
 });
