@@ -1,6 +1,6 @@
 BUGS:
 - [x] In the character select, we need to refresh to see a newly created character.
-- [ ] The nav bar is copied in multiple places and contains bogus links
+- [x] The nav bar is copied in multiple places and contains bogus links
 - [ ] Deleteing a character is stuck on a loop, refresh to fix. This is a UI bug.
 - [ ] When a route is active on another employee, selecting a route on a different employee makes the route deselected very quickly. It is still possible to start the route if you click on it quickly enough.
 - [ ] The duration of a route is not formatted correctly, we should make a time fromatting function and use it for the route time in the routing card
