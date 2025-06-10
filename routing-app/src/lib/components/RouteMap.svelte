@@ -6,6 +6,7 @@
         routesByEmployee, 
         currentGameState 
     } from '$lib/stores/gameData';
+    import { interpolateLocationAtTime } from '$lib/routing-client';
     import type { Employee, Route, PathPoint, Address, Coordinate } from '$lib/types';
     import { DEFAULT_EMPLOYEE_LOCATION } from '$lib/types';
 
@@ -109,26 +110,34 @@
             if (currentRoute && currentRoute.startTime) {
                 // Employee is on a route - calculate animated position
                 routeData = parseRouteData(currentRoute.routeData);
-                const routeProgress = calculateRouteProgress(currentRoute, routeData);
                 
-                position = routeProgress.currentPosition;
+                // Calculate elapsed time since route started
+                const startTime = new Date(currentRoute.startTime).getTime();
+                const currentTime = Date.now();
+                const elapsedSeconds = (currentTime - startTime) / 1000;
+                
+                // Calculate progress percentage
+                progress = Math.min((elapsedSeconds / currentRoute.lengthTime) * 100, 100);
+                
+                // Use interpolateLocationAtTime to get current position
+                const interpolatedPosition = interpolateLocationAtTime(routeData, elapsedSeconds);
+                position = interpolatedPosition || { lat: DEFAULT_EMPLOYEE_LOCATION.lat, lon: DEFAULT_EMPLOYEE_LOCATION.lon };
                 isAnimated = true;
-                progress = routeProgress.progressPercentage;
                 
                 console.log(`[RouteMap] Employee ${employee.name} is traveling:`, {
-                    progress: routeProgress.progressPercentage,
+                    progress: progress,
                     position: position,
-                    routeLength: routeData.length
+                    elapsedSeconds: elapsedSeconds,
+                    routeLength: currentRoute.lengthTime
                 });
 
-                // Add route polyline
+                // Add route polyline (thicker and solid)
                 if (routeData.length > 0) {
                     const routeCoords = routeData.map(point => [point.coordinates.lat, point.coordinates.lon]);
                     const polyline = L.polyline(routeCoords, {
                         color: '#3b82f6',
-                        weight: 3,
-                        opacity: 0.7,
-                        dashArray: '5, 10'
+                        weight: 5,
+                        opacity: 0.8
                     }).addTo(leafletMap);
                     
                     routePolylines[employee.id] = polyline;
@@ -203,67 +212,6 @@
         }
     }
 
-    function calculateRouteProgress(route: Route, routeData: PathPoint[]): {
-        currentPosition: Coordinate;
-        progressPercentage: number;
-    } {
-        if (!route.startTime || routeData.length === 0) {
-            console.warn('[RouteMap] Invalid route data for progress calculation');
-            return {
-                currentPosition: { lat: DEFAULT_EMPLOYEE_LOCATION.lat, lon: DEFAULT_EMPLOYEE_LOCATION.lon },
-                progressPercentage: 0
-            };
-        }
-
-        const startTime = new Date(route.startTime).getTime();
-        const currentTime = Date.now();
-        const elapsedSeconds = (currentTime - startTime) / 1000;
-
-        console.log(`[RouteMap] Route progress calculation:`, {
-            startTime: new Date(route.startTime).toISOString(),
-            currentTime: new Date(currentTime).toISOString(),
-            elapsedSeconds,
-            routeLength: route.lengthTime
-        });
-
-        // If route is completed, show at destination
-        if (elapsedSeconds >= route.lengthTime) {
-            const lastPoint = routeData[routeData.length - 1];
-            return {
-                currentPosition: lastPoint.coordinates,
-                progressPercentage: 100
-            };
-        }
-
-        // Find the current position along the route
-        for (let i = 0; i < routeData.length - 1; i++) {
-            if (routeData[i].cumulative_time_seconds <= elapsedSeconds && 
-                routeData[i + 1].cumulative_time_seconds > elapsedSeconds) {
-                
-                // Interpolate between two points
-                const point1 = routeData[i];
-                const point2 = routeData[i + 1];
-                const segmentProgress = (elapsedSeconds - point1.cumulative_time_seconds) / 
-                                      (point2.cumulative_time_seconds - point1.cumulative_time_seconds);
-                
-                const currentPosition = {
-                    lat: point1.coordinates.lat + (point2.coordinates.lat - point1.coordinates.lat) * segmentProgress,
-                    lon: point1.coordinates.lon + (point2.coordinates.lon - point1.coordinates.lon) * segmentProgress
-                };
-                
-                const progressPercentage = (elapsedSeconds / route.lengthTime) * 100;
-                
-                return { currentPosition, progressPercentage };
-            }
-        }
-
-        // Fallback to first point
-        return {
-            currentPosition: routeData[0].coordinates,
-            progressPercentage: 0
-        };
-    }
-
     function startAnimation() {
         if (animationInterval) {
             clearInterval(animationInterval);
@@ -279,7 +227,7 @@
             if (hasAnimatedEmployees) {
                 updateMap();
             }
-        }, 1000); // Update every second
+        }, 100); // Update every 100ms for smooth animation
     }
 
     onMount(() => {
@@ -341,12 +289,12 @@
         align-items: center;
         justify-content: center;
         min-width: 100px;
+        transition: all 0.3s ease;
     }
 
     :global(.employee-marker.animated) {
         border-color: #10b981;
         background: #f0fdf4;
-        animation: pulse 2s infinite;
     }
 
     :global(.employee-marker.idle) {
@@ -380,14 +328,5 @@
         background: #10b981;
         transition: width 0.5s ease;
         border-radius: 2px;
-    }
-
-    @keyframes pulse {
-        0%, 100% {
-            transform: scale(1);
-        }
-        50% {
-            transform: scale(1.05);
-        }
     }
 </style> 
