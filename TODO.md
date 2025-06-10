@@ -1,10 +1,5 @@
 BUGS:
-- [x] In the character select, we need to refresh to see a newly created character.
-- [x] The nav bar is copied in multiple places and contains bogus links
-- [x] Deleteing a character is stuck on a loop, refresh to fix. This is a UI bug.
-- [x] When a route is active on another employee, selecting a route on a different employee makes the route deselected very quickly. It is still possible to start the route if you click on it quickly enough.
-- [x] The duration of a route is not formatted correctly, we should make a time fromatting function and use it for the route time in the routing card
-- [x] Old routes aren't purged. When a route is generated , the other routes associated to the employee should be deleted. There also should on game load be a check to delete routes that have expired.
+- [ ] the house number never seems to be set. Need to investigate if the `routing_server` correctly returns it, or whether the `routing-app` is not correctly parsing the response, or whether the information disappears at some other point. 
 
 ENHANCEMENTS:
 - [ ] the default employee location should be queried from the routing server

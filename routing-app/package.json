@@ -28,6 +28,7 @@
 		"@sveltejs/vite-plugin-svelte": "^5.0.0",
 		"@testing-library/jest-dom": "^6.6.3",
 		"@testing-library/svelte": "^5.2.4",
+		"@types/leaflet": "^1.9.18",
 		"@types/node": "^22",
 		"autoprefixer": "^10.4.21",
 		"daisyui": "^4.12.24",
@@ -63,6 +64,8 @@
 		"@tailwindcss/typography": "^0.5.16",
 		"@turf/turf": "^7.2.0",
 		"drizzle-orm": "^0.43.1",
-		"nanoid": "^5.1.5"
+		"leaflet": "^1.9.4",
+		"nanoid": "^5.1.5",
+		"svelte-leafletjs": "^2.0.0"
 	}
 }
