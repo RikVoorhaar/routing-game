@@ -34,6 +34,9 @@
         }
     });
 
+    // Check if the currently selected route belongs to this employee
+    $: selectedRouteIsForThisEmployee = $selectedRoute && availableRoutes.some(route => route.id === $selectedRoute);
+
     // Parse employee location
     $: location = employee.location ? JSON.parse(employee.location as string) as Address : null;
     $: upgradeState = JSON.parse(employee.upgradeState as string) as { vehicleType: string; capacity: number };
@@ -89,21 +92,16 @@
         }
     }
 
-    // Clear route selection only when it's relevant to this specific employee
+    // Clear route selection when this employee's context changes
     $: {
-        if ($selectedRoute) {
-            // Check if the selected route belongs to this employee
-            const selectedRouteIsForThisEmployee = availableRoutes.some(route => route.id === $selectedRoute);
-            
-            if (selectedRouteIsForThisEmployee) {
-                // Clear selection if this employee goes on a route (any route)
-                if (currentRoute) {
-                    clearSelection();
-                }
-                // Clear selection if the selected route is no longer available for this employee
-                else if (availableRoutes.length === 0) {
-                    clearSelection();
-                }
+        if (selectedRouteIsForThisEmployee) {
+            // Clear selection if this employee goes on a route
+            if (currentRoute) {
+                clearSelection();
+            }
+            // Clear selection if the selected route is no longer available for this employee
+            else if (availableRoutes.length === 0) {
+                clearSelection();
             }
         }
     }
@@ -154,7 +152,7 @@
     }
 
     async function handleAssignRoute() {
-        if (!$selectedRoute) return;
+        if (!$selectedRoute || !selectedRouteIsForThisEmployee) return;
         
         isAssigning = true;
         
@@ -323,7 +321,7 @@
                             <button 
                                 class="btn btn-success btn-md max-w-lg"
                                 on:click={handleAssignRoute}
-                                disabled={!$selectedRoute || isAssigning}
+                                disabled={!selectedRouteIsForThisEmployee || isAssigning}
                             >
                                 {#if isAssigning}
                                     <span class="loading loading-spinner loading-xs"></span>

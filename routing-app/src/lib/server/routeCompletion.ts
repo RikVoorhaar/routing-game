@@ -36,7 +36,7 @@ export async function processCompletedRoutes(gameStateId: string): Promise<{
             employeeId: string;
             routeId: string;
             reward: number;
-            endLocation: any;
+            endLocation: string; // JSON string of Address
         }> = [];
 
         // Check which routes are completed
@@ -54,7 +54,7 @@ export async function processCompletedRoutes(gameStateId: string): Promise<{
                     employeeId: employee.id,
                     routeId: route.id,
                     reward: route.reward,
-                    endLocation: route.endLocation
+                    endLocation: route.endLocation as string
                 });
                 totalReward += route.reward;
                 processedRoutes++;
@@ -77,17 +77,18 @@ export async function processCompletedRoutes(gameStateId: string): Promise<{
 
                 // Update each completed route
                 for (const update of completedRouteUpdates) {
-                    // Update employee: clear current route, update location
+                    // Update employee: clear current route, update location, clear available routes
                     await tx.update(employees)
                         .set({ 
                             currentRoute: null,
-                            location: update.endLocation
+                            location: update.endLocation,
+                            availableRoutes: JSON.stringify([]), // Clear available routes since they're all invalid now
+                            timeRoutesGenerated: null // Clear the timestamp so new routes can be generated immediately
                         })
                         .where(eq(employees.id, update.employeeId));
 
-                    // Mark route as completed
-                    await tx.update(routes)
-                        .set({ endTime: new Date(currentTime) })
+                    // Delete the completed route from database instead of marking as completed
+                    await tx.delete(routes)
                         .where(eq(routes.id, update.routeId));
                 }
 

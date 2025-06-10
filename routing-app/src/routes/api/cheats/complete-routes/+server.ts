@@ -46,42 +46,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             return error(404, 'Game state not found or access denied');
         }
 
-        // Debug: Let's see what employees exist for this game
-        const allEmployees = await db
-            .select()
-            .from(employees)
-            .where(eq(employees.gameId, gameStateId));
-        
-        console.log(`[CHEAT] Found ${allEmployees.length} employees for game ${gameStateId}:`);
-        allEmployees.forEach(emp => {
-            console.log(`[CHEAT]   Employee ${emp.name} (${emp.id}): currentRoute = ${emp.currentRoute}`);
-        });
-
         // Debug: Let's see what routes exist overall
         const allRoutes = await db.select().from(routes);
         console.log(`[CHEAT] Found ${allRoutes.length} total routes in database:`);
         allRoutes.forEach(route => {
-            console.log(`[CHEAT]   Route ${route.id}: startTime=${route.startTime ? new Date(route.startTime).toISOString() : 'null'}, endTime=${route.endTime ? new Date(route.endTime).toISOString() : 'null'}`);
-        });
-
-        // Debug: Let's see what active routes exist (started but not completed)
-        const activeRoutes = await db
-            .select()
-            .from(routes)
-            .where(
-                and(
-                    isNotNull(routes.startTime),
-                    isNull(routes.endTime)
-                )
-            );
-        
-        console.log(`[CHEAT] Found ${activeRoutes.length} active routes (started but not completed):`);
-        activeRoutes.forEach(route => {
-            console.log(`[CHEAT]   Active route ${route.id}: startTime=${new Date(route.startTime).toISOString()}`);
+            console.log(`[CHEAT]   Route ${route.id}: startTime=${route.startTime ? new Date(route.startTime).toISOString() : 'null'}`);
         });
 
         // Get all employees with active routes for this game state
-        // For the cheat, we'll complete ANY route an employee is assigned to, even if it should already be completed
+        // For the cheat, we'll complete ANY route an employee is assigned to
         const employeesWithRoutes = await db
             .select({
                 employee: employees,
@@ -93,7 +66,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
                 and(
                     eq(employees.gameId, gameStateId),
                     isNotNull(employees.currentRoute)
-                    // Removed the startTime and endTime checks - cheat should work on ANY assigned route
                 )
             );
 
@@ -130,19 +102,20 @@ export const POST: RequestHandler = async ({ request, locals }) => {
                 // Calculate reward
                 totalReward += route.reward;
 
-                // Update employee: clear current route, update location to end location
+                // Update employee: clear current route, update location to end location, clear available routes
                 console.log(`[CHEAT] Updating employee ${employee.id} - clearing route and updating location`);
                 await tx.update(employees)
                     .set({ 
                         currentRoute: null,
-                        location: route.endLocation
+                        location: route.endLocation,
+                        availableRoutes: JSON.stringify([]), // Clear available routes since they're all invalid now
+                        timeRoutesGenerated: null // Clear the timestamp so new routes can be generated immediately
                     })
                     .where(eq(employees.id, employee.id));
 
-                // Mark route as completed (force complete with current time)
-                console.log(`[CHEAT] Marking route ${route.id} as completed with timestamp: ${currentTime.toISOString()}`);
-                await tx.update(routes)
-                    .set({ endTime: currentTime })
+                // Delete the completed route from database instead of marking as completed
+                console.log(`[CHEAT] Deleting completed route ${route.id} from database`);
+                await tx.delete(routes)
                     .where(eq(routes.id, route.id));
                 
                 console.log(`[CHEAT] Successfully processed route ${route.id}`);

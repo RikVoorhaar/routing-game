@@ -2,7 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { gameStates, employees, routes } from '$lib/server/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { DEFAULT_EMPLOYEE_LOCATION, computeEmployeeCosts, MIN_ROUTE_REGEN_INTERVAL } from '$lib/types';
 import { updateEmployeeRoutes } from '$lib/generateRoutes';
@@ -189,15 +189,27 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
                 return error(400, 'Employee is already on a route');
             }
 
-            // Update employee to start the route
-            await db.update(employees)
-                .set({ currentRoute: routeId })
-                .where(eq(employees.id, employeeId));
+            // Use a transaction to ensure consistency
+            await db.transaction(async (tx) => {
+                // Clear all available routes for this employee (they're all invalid now)
+                await tx.update(employees)
+                    .set({ 
+                        currentRoute: routeId,
+                        availableRoutes: JSON.stringify([]) // Clear all available routes
+                    })
+                    .where(eq(employees.id, employeeId));
 
-            // Update route start time
-            await db.update(routes)
-                .set({ startTime: new Date(Date.now()) })
-                .where(eq(routes.id, routeId));
+                // Update route start time
+                await tx.update(routes)
+                    .set({ startTime: new Date() })
+                    .where(eq(routes.id, routeId));
+
+                // Delete all other available routes from the database since they're no longer valid
+                const otherRouteIds = availableRoutes.filter(id => id !== routeId);
+                if (otherRouteIds.length > 0) {
+                    await tx.delete(routes).where(inArray(routes.id, otherRouteIds));
+                }
+            });
 
             return json({ success: true, message: 'Route assigned successfully' });
 
@@ -248,13 +260,13 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
                 await tx.update(employees)
                     .set({ 
                         currentRoute: null,
-                        location: route.endLocation
+                        location: route.endLocation,
+                        timeRoutesGenerated: null // Clear the timestamp so new routes can be generated immediately
                     })
                     .where(eq(employees.id, employeeId));
 
-                // Mark route as completed
-                await tx.update(routes)
-                    .set({ endTime: new Date(Date.now()) })
+                // Delete the completed route from the database
+                await tx.delete(routes)
                     .where(eq(routes.id, routeId));
 
                 // Award the route reward to the game state
