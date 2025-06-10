@@ -11,7 +11,7 @@
 </svelte:head>
 
 {#if gameState}
-    <GameState {gameState} {employees} {cheatsEnabled} />
+    <GameState {gameState} initialEmployees={employees} {cheatsEnabled} />
 {:else}
     <div class="min-h-screen bg-base-200 flex items-center justify-center">
         <div class="card bg-base-100 shadow-xl">

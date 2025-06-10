@@ -2,6 +2,8 @@
     import { goto } from '$app/navigation';
     import { page } from '$app/stores';
     import CharacterCard from './CharacterCard.svelte';
+    import { gameDataActions, gameDataAPI, cheatsEnabled } from '$lib/stores/gameData';
+    import { onMount } from 'svelte';
     
     export let gameStates: Array<{
         id: string;
@@ -18,10 +20,16 @@
     let createError = '';
     let isUpdatingCheats = false;
     
+    // Initialize stores with page data
+    onMount(() => {
+        gameDataActions.init({
+            cheatsEnabled: $page.data.cheatsEnabled
+        });
+    });
+    
     // Reactive statement to update gameStates when page data changes
     $: gameStates = $page.data.gameStates ?? gameStates;
-    $: cheatsEnabled = $page.data.cheatsEnabled ?? false;
-    
+
     async function handleCreateCharacter() {
         if (!newCharacterName.trim()) {
             createError = 'Character name is required';
@@ -105,18 +113,7 @@
         isUpdatingCheats = true;
         
         try {
-            const response = await fetch('/api/cheats/toggle', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled: !cheatsEnabled })
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to update cheats setting');
-            }
-
-            // Refresh the page to get updated data
-            window.location.reload();
+            await gameDataAPI.toggleCheats();
         } catch (error) {
             console.error('Error toggling cheats:', error);
         } finally {
@@ -236,7 +233,7 @@
                     <input 
                         type="checkbox" 
                         class="toggle toggle-warning" 
-                        checked={cheatsEnabled}
+                        checked={$cheatsEnabled}
                         disabled={isUpdatingCheats}
                         on:change={handleToggleCheats}
                     />

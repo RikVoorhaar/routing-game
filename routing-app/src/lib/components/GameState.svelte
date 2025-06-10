@@ -1,6 +1,5 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
-    import type { GameState, Employee, Route } from '$lib/types';
     import { computeEmployeeCosts } from '$lib/types';
     import { formatMoney } from '$lib/formatting';
     import EmployeeCard from './EmployeeCard.svelte';
@@ -8,32 +7,48 @@
     import Cheats from './Cheats.svelte';
     import { faker } from '@faker-js/faker';
     import { addError } from '$lib/stores/errors';
+    import { 
+        gameDataActions, 
+        gameDataAPI,
+        currentGameState, 
+        employees,
+        currentUser,
+        routesByEmployee,
+        getEmployeeRoutes 
+    } from '$lib/stores/gameData';
+    import type { GameState, Employee } from '$lib/types';
 
+    // Props for initial data - we'll move this to stores
     export let gameState: GameState;
-    export let employees: Employee[] = [];
+    export let initialEmployees: Employee[] = [];
     export let cheatsEnabled: boolean = false;
 
     let showHireModal = false;
     let newEmployeeName = '';
     let isHiring = false;
     let hireError = '';
-    let employeeRoutes: Record<string, Route[]> = {};
-    let currentRoutes: Record<string, Route | null> = {};
     let refreshInterval: any;
 
-    // Reactive calculations
-    $: hiringCost = computeEmployeeCosts(employees.length);
-    $: canAffordEmployee = gameState.money >= hiringCost;
-
+    // Initialize stores with props data
     onMount(() => {
+        gameDataActions.init({
+            gameState,
+            employees: initialEmployees,
+            cheatsEnabled,
+            user: {
+                id: 'current-user', // We'll need to get this from session
+                cheatsEnabled
+            }
+        });
+
+        // Load routes for all employees
+        gameDataAPI.loadAllEmployeeRoutes();
+
         // Set up periodic refresh for route progress
         refreshInterval = setInterval(() => {
-            // Force re-render of employee cards to update progress
-            employees = [...employees];
-            loadEmployeeRoutes();
+            // Trigger route progress updates
+            gameDataAPI.loadAllEmployeeRoutes();
         }, 1000);
-
-        loadEmployeeRoutes();
     });
 
     onDestroy(() => {
@@ -42,39 +57,9 @@
         }
     });
 
-    async function loadEmployeeRoutes() {
-        try {
-            // Load routes for all employees
-            for (const employee of employees) {
-                // Get available routes
-                const availableRouteIds = JSON.parse(employee.availableRoutes as string) as string[];
-                if (availableRouteIds.length > 0) {
-                    const routesResponse = await fetch(`/api/routes?ids=${availableRouteIds.join(',')}`);
-                    if (routesResponse.ok) {
-                        const routes = await routesResponse.json();
-                        employeeRoutes[employee.id] = routes;
-                    }
-                }
-
-                // Get current route if assigned
-                if (employee.currentRoute) {
-                    const routeResponse = await fetch(`/api/routes/${employee.currentRoute}`);
-                    if (routeResponse.ok) {
-                        const route = await routeResponse.json();
-                        currentRoutes[employee.id] = route;
-                    }
-                }
-            }
-            
-            // Trigger reactivity
-            employeeRoutes = { ...employeeRoutes };
-            currentRoutes = { ...currentRoutes };
-        } catch (error) {
-            console.error('Error loading employee routes:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Failed to load employee routes';
-            addError(`Failed to load routes: ${errorMessage}`, 'error');
-        }
-    }
+    // Reactive calculations using stores
+    $: hiringCost = computeEmployeeCosts($employees.length);
+    $: canAffordEmployee = $currentGameState ? $currentGameState.money >= hiringCost : false;
 
     function handleHireModalOpen() {
         showHireModal = true;
@@ -101,7 +86,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    gameStateId: gameState.id,
+                    gameStateId: $currentGameState!.id,
                     employeeName: newEmployeeName
                 })
             });
@@ -113,9 +98,9 @@
 
             const result = await response.json();
             
-            // Update local state
-            employees = [...employees, result.employee];
-            gameState.money = result.newBalance;
+            // Update stores
+            gameDataActions.addEmployee(result.employee);
+            gameDataActions.updateMoney(result.newBalance);
             
             handleHireModalClose();
         } catch (error) {
@@ -127,20 +112,12 @@
     }
 
     async function handleEmployeeRouteGenerated(event: CustomEvent<{ employeeId: string }>) {
-        // Reload employee data and routes
         const { employeeId } = event.detail;
         
         try {
-            // Reload the employee data to get updated route information
-            const response = await fetch(`/api/employees/${employeeId}`);
-            if (response.ok) {
-                const updatedEmployee = await response.json();
-                employees = employees.map(emp => 
-                    emp.id === employeeId ? updatedEmployee : emp
-                );
-            }
-            
-            await loadEmployeeRoutes();
+            // Refresh employee data and routes
+            await gameDataAPI.refreshEmployee(employeeId);
+            await gameDataAPI.loadAllEmployeeRoutes();
         } catch (error) {
             console.error('Error refreshing employee data:', error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to refresh employee data';
@@ -149,20 +126,12 @@
     }
 
     async function handleEmployeeRouteAssigned(event: CustomEvent<{ employeeId: string; routeId: string }>) {
-        // Reload employee data and routes
         const { employeeId } = event.detail;
         
         try {
-            // Reload the employee data to get updated route information
-            const response = await fetch(`/api/employees/${employeeId}`);
-            if (response.ok) {
-                const updatedEmployee = await response.json();
-                employees = employees.map(emp => 
-                    emp.id === employeeId ? updatedEmployee : emp
-                );
-            }
-            
-            await loadEmployeeRoutes();
+            // Refresh employee data and routes
+            await gameDataAPI.refreshEmployee(employeeId);
+            await gameDataAPI.loadAllEmployeeRoutes();
         } catch (error) {
             console.error('Error refreshing employee data:', error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to refresh employee data';
@@ -171,43 +140,17 @@
     }
 
     async function handleEmployeeRouteCompleted(event: CustomEvent<{ employeeId: string; reward: number; newBalance: number }>) {
-        // Update game state money and refresh employee data
         const { employeeId, newBalance } = event.detail;
         
         try {
-            // Update game state money immediately
-            gameState.money = newBalance;
-            gameState = { ...gameState }; // Trigger reactivity
+            // Update game state money and refresh employee data
+            gameDataActions.updateMoney(newBalance);
             
-            // Update employee state directly - clear current route since it's completed
-            employees = employees.map(emp => {
-                if (emp.id === employeeId) {
-                    return {
-                        ...emp,
-                        currentRoute: null
-                        // Note: location is updated by the backend, but we could also update it here
-                        // if we had access to the route's end location
-                    };
-                }
-                return emp;
-            });
+            // Clear the current route for this employee
+            gameDataActions.clearCurrentRoute(employeeId);
             
-            // Clear the current route from our local state
-            currentRoutes = {
-                ...currentRoutes,
-                [employeeId]: null
-            };
-            
-            // Optional: Still refresh from server to ensure consistency
-            const response = await fetch(`/api/employees/${employeeId}`);
-            if (response.ok) {
-                const updatedEmployee = await response.json();
-                console.log('Route completion - updated employee data:', updatedEmployee);
-                console.log('Updated employee location:', updatedEmployee.location);
-                employees = employees.map(emp => 
-                    emp.id === employeeId ? updatedEmployee : emp
-                );
-            }
+            // Refresh employee data from server
+            await gameDataAPI.refreshEmployee(employeeId);
             
             console.log(`🎉 Route completed! Employee ${employeeId} earned ${event.detail.reward}`);
             addError(`🎉 Route completed! Earned ${formatMoney(event.detail.reward)}`, 'info', true, 3000);
@@ -230,18 +173,18 @@
     <div class="navbar bg-base-100 shadow-lg">
         <div class="flex-1">
             <a href="/character-select" class="btn btn-ghost text-xl">
-                ← {gameState.name}
+                ← {$currentGameState?.name || 'Game'}
             </a>
         </div>
         <div class="flex-none">
             <div class="stats stats-horizontal shadow">
                 <div class="stat">
                     <div class="stat-title">Money</div>
-                    <div class="stat-value text-success">{formatMoney(gameState.money)}</div>
+                    <div class="stat-value text-success">{formatMoney($currentGameState?.money || 0)}</div>
                 </div>
                 <div class="stat">
                     <div class="stat-title">Route Level</div>
-                    <div class="stat-value text-info">{gameState.routeLevel}</div>
+                    <div class="stat-value text-info">{$currentGameState?.routeLevel || 0}</div>
                 </div>
             </div>
         </div>
@@ -250,17 +193,13 @@
     <!-- Main Content -->
     <div class="container mx-auto px-4 py-6">
         <!-- Cheats Component (only shows when cheats are enabled) -->
-        <Cheats 
-            {gameState} 
-            {cheatsEnabled}
-            on:moneyUpdated={handleCheatMoneyUpdated}
-        />
+        <Cheats />
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Left Panel - Employees -->
             <div class="lg:col-span-1">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-bold">Employees ({employees.length})</h2>
+                    <h2 class="text-2xl font-bold">Employees ({$employees.length})</h2>
                     <button 
                         class="btn btn-primary"
                         class:btn-disabled={!canAffordEmployee}
@@ -279,7 +218,7 @@
                     </button>
                 </div>
 
-                {#if employees.length === 0}
+                {#if $employees.length === 0}
                     <div class="card bg-base-100 shadow-lg">
                         <div class="card-body text-center py-16">
                             <div class="mb-4">
@@ -301,12 +240,13 @@
                     </div>
                 {:else}
                     <div class="space-y-4">
-                        {#each employees as employee (employee.id)}
+                        {#each $employees as employee (employee.id)}
+                            {@const employeeRoutes = $routesByEmployee[employee.id] || { available: [], current: null }}
                             <EmployeeCard 
                                 {employee}
-                                availableRoutes={employeeRoutes[employee.id] || []}
-                                currentRoute={currentRoutes[employee.id] || null}
-                                gameStateId={gameState.id}
+                                availableRoutes={employeeRoutes.available}
+                                currentRoute={employeeRoutes.current}
+                                gameStateId={$currentGameState?.id || ''}
                                 on:generateRoutes={handleEmployeeRouteGenerated}
                                 on:assignRoute={handleEmployeeRouteAssigned}
                                 on:routeCompleted={handleEmployeeRouteCompleted}
@@ -360,7 +300,7 @@
                             {#if hiringCost === 0}
                                 Your first employee is free!
                             {:else}
-                                Current balance: {formatMoney(gameState.money)}
+                                Current balance: {formatMoney($currentGameState?.money || 0)}
                             {/if}
                         </div>
                     </div>
