@@ -29,4 +29,62 @@ export async function getServerHealth(): Promise<{
     }
     
     return response.json();
+}
+
+export async function getAddressBbox(): Promise<{
+    min_lat: number;
+    max_lat: number;
+    min_lon: number;
+    max_lon: number;
+}> {
+    const response = await fetch(`${ROUTING_SERVER_URL}/api/v1/bbox`);
+    
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to get address bbox');
+    }
+    
+    return response.json();
+}
+
+export async function getNumAddresses(): Promise<{ count: number }> {
+    const response = await fetch(`${ROUTING_SERVER_URL}/api/v1/numAddresses`);
+    
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to get address count');
+    }
+    
+    return response.json();
+}
+
+export async function getAddressSample(params: {
+    number: number;
+    seed: number;
+    page_size: number;
+    page_num: number;
+}): Promise<{
+    addresses: Address[];
+    pagination: {
+        page_num: number;
+        page_size: number;
+        total_requested: number;
+        returned: number;
+    };
+}> {
+    const queryParams = new URLSearchParams({
+        number: params.number.toString(),
+        seed: params.seed.toString(),
+        page_size: params.page_size.toString(),
+        page_num: params.page_num.toString(),
+    });
+    
+    const response = await fetch(`${ROUTING_SERVER_URL}/api/v1/addressSample?${queryParams}`);
+    
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to get address sample');
+    }
+    
+    return response.json();
 } 

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { getRandomAddressInAnnulus } from '../addresses';
-import { getClosestAddress, getServerHealth } from '../server';
+import { getClosestAddress, getServerHealth, getAddressBbox, getNumAddresses, getAddressSample } from '../server';
 import type { Coordinate } from '../types';
 
 describe('address functions (integration)', () => {
@@ -149,6 +149,159 @@ describe('address functions (integration)', () => {
             if (rawData.house_number !== undefined) {
                 console.log('API returns "house_number":', rawData.house_number);
             }
+        });
+    });
+    
+    describe('new API endpoints', () => {
+        describe('getAddressBbox', () => {
+            it('should return the bounding box of all addresses', async () => {
+                const bbox = await getAddressBbox();
+                
+                // Check bbox structure
+                expect(bbox).toHaveProperty('min_lat');
+                expect(bbox).toHaveProperty('max_lat');
+                expect(bbox).toHaveProperty('min_lon');
+                expect(bbox).toHaveProperty('max_lon');
+                
+                // Check that coordinates are numbers
+                expect(typeof bbox.min_lat).toBe('number');
+                expect(typeof bbox.max_lat).toBe('number');
+                expect(typeof bbox.min_lon).toBe('number');
+                expect(typeof bbox.max_lon).toBe('number');
+                
+                // Check that bbox is valid (max > min)
+                expect(bbox.max_lat).toBeGreaterThan(bbox.min_lat);
+                expect(bbox.max_lon).toBeGreaterThan(bbox.min_lon);
+                
+                console.log('Address bbox:', bbox);
+            });
+        });
+        
+        describe('getNumAddresses', () => {
+            it('should return the total number of addresses', async () => {
+                const result = await getNumAddresses();
+                
+                // Check result structure
+                expect(result).toHaveProperty('count');
+                expect(typeof result.count).toBe('number');
+                expect(result.count).toBeGreaterThan(0);
+                
+                console.log('Total addresses:', result.count);
+            });
+        });
+        
+        describe('getAddressSample', () => {
+            it('should return a sample of addresses with pagination', async () => {
+                const params = {
+                    number: 50,
+                    seed: 123,
+                    page_size: 10,
+                    page_num: 0
+                };
+                
+                const result = await getAddressSample(params);
+                
+                // Check result structure
+                expect(result).toHaveProperty('addresses');
+                expect(result).toHaveProperty('pagination');
+                expect(Array.isArray(result.addresses)).toBe(true);
+                
+                // Check pagination info
+                expect(result.pagination.page_num).toBe(params.page_num);
+                expect(result.pagination.page_size).toBe(params.page_size);
+                expect(result.pagination.total_requested).toBe(params.number);
+                expect(result.pagination.returned).toBe(result.addresses.length);
+                
+                // Should return up to page_size addresses
+                expect(result.addresses.length).toBeLessThanOrEqual(params.page_size);
+                expect(result.addresses.length).toBeGreaterThan(0);
+                
+                // Check address structure
+                for (const address of result.addresses) {
+                    expect(address).toHaveProperty('id');
+                    expect(address).toHaveProperty('lat');
+                    expect(address).toHaveProperty('lon');
+                    expect(address).toHaveProperty('street');
+                    expect(address).toHaveProperty('house_number');
+                    expect(address).toHaveProperty('city');
+                    expect(address).toHaveProperty('postcode');
+                    
+                    expect(typeof address.lat).toBe('number');
+                    expect(typeof address.lon).toBe('number');
+                }
+                
+                console.log(`Address sample: returned ${result.addresses.length} addresses`);
+            });
+            
+            it('should handle pagination correctly', async () => {
+                const params = {
+                    number: 30,
+                    seed: 456,
+                    page_size: 10,
+                    page_num: 1  // Second page
+                };
+                
+                const result = await getAddressSample(params);
+                
+                expect(result.pagination.page_num).toBe(1);
+                expect(result.addresses.length).toBeLessThanOrEqual(10);
+            });
+            
+            it('should return consistent results with same seed', async () => {
+                const params1 = {
+                    number: 20,
+                    seed: 789,
+                    page_size: 5,
+                    page_num: 0
+                };
+                
+                const params2 = {
+                    number: 20,
+                    seed: 789,  // Same seed
+                    page_size: 5,
+                    page_num: 0
+                };
+                
+                const result1 = await getAddressSample(params1);
+                const result2 = await getAddressSample(params2);
+                
+                // Should return the same addresses in the same order
+                expect(result1.addresses.length).toBe(result2.addresses.length);
+                
+                for (let i = 0; i < result1.addresses.length; i++) {
+                    expect(result1.addresses[i].id).toBe(result2.addresses[i].id);
+                }
+            });
+            
+            it('should handle edge cases', async () => {
+                // Test with page beyond available data
+                const params = {
+                    number: 10,
+                    seed: 999,
+                    page_size: 5,
+                    page_num: 10  // Way beyond available data
+                };
+                
+                const result = await getAddressSample(params);
+                expect(result.addresses.length).toBe(0);
+            });
+            
+            it('should validate input parameters', async () => {
+                // Test with invalid parameters
+                await expect(getAddressSample({
+                    number: 0,  // Invalid
+                    seed: 1,
+                    page_size: 10,
+                    page_num: 0
+                })).rejects.toThrow();
+                
+                await expect(getAddressSample({
+                    number: 10,
+                    seed: 1,
+                    page_size: 0,  // Invalid
+                    page_num: 0
+                })).rejects.toThrow();
+            });
         });
     });
 }); 

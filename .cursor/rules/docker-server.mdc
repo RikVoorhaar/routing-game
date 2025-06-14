@@ -4,6 +4,6 @@ globs:
 alwaysApply: true
 ---
 The routing server is located in ./routing_server. Whenever modifying this file, consider the contents of the docker compose
-[docker-compose.yml](mdc:routing_server/docker-compose.yml), then run docker build. Look at log outputs of the build. If the build is unsuccessful, fix it and try again.
+[docker-compose.yml](mdc:routing_server/docker-compose.yml), then run `docker compose build`. Look at log outputs of the build. If the build is unsuccessful, fix it and try again.
 
-When ready restart the docker container using docker compose down; docker compose up -d to restart the docker container. Wait 30 seconds, and then tail the docker logs.
+When ready restart the docker container using `docker compose down; docker compose up -d` to restart the docker container. Wait 30 seconds, and then tail the docker logs.

@@ -135,6 +135,29 @@ public:
     
     // Get address count
     unsigned getAddressCount() const;
+    
+    // Get bounding box of all addresses
+    struct AddressBbox {
+        double min_lat;
+        double max_lat;
+        double min_lon;
+        double max_lon;
+        
+        crow::json::wvalue toJson() const {
+            crow::json::wvalue json;
+            json["min_lat"] = min_lat;
+            json["max_lat"] = max_lat;
+            json["min_lon"] = min_lon;
+            json["max_lon"] = max_lon;
+            return json;
+        }
+    };
+    
+    std::optional<AddressBbox> getAddressBbox() const;
+    
+    // Get a sample of addresses with pagination
+    std::vector<Address> getAddressSample(unsigned number, unsigned seed, 
+                                          unsigned page_size, unsigned page_num) const;
 
 private:
     // Generate a point in an annulus

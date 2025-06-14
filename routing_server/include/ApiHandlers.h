@@ -26,6 +26,15 @@ private:
     // Handler for the health check endpoint
     crow::response handleHealthCheck(const crow::request& req);
     
+    // Handler for the address bbox endpoint
+    crow::response handleAddressBbox(const crow::request& req);
+    
+    // Handler for the number of addresses endpoint
+    crow::response handleNumAddresses(const crow::request& req);
+    
+    // Handler for the address sample endpoint
+    crow::response handleAddressSample(const crow::request& req);
+    
     // Parse coordinates from query parameters
     bool parseCoordinates(const crow::request& req, 
                           double& from_lat, double& from_lon, 

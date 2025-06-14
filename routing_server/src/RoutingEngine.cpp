@@ -8,6 +8,7 @@
 #include <cstring>
 #include <set>
 #include <limits>
+#include <numeric>
 
 namespace RoutingServer {
 
@@ -1031,6 +1032,77 @@ unsigned RoutingEngine::recalculateTotalTravelTime(const RoutingResult& result, 
     
     LOG("recalculateTotalTravelTime: total=" << total_time_ms << "ms (including walking: start=" << start_walking_time_ms << "ms, end=" << end_walking_time_ms << "ms)");
     return total_time_ms;
+}
+
+std::optional<RoutingEngine::AddressBbox> RoutingEngine::getAddressBbox() const {
+    // Check if we have addresses loaded
+    if (addresses_.empty()) {
+        LOG("No addresses loaded for bbox calculation");
+        return std::nullopt;
+    }
+    
+    AddressBbox bbox;
+    bbox.min_lat = addresses_[0].latitude;
+    bbox.max_lat = addresses_[0].latitude;
+    bbox.min_lon = addresses_[0].longitude;
+    bbox.max_lon = addresses_[0].longitude;
+    
+    // Find min/max coordinates
+    for (const auto& addr : addresses_) {
+        bbox.min_lat = std::min(bbox.min_lat, addr.latitude);
+        bbox.max_lat = std::max(bbox.max_lat, addr.latitude);
+        bbox.min_lon = std::min(bbox.min_lon, addr.longitude);
+        bbox.max_lon = std::max(bbox.max_lon, addr.longitude);
+    }
+    
+    LOG("Address bbox: lat[" << bbox.min_lat << ", " << bbox.max_lat << "], lon[" << bbox.min_lon << ", " << bbox.max_lon << "]");
+    return bbox;
+}
+
+std::vector<Address> RoutingEngine::getAddressSample(unsigned number, unsigned seed, 
+                                                     unsigned page_size, unsigned page_num) const {
+    std::vector<Address> result;
+    
+    // Check if we have addresses loaded
+    if (addresses_.empty()) {
+        LOG("No addresses loaded for sampling");
+        return result;
+    }
+    
+    // Initialize random generator with seed
+    std::mt19937 gen(seed);
+    
+    // Calculate the actual sample size we need
+    unsigned start_index = page_num * page_size;
+    unsigned end_index = std::min(start_index + page_size, number);
+    
+    if (start_index >= number) {
+        LOG("Page out of range: start_index=" << start_index << ", number=" << number);
+        return result;
+    }
+    
+    // Generate a shuffled list of indices for reproducible random sampling
+    std::vector<unsigned> indices(addresses_.size());
+    std::iota(indices.begin(), indices.end(), 0);
+    std::shuffle(indices.begin(), indices.end(), gen);
+    
+    // Take only the number of indices we need
+    if (number < indices.size()) {
+        indices.resize(number);
+    }
+    
+    // Sort the indices to make pagination consistent
+    std::sort(indices.begin(), indices.end());
+    
+    // Extract the page we want
+    for (unsigned i = start_index; i < end_index && i < indices.size(); ++i) {
+        result.push_back(addresses_[indices[i]]);
+    }
+    
+    LOG("Address sample: requested=" << number << ", seed=" << seed << ", page_size=" << page_size 
+        << ", page_num=" << page_num << ", returned=" << result.size());
+    
+    return result;
 }
 
 } // namespace RoutingServer 

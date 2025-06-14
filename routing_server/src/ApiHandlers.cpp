@@ -32,6 +32,27 @@ void ApiHandlers::registerRoutes(crow::SimpleApp& app) {
             return this->handleHealthCheck(req);
         });
         
+    // Register the address bbox endpoint
+    CROW_ROUTE(app, "/api/v1/bbox")
+        .methods(crow::HTTPMethod::GET)
+        ([this](const crow::request& req) {
+            return this->handleAddressBbox(req);
+        });
+        
+    // Register the number of addresses endpoint
+    CROW_ROUTE(app, "/api/v1/numAddresses")
+        .methods(crow::HTTPMethod::GET)
+        ([this](const crow::request& req) {
+            return this->handleNumAddresses(req);
+        });
+        
+    // Register the address sample endpoint (using GET method)
+    CROW_ROUTE(app, "/api/v1/addressSample")
+        .methods(crow::HTTPMethod::GET)
+        ([this](const crow::request& req) {
+            return this->handleAddressSample(req);
+        });
+        
     LOG("API routes registered");
 }
 
@@ -224,6 +245,138 @@ crow::response ApiHandlers::handleClosestAddress(const crow::request& req) {
     long long end_time = RoutingKit::get_micro_time();
     LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms");
     return crow::response(success_response);
+}
+
+crow::response ApiHandlers::handleAddressBbox(const crow::request& req) {
+    long long start_time = RoutingKit::get_micro_time();
+    LOG("Received address bbox request: " + req.url);
+    
+    // Check if addresses are loaded
+    if (engine_->getAddressCount() == 0) {
+        auto error_response = JsonBuilder::buildErrorResponse(
+            "No addresses loaded. Start server with address CSV file."
+        );
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
+        return crow::response(404, error_response);
+    }
+    
+    // Get the bounding box
+    auto bbox = engine_->getAddressBbox();
+    
+    if (!bbox) {
+        auto error_response = JsonBuilder::buildErrorResponse(
+            "Failed to calculate address bounding box"
+        );
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
+        return crow::response(500, error_response);
+    }
+    
+    // Build and return the JSON response
+    LOG("Sending bbox response");
+    auto success_response = bbox->toJson();
+    long long end_time = RoutingKit::get_micro_time();
+    LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms");
+    return crow::response(success_response);
+}
+
+crow::response ApiHandlers::handleNumAddresses(const crow::request& req) {
+    long long start_time = RoutingKit::get_micro_time();
+    LOG("Received num addresses request: " + req.url);
+    
+    // Get the number of addresses
+    unsigned address_count = engine_->getAddressCount();
+    
+    // Build and return the JSON response
+    crow::json::wvalue response;
+    response["count"] = address_count;
+    
+    LOG("Sending num addresses response: " << address_count);
+    long long end_time = RoutingKit::get_micro_time();
+    LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms");
+    return crow::response(response);
+}
+
+crow::response ApiHandlers::handleAddressSample(const crow::request& req) {
+    long long start_time = RoutingKit::get_micro_time();
+    LOG("Received address sample request: " + req.url);
+    
+    // Check if addresses are loaded
+    if (engine_->getAddressCount() == 0) {
+        auto error_response = JsonBuilder::buildErrorResponse(
+            "No addresses loaded. Start server with address CSV file."
+        );
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
+        return crow::response(404, error_response);
+    }
+    
+    // Parse query parameters with defaults
+    std::string number_param = req.url_params.get("number") ? req.url_params.get("number") : "100";
+    std::string seed_param = req.url_params.get("seed") ? req.url_params.get("seed") : "42";
+    std::string page_size_param = req.url_params.get("page_size") ? req.url_params.get("page_size") : "20";
+    std::string page_num_param = req.url_params.get("page_num") ? req.url_params.get("page_num") : "0";
+    
+    unsigned number, seed, page_size, page_num;
+    
+    try {
+        number = std::stoul(number_param);
+        seed = std::stoul(seed_param);
+        page_size = std::stoul(page_size_param);
+        page_num = std::stoul(page_num_param);
+    } catch (const std::exception& e) {
+        auto error_response = JsonBuilder::buildErrorResponse(
+            "Invalid parameter format. All parameters must be valid unsigned integers."
+        );
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
+        return crow::response(400, error_response);
+    }
+    
+    LOG("Address sample parameters: number=" << number << ", seed=" << seed 
+        << ", page_size=" << page_size << ", page_num=" << page_num);
+    
+    // Validate parameters
+    if (page_size == 0) {
+        auto error_response = JsonBuilder::buildErrorResponse(
+            "page_size must be greater than 0"
+        );
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
+        return crow::response(400, error_response);
+    }
+    
+    if (number == 0) {
+        auto error_response = JsonBuilder::buildErrorResponse(
+            "number must be greater than 0"
+        );
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
+        return crow::response(400, error_response);
+    }
+    
+    // Get the address sample
+    auto addresses = engine_->getAddressSample(number, seed, page_size, page_num);
+    
+    // Build JSON response
+    crow::json::wvalue response;
+    response["addresses"] = crow::json::wvalue::list();
+    
+    for (size_t i = 0; i < addresses.size(); ++i) {
+        response["addresses"][i] = addresses[i].toJson();
+    }
+    
+    // Add pagination info
+    response["pagination"]["page_num"] = page_num;
+    response["pagination"]["page_size"] = page_size;
+    response["pagination"]["total_requested"] = number;
+    response["pagination"]["returned"] = addresses.size();
+    
+    LOG("Sending address sample response with " << addresses.size() << " addresses");
+    long long end_time = RoutingKit::get_micro_time();
+    LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms");
+    return crow::response(response);
 }
 
 } // namespace RoutingServer 
