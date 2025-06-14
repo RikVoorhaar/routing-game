@@ -1105,4 +1105,55 @@ std::vector<Address> RoutingEngine::getAddressSample(unsigned number, unsigned s
     return result;
 }
 
+std::optional<Address> RoutingEngine::getUniformRandomAddressInAnnulus(double center_lat, double center_lon, 
+                                                                         float min_distance_km, float max_distance_km,
+                                                                         unsigned seed) const {
+    // Check if we have addresses loaded
+    if (addresses_.empty() || !addr_index_) {
+        LOG("No addresses loaded for uniform annulus sampling");
+        return std::nullopt;
+    }
+    
+    // Convert distances from kilometers to meters
+    float min_distance_m = min_distance_km * 1000.0f;
+    float max_distance_m = max_distance_km * 1000.0f;
+    
+    // Validate inputs
+    if (min_distance_m < 0.0f || max_distance_m <= min_distance_m) {
+        LOG("Invalid distance parameters: min_distance=" << min_distance_m << "m, max_distance=" << max_distance_m << "m");
+        return std::nullopt;
+    }
+    
+    // Find all addresses within max_distance
+    auto candidates = addr_index_->find_all_nodes_within_radius(
+        static_cast<float>(center_lat), 
+        static_cast<float>(center_lon), 
+        max_distance_m
+    );
+    
+    // Filter to only those >= min_distance
+    std::vector<unsigned> valid_indices;
+    for (const auto& candidate : candidates) {
+        if (candidate.distance >= min_distance_m && candidate.id < addresses_.size()) {
+            valid_indices.push_back(candidate.id);
+        }
+    }
+    
+    if (valid_indices.empty()) {
+        LOG("No addresses found in annulus: center=(" << center_lat << "," << center_lon 
+            << "), min_dist=" << min_distance_km << "km, max_dist=" << max_distance_km << "km");
+        return std::nullopt;
+    }
+    
+    // Uniformly sample one address using the seed
+    std::mt19937 gen(seed);
+    std::uniform_int_distribution<size_t> dist(0, valid_indices.size() - 1);
+    size_t selected_index = dist(gen);
+    
+    LOG("Uniform annulus sampling: found " << valid_indices.size() << " candidates, selected index " 
+        << selected_index << " (address id " << valid_indices[selected_index] << ")");
+    
+    return addresses_[valid_indices[selected_index]];
+}
+
 } // namespace RoutingServer 

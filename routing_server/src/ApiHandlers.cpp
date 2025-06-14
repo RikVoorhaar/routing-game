@@ -53,6 +53,13 @@ void ApiHandlers::registerRoutes(crow::SimpleApp& app) {
             return this->handleAddressSample(req);
         });
         
+    // Register the uniform random address in annulus endpoint
+    CROW_ROUTE(app, "/api/v1/uniformRandomAddressInAnnulus")
+        .methods(crow::HTTPMethod::GET)
+        ([this](const crow::request& req) {
+            return this->handleUniformRandomAddressInAnnulus(req);
+        });
+        
     LOG("API routes registered");
 }
 
@@ -377,6 +384,79 @@ crow::response ApiHandlers::handleAddressSample(const crow::request& req) {
     long long end_time = RoutingKit::get_micro_time();
     LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms");
     return crow::response(response);
+}
+
+crow::response ApiHandlers::handleUniformRandomAddressInAnnulus(const crow::request& req) {
+    long long start_time = RoutingKit::get_micro_time();
+    LOG("Received uniform random address in annulus request: " + req.url);
+    
+    // Check if addresses are loaded
+    if (engine_->getAddressCount() == 0) {
+        auto error_response = JsonBuilder::buildErrorResponse(
+            "No addresses loaded. Start server with address CSV file."
+        );
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
+        return crow::response(404, error_response);
+    }
+    
+    // Parse query parameters
+    std::string lat_param = req.url_params.get("lat") ? req.url_params.get("lat") : "";
+    std::string lon_param = req.url_params.get("lon") ? req.url_params.get("lon") : "";
+    std::string min_distance_param = req.url_params.get("min_distance") ? req.url_params.get("min_distance") : "";
+    std::string max_distance_param = req.url_params.get("max_distance") ? req.url_params.get("max_distance") : "";
+    std::string seed_param = req.url_params.get("seed") ? req.url_params.get("seed") : "42";
+    
+    double lat, lon;
+    float min_distance, max_distance;
+    unsigned seed;
+    
+    try {
+        lat = std::stod(lat_param);
+        lon = std::stod(lon_param);
+        min_distance = std::stof(min_distance_param);
+        max_distance = std::stof(max_distance_param);
+        seed = std::stoul(seed_param);
+    } catch (const std::exception& e) {
+        auto error_response = JsonBuilder::buildErrorResponse(
+            "Invalid parameter format. Required: lat, lon, min_distance, max_distance (all numeric). Optional: seed (numeric)"
+        );
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
+        return crow::response(400, error_response);
+    }
+    
+    // Check for missing required parameters
+    if (lat_param.empty() || lon_param.empty() || min_distance_param.empty() || max_distance_param.empty()) {
+        auto error_response = JsonBuilder::buildErrorResponse(
+            "Missing required parameters. Format: /api/v1/uniformRandomAddressInAnnulus?lat=X&lon=Y&min_distance=Z&max_distance=W&seed=S"
+        );
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
+        return crow::response(400, error_response);
+    }
+    
+    LOG("Uniform random address in annulus: center=(" << lat << "," << lon 
+        << "), min_dist=" << min_distance << "km, max_dist=" << max_distance << "km, seed=" << seed);
+    
+    // Get a uniform random address in the annulus
+    auto address = engine_->getUniformRandomAddressInAnnulus(lat, lon, min_distance, max_distance, seed);
+    
+    if (!address) {
+        auto error_response = JsonBuilder::buildErrorResponse(
+            "No address found in the specified annulus"
+        );
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
+        return crow::response(404, error_response);
+    }
+    
+    // Build and return the JSON response
+    LOG("Sending uniform random address response");
+    auto success_response = address->toJson();
+    long long end_time = RoutingKit::get_micro_time();
+    LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms");
+    return crow::response(success_response);
 }
 
 } // namespace RoutingServer 

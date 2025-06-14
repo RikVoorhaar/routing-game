@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { getRandomAddressInAnnulus } from '../addresses';
-import { getClosestAddress, getServerHealth, getAddressBbox, getNumAddresses, getAddressSample } from '../server';
+import { getClosestAddress, getServerHealth, getAddressBbox, getNumAddresses, getAddressSample, getUniformRandomAddressInAnnulus } from '../server';
 import type { Coordinate } from '../types';
 
 describe('address functions (integration)', () => {
@@ -300,6 +300,139 @@ describe('address functions (integration)', () => {
                     seed: 1,
                     page_size: 0,  // Invalid
                     page_num: 0
+                })).rejects.toThrow();
+            });
+        });
+        
+        describe('getUniformRandomAddressInAnnulus', () => {
+            it('should return a uniformly sampled address in the specified annulus', async () => {
+                const params = {
+                    lat: 52.0907,  // Utrecht center
+                    lon: 5.1214,
+                    min_distance: 0.5,  // 500m
+                    max_distance: 2.0,   // 2km  
+                    seed: 12345
+                };
+                
+                const address = await getUniformRandomAddressInAnnulus(params);
+                
+                // Check address structure
+                expect(address).toHaveProperty('id');
+                expect(address).toHaveProperty('lat');
+                expect(address).toHaveProperty('lon');
+                expect(address).toHaveProperty('street');
+                expect(address).toHaveProperty('house_number');
+                expect(address).toHaveProperty('city');
+                expect(address).toHaveProperty('postcode');
+                
+                // Check that coordinates are numbers
+                expect(typeof address.lat).toBe('number');
+                expect(typeof address.lon).toBe('number');
+                
+                // Calculate actual distance from center to verify it's within the annulus
+                const R = 6371; // Earth radius in km
+                const dLat = (address.lat - params.lat) * Math.PI / 180;
+                const dLon = (address.lon - params.lon) * Math.PI / 180;
+                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                         Math.cos(params.lat * Math.PI / 180) * Math.cos(address.lat * Math.PI / 180) * 
+                         Math.sin(dLon/2) * Math.sin(dLon/2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                const distance = R * c;
+                
+                // Verify address is within the annulus (with small tolerance)
+                expect(distance).toBeGreaterThanOrEqual(params.min_distance - 0.01);
+                expect(distance).toBeLessThanOrEqual(params.max_distance + 0.01);
+                
+                console.log(`Uniform random address: ${address.street} ${address.house_number}, distance: ${distance.toFixed(3)}km`);
+            });
+            
+            it('should return consistent results with same seed', async () => {
+                const params = {
+                    lat: 52.0907,
+                    lon: 5.1214,
+                    min_distance: 0.3,
+                    max_distance: 1.5,
+                    seed: 98765
+                };
+                
+                const address1 = await getUniformRandomAddressInAnnulus(params);
+                const address2 = await getUniformRandomAddressInAnnulus(params);
+                
+                // Should return the same address with same seed
+                expect(address1.id).toBe(address2.id);
+                expect(address1.lat).toBe(address2.lat);
+                expect(address1.lon).toBe(address2.lon);
+            });
+            
+            it('should return different results with different seeds', async () => {
+                const baseParams = {
+                    lat: 52.0907,
+                    lon: 5.1214,
+                    min_distance: 0.5,
+                    max_distance: 2.0,
+                };
+                
+                const address1 = await getUniformRandomAddressInAnnulus({...baseParams, seed: 111});
+                const address2 = await getUniformRandomAddressInAnnulus({...baseParams, seed: 222});
+                
+                // Should return different addresses with different seeds (with very high probability)
+                expect(address1.id).not.toBe(address2.id);
+            });
+            
+            it('should handle edge cases', async () => {
+                // Test with very small annulus
+                const smallParams = {
+                    lat: 52.0907,
+                    lon: 5.1214,
+                    min_distance: 0.05,  // 50m
+                    max_distance: 0.1,   // 100m
+                    seed: 555
+                };
+                
+                const address = await getUniformRandomAddressInAnnulus(smallParams);
+                expect(address).toHaveProperty('id');
+                
+                // Test with larger annulus
+                const largeParams = {
+                    lat: 52.0907,
+                    lon: 5.1214,
+                    min_distance: 3.0,   // 3km
+                    max_distance: 5.0,   // 5km
+                    seed: 777
+                };
+                
+                const address2 = await getUniformRandomAddressInAnnulus(largeParams);
+                expect(address2).toHaveProperty('id');
+            });
+            
+            it('should validate input parameters', async () => {
+                // Test with invalid distance range (min > max)
+                await expect(getUniformRandomAddressInAnnulus({
+                    lat: 52.0907,
+                    lon: 5.1214,
+                    min_distance: 2.0,
+                    max_distance: 1.0,  // Invalid: max < min
+                    seed: 999
+                })).rejects.toThrow();
+                
+                // Test with negative distances
+                await expect(getUniformRandomAddressInAnnulus({
+                    lat: 52.0907,
+                    lon: 5.1214,
+                    min_distance: -1.0,  // Invalid: negative
+                    max_distance: 1.0,
+                    seed: 999
+                })).rejects.toThrow();
+            });
+            
+            it('should handle locations with no addresses in annulus', async () => {
+                // Test with a location far from Utrecht where no addresses exist
+                await expect(getUniformRandomAddressInAnnulus({
+                    lat: 70.0,  // Arctic location
+                    lon: 20.0,
+                    min_distance: 0.1,
+                    max_distance: 0.5,
+                    seed: 888
                 })).rejects.toThrow();
             });
         });

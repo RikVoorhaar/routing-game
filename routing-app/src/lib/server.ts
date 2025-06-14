@@ -87,4 +87,29 @@ export async function getAddressSample(params: {
     }
     
     return response.json();
+}
+
+export async function getUniformRandomAddressInAnnulus(params: {
+    lat: number;
+    lon: number;
+    min_distance: number;
+    max_distance: number;
+    seed: number;
+}): Promise<Address> {
+    const queryParams = new URLSearchParams({
+        lat: params.lat.toString(),
+        lon: params.lon.toString(),
+        min_distance: params.min_distance.toString(),
+        max_distance: params.max_distance.toString(),
+        seed: params.seed.toString(),
+    });
+    
+    const response = await fetch(`${ROUTING_SERVER_URL}/api/v1/uniformRandomAddressInAnnulus?${queryParams}`);
+    
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to get uniform random address in annulus');
+    }
+    
+    return response.json();
 } 

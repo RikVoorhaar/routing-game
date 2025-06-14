@@ -158,6 +158,11 @@ public:
     // Get a sample of addresses with pagination
     std::vector<Address> getAddressSample(unsigned number, unsigned seed, 
                                           unsigned page_size, unsigned page_num) const;
+    
+    // Get a uniformly random address in an annulus (ring between min and max distance)
+    std::optional<Address> getUniformRandomAddressInAnnulus(double center_lat, double center_lon, 
+                                                             float min_distance_km, float max_distance_km,
+                                                             unsigned seed) const;
 
 private:
     // Generate a point in an annulus

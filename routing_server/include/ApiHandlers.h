@@ -35,6 +35,9 @@ private:
     // Handler for the address sample endpoint
     crow::response handleAddressSample(const crow::request& req);
     
+    // Handler for the uniform random address in annulus endpoint
+    crow::response handleUniformRandomAddressInAnnulus(const crow::request& req);
+    
     // Parse coordinates from query parameters
     bool parseCoordinates(const crow::request& req, 
                           double& from_lat, double& from_lon, 
