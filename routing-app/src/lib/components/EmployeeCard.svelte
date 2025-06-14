@@ -1,6 +1,7 @@
 <script lang="ts">
     import { createEventDispatcher } from 'svelte';
     import { onDestroy } from 'svelte';
+    import { selectedEmployee, selectEmployee } from '$lib/stores/selectedEmployee';
     import type { Employee, Route, Address } from '$lib/types';
     import { MIN_ROUTE_REGEN_INTERVAL } from '$lib/types';
     import { addError } from '$lib/stores/errors';
@@ -105,6 +106,19 @@
             }
         }
     }
+
+    // Is this employee selected?
+    $: isSelected = $selectedEmployee === employee.id;
+
+    // Tailwind class string for the card
+    $: cardClass = [
+        'card bg-base-200 shadow-lg border transition-all duration-150 cursor-pointer',
+        'focus:outline-none focus:ring-2 focus:ring-primary/70',
+        'hover:shadow-xl hover:border-primary/60',
+        isSelected ? 'border-4 border-primary ring-2 ring-primary/30 scale-105' : '',
+        'w-full',
+        'overflow-visible'
+    ].join(' ');
 
     function calculateRouteProgress(route: Route) {
         if (!route.startTime) return null;
@@ -237,8 +251,17 @@
     }
 </script>
 
-<div class="card bg-base-200 shadow-lg border">
-    <div class="card-body p-4">
+<button
+  type="button"
+  class={cardClass}
+  on:click={() => selectEmployee(employee.id)}
+  on:keydown={(e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      selectEmployee(employee.id);
+    }
+  }}
+>
+    <div class="card-body p-6">
         <div class="flex justify-between items-start mb-3">
             <h3 class="card-title text-lg font-bold text-primary">{employee.name}</h3>
             <div class="badge badge-secondary">{upgradeState.vehicleType}</div>
@@ -310,7 +333,7 @@
                         </div>
                         
                         <!-- Route Cards -->
-                        <div class="space-y-2 max-h-120 overflow-y-auto">
+                        <div class="space-y-2 max-h-120 overflow-visible p-2">
                             {#each availableRoutes as route (route.id)}
                                 <RouteCard {route} />
                             {/each}
@@ -370,4 +393,4 @@
             </div>
         </div>
     </div>
-</div> 
+</button> 

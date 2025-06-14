@@ -1,13 +1,19 @@
 BUGS:
-- [x] the house number never seems to be set. Need to investigate if the `routing_server` correctly returns it, or whether the `routing-app` is not correctly parsing the response, or whether the information disappears at some other point. **FIXED**: The routing server was returning `"housenumber"` but the frontend expected `"house_number"`. Changed the field name in the Address::toJson() method.
-- [x] The interpolated position lags behind. When the route is finished, the current location is displayed behind the destination. My guess is that the begin and end nodes are not taken into account when computing the cumulative time, since the they are not included when finding the shortest path, but rather pre/appended to the path. This is thus most likely a bug in the `routing_server` code, and not the `routing-app` code. We should start with writing an integration test that the cumulative time encoded in the path corresponds to the total time of the entire route. Probably we have to adjust the total time of the route to add the time of the begin and end nodes. **FIXED**: The bug only manifested when the `maxSpeed` parameter was used. The `recalculateTotalTravelTime` function was only recalculating road segment times but not including walking segment times, while `processPathIntoPoints` included walking times in cumulative calculations. Fixed by adding walking segment times to `recalculateTotalTravelTime`.
 
 ENHANCEMENTS:
-- [ ] the default employee location should be queried from the routing server
+- [ ] When clicking on an employee it is highlighted, and highlighted employees are stored in a store. 
+- [ ] When an employee is selected, the route map should pan to the employee's location. If the employee is on a route, the zoom should be such that the entire route is visible. If no route is active, just pan and don't change the zoom. If there are available routes, then show the available routes on the map and zoom/pan to make sure all routes are visible.
+- [ ] When selecting a route, pan and zoom on the route. When starting a route, the pan/zoom shouldn't change because it already shows the route.
+
+Contrary to what LLM claims, the routes aren't displayed, and clicking on an employee doesn't pan / zoom to the employee. 
+
+- [ ] The map markers should also show the ETA, and not just a progress bar
 
 LOGGING:
-- [ ] Health checks shouldn't be logged 
-- [ ] The logs should mention a request ID in each logging line for traceability.
+- [ ] Health checks shouldn't be logged  (server)
+- [ ] The logs should mention a request ID in each logging line for traceability. (server)
+- [ ] Improve logging framework (app)
+- [ ] Mark debug logging as debug (app)
 
 
 DEV:

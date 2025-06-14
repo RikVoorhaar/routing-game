@@ -240,18 +240,20 @@
                         </div>
                     </div>
                 {:else}
-                    <div class="space-y-4">
+                    <div class="space-y-4 overflow-visible">
                         {#each $employees as employee (employee.id)}
                             {@const employeeRoutes = $routesByEmployee[employee.id] || { available: [], current: null }}
-                            <EmployeeCard 
-                                {employee}
-                                availableRoutes={employeeRoutes.available}
-                                currentRoute={employeeRoutes.current}
-                                gameStateId={$currentGameState?.id || ''}
-                                on:generateRoutes={handleEmployeeRouteGenerated}
-                                on:assignRoute={handleEmployeeRouteAssigned}
-                                on:routeCompleted={handleEmployeeRouteCompleted}
-                            />
+                            <div class="overflow-visible">
+                                <EmployeeCard 
+                                    {employee}
+                                    availableRoutes={employeeRoutes.available}
+                                    currentRoute={employeeRoutes.current}
+                                    gameStateId={$currentGameState?.id || ''}
+                                    on:generateRoutes={handleEmployeeRouteGenerated}
+                                    on:assignRoute={handleEmployeeRouteAssigned}
+                                    on:routeCompleted={handleEmployeeRouteCompleted}
+                                />
+                            </div>
                         {/each}
                     </div>
                 {/if}

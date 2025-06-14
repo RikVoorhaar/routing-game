@@ -19,7 +19,7 @@
 </script>
 
 <div 
-    class="card p-2 border-2 cursor-pointer transition-all duration-200 ease-in-out hover:shadow-md transform"
+    class="card p-4 border-2 cursor-pointer transition-all duration-200 ease-in-out hover:shadow-md transform overflow-visible"
     class:border-blue-500={isSelected}
     class:bg-blue-600={isSelected}
     class:text-white={isSelected}
@@ -36,7 +36,7 @@
     aria-pressed={isSelected}
     aria-label="Route from {formatAddress(startLocation)} to {formatAddress(endLocation)}"
 >
-    <div class="card-body p-2">
+    <div class="card-body p-4">
         <!-- Header with goods type and reward -->
         <div class="flex justify-between items-start mb-2">
             <div class="flex items-center gap-2">

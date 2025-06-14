@@ -1,0 +1,10 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+This rule provides standards for styling svelte components.
+
+- Always use Tailwind classes
+- Always use daisy ui classes
+- Never use <style> tags anywhere
