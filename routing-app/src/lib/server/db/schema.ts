@@ -7,6 +7,7 @@ import {
 	timestamp,
 	boolean,
 	jsonb,
+	index,
   } from 'drizzle-orm/pg-core';
   import { sql } from 'drizzle-orm';
   
@@ -21,6 +22,27 @@ import {
 	username: text('username').unique(),
 	cheatsEnabled: boolean('cheats_enabled').notNull().default(false),
   });
+  
+  // Addresses table - stores geographic addresses with PostGIS geometry
+  export const addresses = pgTable('address', {
+	id: text('id').notNull().primaryKey(),
+	street: text('street'),
+	houseNumber: text('house_number'),
+	postcode: text('postcode'),
+	city: text('city'),
+	// PostGIS geometry column for efficient spatial queries
+	location: text('location').notNull(), // POINT geometry as text (handled by PostGIS)
+	lat: numeric('lat').notNull(),
+	lon: numeric('lon').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true })
+	  .notNull()
+	  .default(sql`CURRENT_TIMESTAMP`),
+  }, (table) => [
+	// Create a spatial index on the geometry column for efficient spatial queries
+	index('addresses_location_idx').on(sql`${table.location}`),
+	index('addresses_city_idx').on(table.city),
+	index('addresses_postcode_idx').on(table.postcode),
+  ]);
   
   // Game state table - tracks user's game progress
   export const gameStates = pgTable('game_state', {
