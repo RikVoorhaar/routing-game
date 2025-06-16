@@ -1,6 +1,8 @@
 <script lang="ts">
     import { gameDataAPI } from '$lib/stores/gameData';
     import { cheatSettings, cheatActions } from '$lib/stores/cheats';
+    import { log } from '$lib/logger';
+    import { onMount } from 'svelte';
 
     let moneyAmount = 0;
     let isProcessing = false;
@@ -13,6 +15,41 @@
     // State for route regeneration cheat
     let isRegeneratingRoutes = false;
     let regenerateRoutesError = '';
+
+    // Debug controls state
+    let currentLogLevel = 3;
+    
+    onMount(() => {
+        currentLogLevel = log.getLevel();
+    });
+
+    function setLogLevel(level: number) {
+        log.setLevel(level);
+        currentLogLevel = level;
+        log.info(`Log level changed to: ${getLevelName(level)}`);
+    }
+    
+    function getLevelName(level: number): string {
+        switch (level) {
+            case 0: return 'Silent';
+            case 1: return 'Error';
+            case 2: return 'Warn';
+            case 3: return 'Info';
+            case 4: return 'Debug';
+            case 5: return 'Trace';
+            default: return 'Unknown';
+        }
+    }
+    
+    function toggleDebug() {
+        if (currentLogLevel >= 4) {
+            log.disableDebug();
+            currentLogLevel = log.getLevel();
+        } else {
+            log.enableDebug();
+            currentLogLevel = log.getLevel();
+        }
+    }
 
     async function handleAddMoney() {
         if (isProcessing || moneyAmount === 0) return;
@@ -36,22 +73,22 @@
     async function handleCompleteAllRoutes() {
         if (isCompletingRoutes) return;
         
-        console.log('[CHEAT COMPONENT] Starting handleCompleteAllRoutes');
+        log.debug('[CHEAT COMPONENT] Starting handleCompleteAllRoutes');
         isCompletingRoutes = true;
         completeRoutesError = '';
 
         try {
-            console.log('[CHEAT COMPONENT] Calling gameDataAPI.completeAllRoutes()');
+            log.debug('[CHEAT COMPONENT] Calling gameDataAPI.completeAllRoutes()');
             const result = await gameDataAPI.completeAllRoutes();
             
             // Show success message or handle result
-            console.log('[CHEAT COMPONENT] Routes completed successfully:', result);
+            log.debug('[CHEAT COMPONENT] Routes completed successfully:', result);
             
         } catch (err) {
-            console.error('[CHEAT COMPONENT] Error in handleCompleteAllRoutes:', err);
+            log.error('[CHEAT COMPONENT] Error in handleCompleteAllRoutes:', err);
             completeRoutesError = err instanceof Error ? err.message : 'Failed to complete routes';
         } finally {
-            console.log('[CHEAT COMPONENT] Finishing handleCompleteAllRoutes');
+            log.debug('[CHEAT COMPONENT] Finishing handleCompleteAllRoutes');
             isCompletingRoutes = false;
         }
     }
@@ -66,7 +103,7 @@
             const result = await gameDataAPI.regenerateAllRoutes();
             
             // Show success message or handle result
-            console.log('Routes regenerated:', result);
+            log.debug('Routes regenerated:', result);
             
         } catch (err) {
             regenerateRoutesError = err instanceof Error ? err.message : 'Failed to regenerate routes';
@@ -188,6 +225,53 @@
                     bind:checked={$cheatSettings.showTileDebug}
                 />
             </label>
+        </div>
+    </div>
+
+    <!-- Debug Log Level Controls -->
+    <div class="form-control">
+        <div class="label">
+            <span class="label-text">🐛 Debug Logging</span>
+        </div>
+        
+        <!-- Quick Debug Toggle -->
+        <div class="form-control mb-2">
+            <label class="label cursor-pointer">
+                <span class="label-text text-sm">Enable debug logs</span>
+                <input 
+                    type="checkbox" 
+                    class="toggle toggle-sm toggle-secondary" 
+                    checked={currentLogLevel >= 4}
+                    on:change={toggleDebug}
+                />
+            </label>
+        </div>
+        
+        <!-- Detailed Log Level Control -->
+        <div class="form-control">
+            <label class="label">
+                <span class="label-text text-xs">Log Level ({getLevelName(currentLogLevel)})</span>
+            </label>
+            <select 
+                class="select select-xs select-bordered" 
+                bind:value={currentLogLevel}
+                on:change={(e) => {
+                    const target = e.target as HTMLSelectElement;
+                    setLogLevel(parseInt(target.value));
+                }}
+            >
+                <option value={0}>Silent (0)</option>
+                <option value={1}>Error (1)</option>
+                <option value={2}>Warn (2)</option>
+                <option value={3}>Info (3)</option>
+                <option value={4}>Debug (4)</option>
+                <option value={5}>Trace (5)</option>
+            </select>
+        </div>
+        
+        <div class="text-xs text-base-content/70 mt-2 p-2 bg-base-300 rounded">
+            <strong>Current:</strong> {getLevelName(currentLogLevel)}<br>
+            <strong>Tip:</strong> Debug level shows all the detailed logs that were previously flooding the console
         </div>
     </div>
 </div> 

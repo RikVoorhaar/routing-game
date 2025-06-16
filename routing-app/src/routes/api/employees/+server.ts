@@ -47,8 +47,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         const employeeCount = existingEmployees.length;
         const hiringCost = computeEmployeeCosts(employeeCount);
 
-        // Check if user has enough money
-        if (gameState.money < hiringCost) {
+        // Check if user has enough money - convert string to number if needed
+        const currentMoney = typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money;
+        if (currentMoney < hiringCost) {
             return error(400, `Insufficient funds. Need €${hiringCost}, but only have €${gameState.money}`);
         }
 
@@ -62,8 +63,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             availableRoutes: JSON.stringify([]),
             timeRoutesGenerated: null,
             currentRoute: null,
-            speedMultiplier: 1.0,
-            maxSpeed: 20
+            speedMultiplier: '1.0', // Convert to string for database
+            maxSpeed: '20' // Convert to string for database
         };
 
         // Use a transaction to ensure consistency
@@ -71,15 +72,17 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             // Insert the new employee
             await tx.insert(employees).values(newEmployee);
 
-            // Deduct the hiring cost from game state money
+            // Deduct the hiring cost from game state money - convert string to number if needed
+            const newMoney = currentMoney - hiringCost;
+            
             await tx.update(gameStates)
-                .set({ money: gameState.money - hiringCost })
+                .set({ money: newMoney.toString() })
                 .where(eq(gameStates.id, gameStateId));
         });
 
         return json({
             employee: newEmployee,
-            newBalance: gameState.money - hiringCost
+            newBalance: (typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money) - hiringCost
         }, { status: 201 });
 
     } catch (err) {
@@ -179,7 +182,17 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
             }
 
             // Verify the route exists and belongs to this employee
-            const availableRoutes = JSON.parse(employee.availableRoutes as string) as string[];
+            let availableRoutes: string[] = [];
+            if (typeof employee.availableRoutes === 'string') {
+                // SQLite format - parse JSON string
+                availableRoutes = JSON.parse(employee.availableRoutes) as string[];
+            } else if (Array.isArray(employee.availableRoutes)) {
+                // PostgreSQL format - already an array
+                availableRoutes = employee.availableRoutes as string[];
+            } else {
+                return error(400, 'Invalid availableRoutes format');
+            }
+            
             if (!availableRoutes.includes(routeId)) {
                 return error(400, 'Route not available for this employee');
             }
@@ -270,16 +283,20 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
                     .where(eq(routes.id, routeId));
 
                 // Award the route reward to the game state
+                const currentMoney = typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money;
+                const routeReward = typeof route.reward === 'string' ? parseFloat(route.reward) : route.reward;
+                const newMoney = currentMoney + routeReward;
+                
                 await tx.update(gameStates)
-                    .set({ money: gameState.money + route.reward })
+                    .set({ money: newMoney.toString() })
                     .where(eq(gameStates.id, gameStateId));
             });
 
             return json({ 
                 success: true, 
                 message: 'Route completed successfully',
-                reward: route.reward,
-                newBalance: gameState.money + route.reward
+                reward: typeof route.reward === 'string' ? parseFloat(route.reward) : route.reward,
+                newBalance: (typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money) + (typeof route.reward === 'string' ? parseFloat(route.reward) : route.reward)
             });
 
         } else {

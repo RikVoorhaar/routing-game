@@ -1,6 +1,7 @@
 import { writable, derived, get } from 'svelte/store';
 import type { GameState, Employee, Route } from '$lib/types';
 import { addError } from './errors';
+import { log } from '$lib/logger';
 
 // User data store
 export interface UserData {
@@ -219,32 +220,78 @@ export const gameDataAPI = {
     async loadAllEmployeeRoutes() {
         const currentEmployees = get(employees);
         
+        log.debug('[ROUTES DEBUG] Starting loadAllEmployeeRoutes');
+        log.debug('[ROUTES DEBUG] Number of employees:', currentEmployees.length);
+        
         try {
             for (const employee of currentEmployees) {
-                // Get available routes
-                const availableRouteIds = JSON.parse(employee.availableRoutes as string) as string[];
+                log.debug('[ROUTES DEBUG] Processing employee:', employee.id, employee.name);
+                log.debug('[ROUTES DEBUG] Employee availableRoutes raw:', employee.availableRoutes);
+                log.debug('[ROUTES DEBUG] Employee availableRoutes type:', typeof employee.availableRoutes);
+                
+                // Handle both SQLite (string) and PostgreSQL (array/object) formats
+                let availableRouteIds: string[] = [];
+                try {
+                    if (typeof employee.availableRoutes === 'string') {
+                        // SQLite format - parse JSON string
+                        availableRouteIds = JSON.parse(employee.availableRoutes) as string[];
+                    } else if (Array.isArray(employee.availableRoutes)) {
+                        // PostgreSQL format - already an array
+                        availableRouteIds = employee.availableRoutes as string[];
+                    } else {
+                        // Fallback - empty array
+                        log.warn('[ROUTES DEBUG] Unexpected availableRoutes format, using empty array');
+                        availableRouteIds = [];
+                    }
+                } catch (parseError) {
+                    log.error('[ROUTES DEBUG] Error parsing availableRoutes:', parseError);
+                    availableRouteIds = [];
+                }
+                
+                log.debug('[ROUTES DEBUG] Parsed availableRouteIds:', availableRouteIds);
+                
                 let availableRoutes: Route[] = [];
                 
                 if (availableRouteIds.length > 0) {
+                    log.debug('[ROUTES DEBUG] Fetching routes:', `/api/routes?ids=${availableRouteIds.join(',')}`);
                     const routesResponse = await fetch(`/api/routes?ids=${availableRouteIds.join(',')}`);
+                    log.debug('[ROUTES DEBUG] Routes response status:', routesResponse.status);
+                    
                     if (routesResponse.ok) {
                         availableRoutes = await routesResponse.json();
+                        log.debug('[ROUTES DEBUG] Fetched available routes:', availableRoutes.length);
+                    } else {
+                        const errorText = await routesResponse.text();
+                        log.error('[ROUTES DEBUG] Failed to fetch available routes:', routesResponse.status, errorText);
                     }
+                } else {
+                    log.debug('[ROUTES DEBUG] No available route IDs to fetch');
                 }
 
                 // Get current route if assigned
                 let currentRoute: Route | null = null;
                 if (employee.currentRoute) {
+                    log.debug('[ROUTES DEBUG] Fetching current route:', `/api/routes/${employee.currentRoute}`);
                     const routeResponse = await fetch(`/api/routes/${employee.currentRoute}`);
+                    log.debug('[ROUTES DEBUG] Current route response status:', routeResponse.status);
+                    
                     if (routeResponse.ok) {
                         currentRoute = await routeResponse.json();
+                        log.debug('[ROUTES DEBUG] Fetched current route:', currentRoute?.id);
+                    } else {
+                        const errorText = await routeResponse.text();
+                        log.error('[ROUTES DEBUG] Failed to fetch current route:', routeResponse.status, errorText);
                     }
+                } else {
+                    log.debug('[ROUTES DEBUG] No current route assigned');
                 }
 
+                log.debug('[ROUTES DEBUG] Setting employee routes for:', employee.id, 'available:', availableRoutes.length, 'current:', currentRoute?.id || 'none');
                 gameDataActions.setEmployeeRoutes(employee.id, availableRoutes, currentRoute);
             }
+            log.debug('[ROUTES DEBUG] Successfully loaded all employee routes');
         } catch (error) {
-            console.error('Error loading employee routes:', error);
+            log.error('[ROUTES DEBUG] Error loading employee routes:', error);
             addError('Failed to load employee routes', 'error');
             throw error;
         }
@@ -281,7 +328,7 @@ export const gameDataAPI = {
             
             return result;
         } catch (error) {
-            console.error('Error adding money:', error);
+            log.error('Error adding money:', error);
             addError(`Failed to add money: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
             throw error;
         }
@@ -312,7 +359,7 @@ export const gameDataAPI = {
             
             return result;
         } catch (error) {
-            console.error('Error toggling cheats:', error);
+            log.error('Error toggling cheats:', error);
             addError(`Failed to toggle cheats: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
             throw error;
         }
@@ -339,7 +386,7 @@ export const gameDataAPI = {
             
             return newGameState;
         } catch (error) {
-            console.error('Error creating game state:', error);
+            log.error('Error creating game state:', error);
             addError(`Failed to create game state: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
             throw error;
         }
@@ -363,7 +410,7 @@ export const gameDataAPI = {
             
             return true;
         } catch (error) {
-            console.error('Error deleting game state:', error);
+            log.error('Error deleting game state:', error);
             addError(`Failed to delete game state: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
             throw error;
         }
@@ -374,18 +421,18 @@ export const gameDataAPI = {
         const gameState = get(currentGameState);
         const user = get(currentUser);
         
-        console.log('[CHEAT UI] Starting completeAllRoutes');
-        console.log('[CHEAT UI] Game state:', gameState?.id);
-        console.log('[CHEAT UI] User cheats enabled:', user?.cheatsEnabled);
+        log.debug('[CHEAT UI] Starting completeAllRoutes');
+        log.debug('[CHEAT UI] Game state:', gameState?.id);
+        log.debug('[CHEAT UI] User cheats enabled:', user?.cheatsEnabled);
         
         if (!gameState || !user?.cheatsEnabled) {
             const error = 'Cannot complete routes: No game state or cheats not enabled';
-            console.error('[CHEAT UI]', error);
+            log.error('[CHEAT UI]', error);
             throw new Error(error);
         }
 
         try {
-            console.log('[CHEAT UI] Making API call to /api/cheats/complete-routes');
+            log.debug('[CHEAT UI] Making API call to /api/cheats/complete-routes');
             const response = await fetch('/api/cheats/complete-routes', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -394,33 +441,33 @@ export const gameDataAPI = {
                 })
             });
 
-            console.log('[CHEAT UI] API response status:', response.status);
+            log.debug('[CHEAT UI] API response status:', response.status);
 
             if (!response.ok) {
                 const errorData = await response.json();
-                console.error('[CHEAT UI] API error response:', errorData);
+                log.error('[CHEAT UI] API error response:', errorData);
                 throw new Error(errorData.message || 'Failed to complete routes');
             }
 
             const result = await response.json();
-            console.log('[CHEAT UI] API success response:', result);
+            log.debug('[CHEAT UI] API success response:', result);
             
             // Update the store with the new balance if money was added
             if (result.newBalance) {
-                console.log('[CHEAT UI] Updating money in store:', result.newBalance);
+                log.debug('[CHEAT UI] Updating money in store:', result.newBalance);
                 gameDataActions.updateMoney(result.newBalance);
             }
             
             // Refresh employee data and routes to reflect the changes
-            console.log('[CHEAT UI] Refreshing employee data...');
+            log.debug('[CHEAT UI] Refreshing employee data...');
             await this.refreshEmployees();
-            console.log('[CHEAT UI] Loading employee routes...');
+            log.debug('[CHEAT UI] Loading employee routes...');
             await this.loadAllEmployeeRoutes();
             
-            console.log('[CHEAT UI] Complete routes cheat finished successfully');
+            log.debug('[CHEAT UI] Complete routes cheat finished successfully');
             return result;
         } catch (error) {
-            console.error('[CHEAT UI] Error completing routes:', error);
+            log.error('[CHEAT UI] Error completing routes:', error);
             addError(`Failed to complete routes: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
             throw error;
         }
@@ -457,7 +504,7 @@ export const gameDataAPI = {
             
             return result;
         } catch (error) {
-            console.error('Error regenerating routes:', error);
+            log.error('Error regenerating routes:', error);
             addError(`Failed to regenerate routes: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
             throw error;
         }
@@ -478,7 +525,7 @@ export const gameDataAPI = {
                 await this.refreshEmployee(employee.id);
             }
         } catch (error) {
-            console.error('Error refreshing employees:', error);
+            log.error('Error refreshing employees:', error);
             addError('Failed to refresh employees', 'error');
             throw error;
         }

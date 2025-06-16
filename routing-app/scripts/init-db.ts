@@ -3,12 +3,14 @@
 import * as schema from '../src/lib/server/db/schema';
 import { hashPassword } from '../src/lib/server/auth/password';
 import { nanoid } from 'nanoid';
-import { createClient } from '@libsql/client';
-import { drizzle } from 'drizzle-orm/libsql';
-import * as readline from 'readline';
+import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { sql } from 'drizzle-orm';
+import { createInterface } from 'node:readline';
 import { eq } from 'drizzle-orm';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import process from 'node:process';
 
 // Load environment variables
 import dotenv from 'dotenv';
@@ -22,7 +24,7 @@ const forceFlag = args.includes('--force');
 
 // Function to ask a question and get user input
 function askQuestion(query: string): Promise<string> {
-  const rl = readline.createInterface({
+  const rl = createInterface({
     input: process.stdin,
     output: process.stdout,
   });
@@ -55,14 +57,56 @@ function getTableNames(): string[] {
   return tables;
 }
 
+// Get existing tables using PostgreSQL information_schema
+async function getExistingTables(client: ReturnType<typeof postgres>): Promise<string[]> {
+  try {
+    const result = await client`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_type = 'BASE TABLE'
+    `;
+    return result.map(row => row.table_name as string);
+  } catch (error) {
+    console.error('Error checking database state:', error);
+    return [];
+  }
+}
+
+// Drop all tables using ORM
+async function dropAllTables(db: ReturnType<typeof drizzle>, existingTables: string[]): Promise<void> {
+  // Order tables for dropping to avoid foreign key constraints
+  const orderedTables = [
+    'verification_token',
+    'account', 
+    'credential',
+    'route',
+    'employee',
+    'game_state',
+    'user'
+  ];
+
+  for (const tableName of orderedTables) {
+    if (existingTables.includes(tableName)) {
+      try {
+        // Use raw SQL for DROP TABLE since drizzle doesn't have a direct API for this
+        await db.execute(sql`DROP TABLE IF EXISTS ${sql.identifier(tableName)} CASCADE`);
+        console.log(`Dropped table: ${tableName}`);
+      } catch (error) {
+        console.error(`Error dropping table ${tableName}:`, error);
+      }
+    }
+  }
+}
+
 async function main() {
   console.log('Database Initialization Script');
   console.log('------------------------------');
   
   // Connect to database
-  const client = createClient({
-    url: process.env.DATABASE_URL || 'file:local.db'
-  });
+  const client = postgres(
+    process.env.DATABASE_URL || 'postgresql://routing_user:routing_password@localhost:5432/routing_game'
+  );
   
   // Create database connection with the schema for potential table operations
   const db = drizzle(client, { schema });
@@ -72,19 +116,8 @@ async function main() {
   console.log('Tables defined in schema:', expectedTables.join(', '));
   
   // Check if database already has tables
-  let existingTables: string[] = [];
-  try {
-    // Get all existing tables from SQLite
-    const result = await client.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
-    existingTables = result.rows
-      .map(row => row.name)
-      .filter((name): name is string => typeof name === 'string');
-    
-    console.log('Existing tables in database:', existingTables.join(', '));
-  } catch (error) {
-    console.error('Error checking database state:', error);
-    // Continue anyway - assume tables don't exist
-  }
+  const existingTables = await getExistingTables(client);
+  console.log('Existing tables in database:', existingTables.join(', '));
   
   if (existingTables.length > 0) {
     console.log('Database already contains tables.');
@@ -106,61 +139,34 @@ async function main() {
     
     if (choice !== '2') {
       console.log('Keeping existing database. Exiting...');
+      await client.end();
       process.exit(0);
     }
     
     // User chose to drop tables
-    console.log('Dropping existing tables and indexes...');
+    console.log('Dropping existing tables...');
+    
+    // Skip confirmation if --force flag is present
+    if (!forceFlag) {
+      const confirmation = await askQuestion(
+        'Are you sure you want to drop these tables? This action cannot be undone (y/N): '
+      );
+      
+      if (confirmation.toLowerCase() !== 'y' && confirmation.toLowerCase() !== 'yes') {
+        console.log('Operation cancelled. Exiting...');
+        await client.end();
+        process.exit(0);
+      }
+    } else {
+      console.log('--force flag detected, skipping confirmation');
+    }
+    
     try {
-      // First drop all indexes to avoid conflicts
-      const indexesResult = await client.execute("SELECT name FROM sqlite_master WHERE type='index' AND name NOT LIKE 'sqlite_%'");
-      const indexes = indexesResult.rows
-        .map(row => row.name)
-        .filter((name): name is string => typeof name === 'string');
-      
-      if (indexes.length > 0) {
-        console.log('Indexes to drop:', indexes.join(', '));
-        
-        for (const indexName of indexes) {
-          await client.execute(`DROP INDEX IF EXISTS ${indexName}`);
-          console.log(`Dropped index: ${indexName}`);
-        }
-      }
-      
-      // Then drop all tables
-      console.log('Tables to drop:', existingTables.join(', '));
-      
-      // Skip confirmation if --force flag is present
-      if (!forceFlag) {
-        const confirmation = await askQuestion(
-          'Are you sure you want to drop these tables? This action cannot be undone (y/N): '
-        );
-        
-        if (confirmation.toLowerCase() !== 'y' && confirmation.toLowerCase() !== 'yes') {
-          console.log('Operation cancelled. Exiting...');
-          process.exit(0);
-        }
-      } else {
-        console.log('--force flag detected, skipping confirmation');
-      }
-      
-      // Drop tables in reverse dependency order
-      // This is an estimation - ideally we would parse foreign key constraints
-      // For now, we'll drop verification_token, account, session, credential first, then user
-      const orderedTables = [
-        ...existingTables.filter(t => t !== 'user' && t !== 'sqlite_sequence'),
-        'user',
-        'sqlite_sequence' // Drop sequence table last if it exists
-      ];
-      
-      for (const tableName of orderedTables) {
-        await client.execute(`DROP TABLE IF EXISTS ${tableName}`);
-        console.log(`Dropped table: ${tableName}`);
-      }
-      
-      console.log('All tables and indexes dropped successfully.');
+      await dropAllTables(db, existingTables);
+      console.log('All tables dropped successfully.');
     } catch (error) {
       console.error('Error dropping tables:', error);
+      await client.end();
       process.exit(1);
     }
   } else {
@@ -197,27 +203,22 @@ async function main() {
     } catch (error) {
       console.error('Error during drizzle-kit push:', error);
       
-      // Try a more aggressive approach - drop everything and try again with our own SQL
+      // Try a more aggressive approach - drop everything and try again
       console.log('Attempting to fix by clearing database completely...');
       
       try {
         // Get all tables and drop them
-        const result = await client.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
-        const remainingTables = result.rows
-          .map(row => row.name)
-          .filter((name): name is string => typeof name === 'string');
+        const remainingTables = await getExistingTables(client);
         
         // Drop all remaining tables
-        for (const tableName of remainingTables) {
-          await client.execute(`DROP TABLE IF EXISTS ${tableName}`);
-          console.log(`Dropped table: ${tableName}`);
-        }
+        await dropAllTables(db, remainingTables);
         
         // Try push again
         await execPromise('npx drizzle-kit push --force');
         console.log('Schema recreated successfully after database reset');
       } catch (secondError) {
         console.error('Failed to recover from error:', secondError);
+        await client.end();
         process.exit(1);
       }
     }
@@ -257,9 +258,11 @@ async function main() {
     console.log('Database initialized successfully!');
   } catch (error) {
     console.error('Error initializing database:', error);
+    await client.end();
     process.exit(1);
   }
   
+  await client.end();
   process.exit(0);
 }
 

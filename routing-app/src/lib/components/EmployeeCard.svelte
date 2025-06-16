@@ -38,9 +38,41 @@
     // Check if the currently selected route belongs to this employee
     $: selectedRouteIsForThisEmployee = $selectedRoute && availableRoutes.some(route => route.id === $selectedRoute);
 
-    // Parse employee location
-    $: location = employee.location ? JSON.parse(employee.location as string) as Address : null;
-    $: upgradeState = JSON.parse(employee.upgradeState as string) as { vehicleType: string; capacity: number };
+    // Parse employee location - handle both SQLite (string) and PostgreSQL (object) formats
+    $: location = employee.location ? (() => {
+        try {
+            if (typeof employee.location === 'string') {
+                // SQLite format - parse JSON string
+                return JSON.parse(employee.location) as Address;
+            } else if (typeof employee.location === 'object') {
+                // PostgreSQL format - already an object
+                return employee.location as Address;
+            } else {
+                console.warn('Invalid location format for employee:', employee.name);
+                return null;
+            }
+        } catch (e) {
+            console.warn('Error parsing employee location:', employee.name, e);
+            return null;
+        }
+    })() : null;
+    $: upgradeState = (() => {
+        try {
+            if (typeof employee.upgradeState === 'string') {
+                // SQLite format - parse JSON string
+                return JSON.parse(employee.upgradeState) as { vehicleType: string; capacity: number };
+            } else if (typeof employee.upgradeState === 'object') {
+                // PostgreSQL format - already an object
+                return employee.upgradeState as { vehicleType: string; capacity: number };
+            } else {
+                console.warn('Invalid upgradeState format for employee:', employee.name);
+                return { vehicleType: 'bicycle', capacity: 10 };
+            }
+        } catch (e) {
+            console.warn('Error parsing employee upgradeState:', employee.name, e);
+            return { vehicleType: 'bicycle', capacity: 10 };
+        }
+    })();
 
     // Check if routes can be regenerated
     $: canRegenerateRoutes = !employee.timeRoutesGenerated || 
@@ -125,7 +157,11 @@
         
         const startTime = new Date(route.startTime).getTime();
         const currentTime = Date.now();
-        const totalDuration = route.lengthTime * 1000; // Convert to milliseconds
+        
+        // Convert lengthTime to number if it's a string (PostgreSQL numeric fields)
+        const routeLengthTime = typeof route.lengthTime === 'string' ? parseFloat(route.lengthTime) : route.lengthTime;
+        const totalDuration = routeLengthTime * 1000; // Convert to milliseconds
+        
         const elapsed = currentTime - startTime;
         const progress = Math.min(100, (elapsed / totalDuration) * 100);
         const remainingTime = Math.max(0, totalDuration - elapsed);
@@ -305,8 +341,32 @@
 
                 <!-- Route Details -->
                 <div class="mt-3 space-y-1 text-xs">
-                    <div><strong>From:</strong> {formatAddress(JSON.parse(currentRoute.startLocation as string))}</div>
-                    <div><strong>To:</strong> {formatAddress(JSON.parse(currentRoute.endLocation as string))}</div>
+                    <div><strong>From:</strong> {(() => {
+                        try {
+                            if (typeof currentRoute.startLocation === 'string') {
+                                return formatAddress(JSON.parse(currentRoute.startLocation));
+                            } else if (typeof currentRoute.startLocation === 'object') {
+                                return formatAddress(currentRoute.startLocation as Address);
+                            } else {
+                                return 'Unknown location';
+                            }
+                        } catch (e) {
+                            return 'Unknown location';
+                        }
+                    })()}</div>
+                    <div><strong>To:</strong> {(() => {
+                        try {
+                            if (typeof currentRoute.endLocation === 'string') {
+                                return formatAddress(JSON.parse(currentRoute.endLocation));
+                            } else if (typeof currentRoute.endLocation === 'object') {
+                                return formatAddress(currentRoute.endLocation as Address);
+                            } else {
+                                return 'Unknown location';
+                            }
+                        } catch (e) {
+                            return 'Unknown location';
+                        }
+                    })()}</div>
                     <div class="flex justify-between">
                         <span><strong>Goods:</strong> {currentRoute.goodsType}</span>
                         <span><strong>Reward:</strong> {formatMoney(currentRoute.reward)}</span>

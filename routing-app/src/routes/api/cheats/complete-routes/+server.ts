@@ -94,13 +94,17 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             console.log(`[CHEAT]   - End location: ${route.endLocation}`);
         });
 
+        // Calculate current money before transaction for return value
+        const currentMoney = typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money;
+
         // Process all active routes in a transaction (force complete them)
         await db.transaction(async (tx) => {
             for (const { employee, route } of employeesWithRoutes) {
                 console.log(`[CHEAT] Processing route ${route.id} for employee ${employee.id}`);
                 
-                // Calculate reward
-                totalReward += route.reward;
+                // Calculate reward - convert string to number if needed
+                const routeReward = typeof route.reward === 'string' ? parseFloat(route.reward) : route.reward;
+                totalReward += routeReward;
 
                 // Update employee: clear current route, update location to end location, clear available routes
                 console.log(`[CHEAT] Updating employee ${employee.id} - clearing route and updating location`);
@@ -121,13 +125,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
                 console.log(`[CHEAT] Successfully processed route ${route.id}`);
             }
 
-            // Update game state with total rewards
+            // Update game state with total rewards - convert string to number if needed
+            const newMoney = currentMoney + totalReward;
+            
             console.log(`[CHEAT] Adding €${totalReward} to game state ${gameStateId}`);
             await tx.update(gameStates)
-                .set({ money: gameState.money + totalReward })
+                .set({ money: newMoney.toString() })
                 .where(eq(gameStates.id, gameStateId));
             
-            console.log(`[CHEAT] Updated game state money from €${gameState.money} to €${gameState.money + totalReward}`);
+            console.log(`[CHEAT] Updated game state money from €${gameState.money} to €${newMoney}`);
         });
 
         console.log(`[CHEAT] Force completed ${employeesWithRoutes.length} routes for game ${gameStateId}, total reward: ${totalReward}`);
@@ -137,7 +143,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             message: `Instantly completed ${employeesWithRoutes.length} routes`,
             completedRoutes: employeesWithRoutes.length,
             totalReward: totalReward,
-            newBalance: gameState.money + totalReward
+            newBalance: currentMoney + totalReward
         });
 
     } catch (err) {

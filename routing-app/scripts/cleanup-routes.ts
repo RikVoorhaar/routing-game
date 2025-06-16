@@ -1,6 +1,6 @@
 // Script to clean up old routes from the database
-import { createClient } from '@libsql/client';
-import { drizzle } from 'drizzle-orm/libsql';
+import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/postgres-js';
 import * as schema from '../src/lib/server/db/schema';
 import { and, isNotNull, lt, inArray, eq } from 'drizzle-orm';
 import dotenv from 'dotenv';
@@ -11,43 +11,50 @@ dotenv.config();
 /**
  * Cleans up expired routes (completed routes older than 1 hour)
  */
-async function cleanupExpiredRoutes(db: any, client: any): Promise<void> {
-    const oneHourAgo = Date.now() - 60 * 60 * 1000; // Get timestamp in milliseconds
+async function cleanupExpiredRoutes(db: ReturnType<typeof drizzle>): Promise<void> {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000); // Get Date object for PostgreSQL timestamp
     
     try {
-        console.log(`Looking for routes completed before: ${new Date(oneHourAgo).toISOString()}`);
+        console.log('Finding expired routes...');
         
-        // First, let's see what routes exist and their endTime values
-        const allRoutes = await db.select({
-            id: schema.routes.id,
-            endTime: schema.routes.endTime,
-            startTime: schema.routes.startTime
-        }).from(schema.routes);
+        // First, find all expired routes using ORM
+        const expiredRoutes = await db
+            .select({ id: schema.routes.id })
+            .from(schema.routes)
+            .where(
+                and(
+                    isNotNull(schema.routes.endTime),
+                    lt(schema.routes.endTime, oneHourAgo)
+                )
+            );
         
-        console.log('Current routes:');
-        allRoutes.forEach(route => {
-            console.log(`  Route ${route.id}: startTime=${route.startTime ? new Date(route.startTime).toISOString() : 'null'}, endTime=${route.endTime ? new Date(route.endTime).toISOString() : 'null'}`);
-        });
-        
-        // Find routes that should be deleted (completed and older than 1 hour)
-        const routesToDelete = allRoutes.filter(route => 
-            route.endTime && route.endTime < oneHourAgo
-        );
-        
-        if (routesToDelete.length === 0) {
-            console.log('No expired routes to delete');
+        if (expiredRoutes.length === 0) {
+            console.log('No expired routes found to clean up');
             return;
         }
         
-        const routeIdsToDelete = routesToDelete.map(r => r.id);
-        console.log(`Found ${routesToDelete.length} expired routes to delete:`, routeIdsToDelete);
+        const routeIdsToDelete = expiredRoutes.map(r => r.id);
+        console.log(`Found ${expiredRoutes.length} expired routes to clean up`);
         
-        // First, clean up any employee references to these routes
+        // Get all employees to clean up route references
         const allEmployees = await db.select().from(schema.employees);
+        
+        // Clean up employee references to expired routes
         for (const employee of allEmployees) {
             let needsUpdate = false;
-            let availableRouteIds = JSON.parse(employee.availableRoutes as string) as string[];
-            let currentRoute = employee.currentRoute;
+            let availableRouteIds: string[] = [];
+            
+            // Handle both SQLite (string) and PostgreSQL (array) formats
+            if (typeof employee.availableRoutes === 'string') {
+                // SQLite format - parse JSON string
+                availableRouteIds = JSON.parse(employee.availableRoutes) as string[];
+            } else if (Array.isArray(employee.availableRoutes)) {
+                // PostgreSQL format - already an array
+                availableRouteIds = employee.availableRoutes as string[];
+            } else {
+                console.warn(`Employee ${employee.id} has invalid availableRoutes format, using empty array`);
+                availableRouteIds = [];
+            }
             
             // Remove expired routes from available routes
             const filteredRouteIds = availableRouteIds.filter(id => !routeIdsToDelete.includes(id));
@@ -57,6 +64,7 @@ async function cleanupExpiredRoutes(db: any, client: any): Promise<void> {
             }
             
             // Clear current route if it's being deleted
+            let currentRoute = employee.currentRoute;
             if (currentRoute && routeIdsToDelete.includes(currentRoute)) {
                 currentRoute = null;
                 needsUpdate = true;
@@ -65,7 +73,7 @@ async function cleanupExpiredRoutes(db: any, client: any): Promise<void> {
             if (needsUpdate) {
                 await db.update(schema.employees)
                     .set({
-                        availableRoutes: JSON.stringify(availableRouteIds),
+                        availableRoutes: availableRouteIds,
                         currentRoute: currentRoute
                     })
                     .where(eq(schema.employees.id, employee.id));
@@ -74,13 +82,13 @@ async function cleanupExpiredRoutes(db: any, client: any): Promise<void> {
             }
         }
         
-        // Now delete the expired routes (should work without foreign key issues)
-        const result = await client.execute({
-            sql: "DELETE FROM route WHERE end_time IS NOT NULL AND end_time < ?",
-            args: [oneHourAgo]
-        });
+        // Now delete the expired routes using ORM
+        const deleteResult = await db
+            .delete(schema.routes)
+            .where(inArray(schema.routes.id, routeIdsToDelete))
+            .returning({ id: schema.routes.id });
         
-        console.log(`Deleted ${result.rowsAffected} expired routes`);
+        console.log(`Deleted ${deleteResult.length} expired routes`);
         
     } catch (error) {
         console.error('Error cleaning up expired routes:', error);
@@ -96,7 +104,19 @@ async function cleanupOrphanedRouteReferences(db: any): Promise<void> {
         
         for (const employee of allEmployees) {
             let needsUpdate = false;
-            let availableRouteIds = JSON.parse(employee.availableRoutes as string) as string[];
+            let availableRouteIds: string[] = [];
+            
+            // Handle both SQLite (string) and PostgreSQL (array) formats
+            if (typeof employee.availableRoutes === 'string') {
+                // SQLite format - parse JSON string
+                availableRouteIds = JSON.parse(employee.availableRoutes) as string[];
+            } else if (Array.isArray(employee.availableRoutes)) {
+                // PostgreSQL format - already an array
+                availableRouteIds = employee.availableRoutes as string[];
+            } else {
+                console.warn(`Employee ${employee.id} has invalid availableRoutes format, using empty array`);
+                availableRouteIds = [];
+            }
             
             // Check if available routes still exist
             if (availableRouteIds.length > 0) {
@@ -149,9 +169,9 @@ async function main() {
     console.log('--------------------');
     
     // Connect to database
-    const client = createClient({
-        url: process.env.DATABASE_URL || 'file:local.db'
-    });
+    const client = postgres(
+        process.env.DATABASE_URL || 'postgresql://routing_user:routing_password@localhost:5432/routing_game'
+    );
     
     // Create database connection with the schema
     const db = drizzle(client, { schema });
@@ -162,7 +182,7 @@ async function main() {
         console.log(`Routes before cleanup: ${routeCountBefore.length}`);
         
         // Run cleanup
-        await cleanupExpiredRoutes(db, client);
+        await cleanupExpiredRoutes(db);
         
         // Get route count after cleanup
         const routeCountAfter = await db.select().from(schema.routes);
@@ -175,6 +195,7 @@ async function main() {
         process.exit(1);
     }
     
+    await client.end();
     process.exit(0);
 }
 

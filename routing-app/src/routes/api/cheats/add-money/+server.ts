@@ -46,12 +46,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             return error(404, 'Game state not found or access denied');
         }
 
-        // Calculate new balance (ensure it doesn't go below 0)
-        const newBalance = Math.max(0, gameState.money + amount);
+        // Calculate new balance (ensure it doesn't go below 0) - convert string to number if needed
+        const currentMoney = typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money;
+        const newBalance = Math.max(0, currentMoney + amount);
 
         // Update the game state money
         await db.update(gameStates)
-            .set({ money: newBalance })
+            .set({ money: newBalance.toString() })
             .where(eq(gameStates.id, gameStateId));
 
         return json({ 

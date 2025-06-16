@@ -1,31 +1,37 @@
 # Routing App
 
-A SvelteKit application with Auth.js for authentication, SQLite for database, and Drizzle as ORM.
+A SvelteKit application with Auth.js for authentication, PostgreSQL for database, and Drizzle as ORM.
 
 ## Setup
 
 1. Clone the repository
 2. Install dependencies:
    ```bash
-   bun install
+   npm install
    ```
 
-3. Generate a secure Auth.js secret:
+3. Start the PostgreSQL database:
    ```bash
-   bun scripts/generate-auth-secret.js
+   cd ../routing_server
+   docker compose up -d postgres
    ```
 
-4. Create a `.env` file in the root directory with the following:
+4. Generate a secure Auth.js secret:
+   ```bash
+   npm run generate-auth-secret
    ```
-   DATABASE_URL="file:./local.db"
+
+5. Create a `.env` file in the root directory with the following:
+   ```
+   DATABASE_URL="postgresql://routing_user:routing_password@localhost:5432/routing_game"
    AUTH_SECRET="paste-your-generated-secret-here"
    ```
 
-5. Create a test user for login:
+6. Initialize the database:
    ```bash
-   curl -X POST http://localhost:5173/api/create-test-user
+   npm run init-db:force
    ```
-   This will create a user with:
+   This will create a test user with:
    - Username: `testuser`
    - Password: `password123`
 
@@ -33,27 +39,29 @@ A SvelteKit application with Auth.js for authentication, SQLite for database, an
 
 Run the development server:
 ```bash
-bun run dev
+npm run dev
 ```
 
 ## Authentication
 
 This project uses Auth.js for authentication with the following features:
 - Credential-based authentication (username/password)
-- Session stored in SQLite database
+- Session stored in PostgreSQL database
 - Protected routes
 - Login/logout functionality
 
 ## Database
 
 The application uses:
-- SQLite for database storage
+- PostgreSQL for database storage
 - Drizzle ORM for database access
-- Schema includes user and session tables
+- JSONB for storing complex data structures
+- Schema includes user, game state, employee, and route tables
 
 ## Routes
 
 - `/` - Home page
 - `/login` - Login page
 - `/protected` - Protected page (requires authentication)
-- `/api/create-test-user` - API endpoint to create a test user
+- `/game` - Main game interface
+- `/character-select` - Character selection page

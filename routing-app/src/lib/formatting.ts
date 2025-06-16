@@ -2,16 +2,17 @@ import type { Address } from './types';
 
 /**
  * Formats a number as a currency string (EUR)
- * @param amount The amount to format
+ * @param amount The amount to format (can be number or string)
  * @returns Formatted currency string
  */
-export function formatMoney(amount: number): string {
+export function formatMoney(amount: number | string): string {
+    const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'EUR',
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
-    }).format(amount);
+    }).format(numericAmount);
 }
 
 /**
@@ -95,12 +96,13 @@ export function formatRouteDuration(seconds: number): string {
 
 /**
  * Formats weight in kg to human readable format
- * @param weight Weight in kilograms
+ * @param weight Weight in kilograms (can be number or string)
  * @returns Formatted weight string (e.g., "1.5t", "500kg")
  */
-export function formatWeight(weight: number): string {
-    if (weight >= 1000) {
-        return `${(weight / 1000).toFixed(1)}t`;
+export function formatWeight(weight: number | string): string {
+    const numericWeight = typeof weight === 'string' ? parseFloat(weight) : weight;
+    if (numericWeight >= 1000) {
+        return `${(numericWeight / 1000).toFixed(1)}t`;
     }
-    return `${weight}kg`;
+    return `${numericWeight}kg`;
 } 
