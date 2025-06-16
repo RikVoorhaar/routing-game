@@ -43,6 +43,21 @@ export type EmployeeWithGameState = InferSelectModel<typeof employees> & {
 
 type RouteInsert = InferSelectModel<typeof routes>;
 
+// Helper function to safely parse JSON for compatibility with both SQLite and PostgreSQL
+function parseJson<T>(data: any): T {
+  if (typeof data === 'string') {
+    return JSON.parse(data);
+  }
+  return data as T;
+}
+
+// Helper function to safely stringify JSON for database storage
+function stringifyJson(data: any): any {
+  // PostgreSQL JSONB expects objects, SQLite expects strings
+  // The schema will handle the conversion appropriately
+  return data;
+}
+
 /**
  * Generates a single route for an employee within a specified distance range
  */
@@ -51,11 +66,12 @@ export async function generateSingleRoute(
     minDistanceKm: number,
     maxDistanceKm: number
 ): Promise<RouteInsert> {
-    // Get the employee's current location or use a default
     if (!employee.location) {
         throw new Error('Employee must have a location to generate routes');
     }
-    const location = JSON.parse(employee.location as string) as Address;
+
+    // Parse employee location - handle both string (SQLite) and object (PostgreSQL)
+    const location = parseJson<Address>(employee.location);
     const startLocation: Coordinate = {
         lat: location.lat,
         lon: location.lon
@@ -63,19 +79,13 @@ export async function generateSingleRoute(
 
     // Generate a random route in the specified annulus
     // Use the employee's maxSpeed if available
-    const maxSpeed = employee.maxSpeed ? Math.round(employee.maxSpeed) : undefined;
+    const maxSpeed = employee.maxSpeed ? Number(employee.maxSpeed) : undefined;
     const routeResult = await getRandomRouteInAnnulus(
         startLocation,
         minDistanceKm,
         maxDistanceKm,
         maxSpeed
     );
-
-    // Debug: Log the destination information
-    console.log('Route generation debug:');
-    console.log('Generated destination:', routeResult.destination);
-    console.log('Destination type:', typeof routeResult.destination);
-    console.log('Destination has street:', 'street' in routeResult.destination);
 
     // Use the actual distance from the routing result
     const distanceKm = routeResult.totalDistanceMeters / 1000;
@@ -88,15 +98,15 @@ export async function generateSingleRoute(
 
     return {
         id: crypto.randomUUID(),
-        startLocation: JSON.stringify(location),
-        endLocation: JSON.stringify(routeResult.destination),
+        startLocation: stringifyJson(location),
+        endLocation: stringifyJson(routeResult.destination),
         lengthTime: routeResult.travelTimeSeconds,
         startTime: null,
         endTime: null,
         goodsType,
-        weight,
-        reward,
-        routeData: JSON.stringify(routeResult.path)
+        weight: weight.toString(),
+        reward: reward.toString(),
+        routeData: stringifyJson(routeResult.path)
     };
 }
 
@@ -139,7 +149,7 @@ async function deleteEmployeeRoutes(employeeId: string): Promise<void> {
     const employee = await db.select().from(employees).where(eq(employees.id, employeeId)).limit(1);
     if (employee.length === 0) return;
     
-    const availableRouteIds = JSON.parse(employee[0].availableRoutes as string) as string[];
+    const availableRouteIds = parseJson<string[]>(employee[0].availableRoutes);
     
     if (availableRouteIds.length > 0) {
         await db.delete(routes).where(inArray(routes.id, availableRouteIds));
@@ -151,16 +161,28 @@ async function deleteEmployeeRoutes(employeeId: string): Promise<void> {
  * Cleans up expired routes (completed routes older than 1 hour)
  */
 export async function cleanupExpiredRoutes(): Promise<void> {
-    const oneHourAgo = Date.now() - 60 * 60 * 1000; // Get timestamp in milliseconds
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000); // Get Date object for PostgreSQL
     
     try {
         // Get all routes to check which ones should be deleted
         const routesBefore = await db.select().from(routes);
         
-        // Filter expired routes in JavaScript to avoid Drizzle timestamp issues
-        const routesToDelete = routesBefore.filter(route => 
-            route.endTime && typeof route.endTime === 'number' && route.endTime < oneHourAgo
-        );
+        // Filter expired routes - handle both SQLite (number) and PostgreSQL (Date) timestamps
+        const routesToDelete = routesBefore.filter(route => {
+            if (!route.endTime) return false;
+            
+            // Handle PostgreSQL Date objects
+            if (route.endTime instanceof Date) {
+                return route.endTime < oneHourAgo;
+            }
+            
+            // Handle SQLite timestamps (numbers)
+            if (typeof route.endTime === 'number') {
+                return route.endTime < oneHourAgo.getTime();
+            }
+            
+            return false;
+        });
         
         if (routesToDelete.length === 0) {
             console.log('No expired routes to clean up');
@@ -174,7 +196,7 @@ export async function cleanupExpiredRoutes(): Promise<void> {
         const allEmployees = await db.select().from(employees);
         for (const employee of allEmployees) {
             let needsUpdate = false;
-            let availableRouteIds = JSON.parse(employee.availableRoutes as string) as string[];
+            let availableRouteIds = parseJson<string[]>(employee.availableRoutes);
             let currentRoute = employee.currentRoute;
             
             // Remove expired routes from available routes
@@ -193,7 +215,7 @@ export async function cleanupExpiredRoutes(): Promise<void> {
             if (needsUpdate) {
                 await db.update(employees)
                     .set({
-                        availableRoutes: JSON.stringify(availableRouteIds),
+                        availableRoutes: stringifyJson(availableRouteIds),
                         currentRoute: currentRoute
                     })
                     .where(eq(employees.id, employee.id));
@@ -202,9 +224,11 @@ export async function cleanupExpiredRoutes(): Promise<void> {
             }
         }
         
-        // Now delete the expired routes (should work without foreign key issues)
-        await db.delete(routes).where(inArray(routes.id, routeIdsToDelete));
-        console.log(`Cleaned up ${routesToDelete.length} expired routes`);
+        // Delete the expired routes using ORM
+        if (routeIdsToDelete.length > 0) {
+            await db.delete(routes).where(inArray(routes.id, routeIdsToDelete));
+            console.log(`Deleted ${routeIdsToDelete.length} expired routes`);
+        }
         
     } catch (error) {
         console.error('Error cleaning up expired routes:', error);
@@ -220,7 +244,7 @@ async function cleanupOrphanedRouteReferences(): Promise<void> {
         
         for (const employee of allEmployees) {
             let needsUpdate = false;
-            let availableRouteIds = JSON.parse(employee.availableRoutes as string) as string[];
+            let availableRouteIds = parseJson<string[]>(employee.availableRoutes);
             
             // Check if available routes still exist
             if (availableRouteIds.length > 0) {
@@ -255,7 +279,7 @@ async function cleanupOrphanedRouteReferences(): Promise<void> {
             if (needsUpdate) {
                 await db.update(employees)
                     .set({
-                        availableRoutes: JSON.stringify(availableRouteIds),
+                        availableRoutes: stringifyJson(availableRouteIds),
                         currentRoute: currentRoute
                     })
                     .where(eq(employees.id, employee.id));
@@ -285,7 +309,7 @@ export async function updateEmployeeRoutes(employee: EmployeeWithGameState): Pro
     const routeIds = newRoutes.map(route => route.id);
     await db.update(employees)
         .set({
-            availableRoutes: JSON.stringify(routeIds),
+            availableRoutes: stringifyJson(routeIds),
             timeRoutesGenerated: new Date(Date.now())
         })
         .where(eq(employees.id, employee.id));

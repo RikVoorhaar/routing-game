@@ -32,10 +32,6 @@
     // Reactive updates
     $: {
         if (leafletMap) {
-            console.log('[RouteMap] Reactive update triggered');
-            console.log('[RouteMap] Employees:', $employees.length);
-            console.log('[RouteMap] Routes by employee:', Object.keys($routesByEmployee).length);
-            console.log('[RouteMap] Current game state:', $currentGameState?.id);
             updateMap();
         }
     }
@@ -43,7 +39,6 @@
     // Reactive updates for selected employee
     $: {
         if (leafletMap && $selectedEmployee) {
-            console.log('[RouteMap] Selected employee changed:', $selectedEmployee);
             handleEmployeeSelection($selectedEmployee);
         }
     }
@@ -90,8 +85,6 @@
 
             // Setup tile event listeners for debugging
             setupTileDebugListeners();
-
-            console.log('[RouteMap] Map created successfully');
             
             // Initial map update
             updateMap();
@@ -107,18 +100,23 @@
     function updateMap() {
         if (!leafletMap || !L) return;
         
-        console.log('[RouteMap] Updating map with employee data');
-        
         // Clear existing markers and polylines
         Object.values(employeeMarkers).forEach((marker: any) => {
-            leafletMap.removeLayer(marker);
+            if (marker && leafletMap.hasLayer(marker)) {
+                leafletMap.removeLayer(marker);
+            }
         });
         Object.values(routePolylines).forEach((polyline: any) => {
-            leafletMap.removeLayer(polyline);
+            if (polyline && leafletMap.hasLayer(polyline)) {
+                leafletMap.removeLayer(polyline);
+            }
         });
-        clearAvailableRoutes();
+        
+        // Clear the tracking objects completely
         employeeMarkers = {};
         routePolylines = {};
+        
+        clearAvailableRoutes();
 
         // Draw all active routes for all employees
         $employees.forEach(employee => {
@@ -132,7 +130,6 @@
                     isAvailable: false,
                     isActive: true,
                     onClick: () => {
-                        console.log('[RouteMap] Route clicked:', currentRoute.id);
                         selectRoute(currentRoute.id);
                         // Pan and zoom to the route
                         const routeData = parseRouteData(currentRoute.routeData);
@@ -149,12 +146,6 @@
             const employeeRoutes = $routesByEmployee[employee.id];
             const currentRoute = employeeRoutes?.current;
             
-            console.log(`[RouteMap] Processing employee ${employee.name}:`, {
-                hasRoutes: !!employeeRoutes,
-                hasCurrentRoute: !!currentRoute,
-                currentRouteId: currentRoute?.id
-            });
-            
             let position: Coordinate;
             let isAnimated = false;
             let routeData: PathPoint[] = [];
@@ -170,30 +161,35 @@
                 const currentTime = Date.now();
                 const elapsedSeconds = (currentTime - startTime) / 1000;
                 
+                // Convert lengthTime to number if it's a string (PostgreSQL numeric fields)
+                const routeLengthTime = typeof currentRoute.lengthTime === 'string' ? parseFloat(currentRoute.lengthTime) : currentRoute.lengthTime;
+                
                 // Calculate progress percentage
-                progress = Math.min((elapsedSeconds / currentRoute.lengthTime) * 100, 100);
+                progress = Math.min((elapsedSeconds / routeLengthTime) * 100, 100);
                 
                 // Calculate ETA
-                const remainingSeconds = Math.max(0, currentRoute.lengthTime - elapsedSeconds);
+                const remainingSeconds = Math.max(0, routeLengthTime - elapsedSeconds);
                 eta = formatTimeRemaining(remainingSeconds);
                 
                 // Use interpolateLocationAtTime to get current position
                 const interpolatedPosition = interpolateLocationAtTime(routeData, elapsedSeconds);
                 position = interpolatedPosition || { lat: DEFAULT_EMPLOYEE_LOCATION.lat, lon: DEFAULT_EMPLOYEE_LOCATION.lon };
                 isAnimated = true;
-                
-                console.log(`[RouteMap] Employee ${employee.name} is traveling:`, {
-                    progress: progress,
-                    position: position,
-                    elapsedSeconds: elapsedSeconds,
-                    routeLength: currentRoute.lengthTime,
-                    eta: eta
-                });
             } else {
                 // Employee is idle - use their location or default
                 if (employee.location) {
                     try {
-                        const locationData = JSON.parse(employee.location) as Address;
+                        // Handle both SQLite (string) and PostgreSQL (object) formats
+                        let locationData: Address;
+                        if (typeof employee.location === 'string') {
+                            // SQLite format - parse JSON string
+                            locationData = JSON.parse(employee.location);
+                        } else if (typeof employee.location === 'object') {
+                            // PostgreSQL format - already an object
+                            locationData = employee.location as Address;
+                        } else {
+                            throw new Error('Invalid location format');
+                        }
                         position = { lat: locationData.lat, lon: locationData.lon };
                     } catch (e) {
                         console.warn(`[RouteMap] Invalid location data for employee ${employee.name}:`, e);
@@ -202,8 +198,6 @@
                 } else {
                     position = { lat: DEFAULT_EMPLOYEE_LOCATION.lat, lon: DEFAULT_EMPLOYEE_LOCATION.lon };
                 }
-                
-                console.log(`[RouteMap] Employee ${employee.name} is idle at:`, position);
             }
 
             // Create custom marker with click handler
@@ -214,18 +208,22 @@
                 iconAnchor: [70, isAnimated ? 40 : 25]
             });
 
-            const marker = L.marker([position.lat, position.lon], {
-                icon: markerIcon,
-                title: `${employee.name}${isAnimated ? ` (${Math.round(progress)}% complete, ETA: ${eta})` : ' (idle)'}`
-            }).addTo(leafletMap);
+            try {
+                const marker = L.marker([position.lat, position.lon], {
+                    icon: markerIcon,
+                    title: `${employee.name}${isAnimated ? ` (${Math.round(progress)}% complete, ETA: ${eta})` : ' (idle)'}`
+                }).addTo(leafletMap);
 
-            // Add click handler to marker
-            marker.on('click', () => {
-                console.log('[RouteMap] Employee marker clicked:', employee.name);
-                selectEmployee(employee.id);
-            });
+                // Add click handler to marker
+                marker.on('click', () => {
+                    selectEmployee(employee.id);
+                });
 
-            employeeMarkers[employee.id] = marker;
+                employeeMarkers[employee.id] = marker;
+            } catch (error) {
+                console.warn(`[RouteMap] Failed to create marker for employee ${employee.name}:`, error);
+                // Don't store null/undefined markers
+            }
         });
 
         // If a selected employee is idle, show their available routes
@@ -243,15 +241,12 @@
 
         // If no employees, add a default marker to show the map is working
         if ($employees.length === 0) {
-            console.log('[RouteMap] No employees found, adding default marker');
             const defaultMarker = L.marker([DEFAULT_EMPLOYEE_LOCATION.lat, DEFAULT_EMPLOYEE_LOCATION.lon], {
                 title: 'Default Location (Utrecht)'
             }).addTo(leafletMap);
             
             employeeMarkers['default'] = defaultMarker;
         }
-
-        console.log('[RouteMap] Map updated with', Object.keys(employeeMarkers).length, 'markers');
     }
 
     function createMarkerHTML(employeeName: string, isAnimated: boolean, progress: number, eta: string | null, isSelected: boolean): string {
@@ -270,12 +265,13 @@
         `;
     }
 
-    function formatTimeRemaining(seconds: number): string {
-        if (seconds <= 0) return 'Arriving';
+    function formatTimeRemaining(seconds: number | string): string {
+        const numericSeconds = typeof seconds === 'string' ? parseFloat(seconds) : seconds;
+        if (numericSeconds <= 0) return 'Arriving';
         
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const remainingSeconds = Math.floor(seconds % 60);
+        const hours = Math.floor(numericSeconds / 3600);
+        const minutes = Math.floor((numericSeconds % 3600) / 60);
+        const remainingSeconds = Math.floor(numericSeconds % 60);
 
         if (hours > 0) {
             return `${hours}h ${minutes}m`;
@@ -286,9 +282,18 @@
         }
     }
 
-    function parseRouteData(routeDataString: string): PathPoint[] {
+    function parseRouteData(routeDataString: string | object): PathPoint[] {
         try {
-            return JSON.parse(routeDataString) as PathPoint[];
+            if (typeof routeDataString === 'string') {
+                // SQLite format - parse JSON string
+                return JSON.parse(routeDataString) as PathPoint[];
+            } else if (typeof routeDataString === 'object' && Array.isArray(routeDataString)) {
+                // PostgreSQL format - already an array
+                return routeDataString as PathPoint[];
+            } else {
+                console.warn('[RouteMap] Invalid route data format:', typeof routeDataString);
+                return [];
+            }
         } catch (e) {
             console.error('[RouteMap] Failed to parse route data:', e);
             return [];
@@ -320,12 +325,6 @@
         const employeeRoutes = $routesByEmployee[employeeId];
         const currentRoute = employeeRoutes?.current;
         const availableRoutes = employeeRoutes?.available || [];
-
-        console.log('[RouteMap] Handling employee selection:', {
-            employeeId,
-            hasCurrentRoute: !!currentRoute,
-            availableRoutesCount: availableRoutes.length
-        });
 
         // Clear existing available route displays
         clearAvailableRoutes();
@@ -359,7 +358,6 @@
                 isSelected: route.id === $selectedRoute,
                 isAvailable: true,
                 onClick: () => {
-                    console.log('[RouteMap] Available route clicked:', route.id);
                     selectRoute(route.id);
                     // Pan and zoom to the route
                     const routeData = parseRouteData(route.routeData);
@@ -374,9 +372,35 @@
                 allCoords.push(...routeCoords);
 
                 // Add popup with route info
-                const startLocation = JSON.parse(route.startLocation) as Address;
-                const endLocation = JSON.parse(route.endLocation) as Address;
-                const rewardFormatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EUR' }).format(route.reward);
+                const startLocation = (() => {
+                    try {
+                        if (typeof route.startLocation === 'string') {
+                            return JSON.parse(route.startLocation) as Address;
+                        } else if (typeof route.startLocation === 'object') {
+                            return route.startLocation as Address;
+                        } else {
+                            return { city: 'Unknown' } as Address;
+                        }
+                    } catch (e) {
+                        return { city: 'Unknown' } as Address;
+                    }
+                })();
+                const endLocation = (() => {
+                    try {
+                        if (typeof route.endLocation === 'string') {
+                            return JSON.parse(route.endLocation) as Address;
+                        } else if (typeof route.endLocation === 'object') {
+                            return route.endLocation as Address;
+                        } else {
+                            return { city: 'Unknown' } as Address;
+                        }
+                    } catch (e) {
+                        return { city: 'Unknown' } as Address;
+                    }
+                })();
+                const rewardFormatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EUR' }).format(
+                    typeof route.reward === 'string' ? parseFloat(route.reward) : route.reward
+                );
                 polyline.bindPopup(`
                     <div>
                         <strong>Available Route ${index + 1}</strong><br>
@@ -400,7 +424,9 @@
 
     function clearAvailableRoutes() {
         availableRoutePolylines.forEach(polyline => {
-            leafletMap.removeLayer(polyline);
+            if (polyline && leafletMap.hasLayer(polyline)) {
+                leafletMap.removeLayer(polyline);
+            }
         });
         availableRoutePolylines = [];
     }
@@ -408,7 +434,17 @@
     function getEmployeePosition(employee: Employee): Coordinate {
         if (employee.location) {
             try {
-                const locationData = JSON.parse(employee.location) as Address;
+                // Handle both SQLite (string) and PostgreSQL (object) formats
+                let locationData: Address;
+                if (typeof employee.location === 'string') {
+                    // SQLite format - parse JSON string
+                    locationData = JSON.parse(employee.location);
+                } else if (typeof employee.location === 'object') {
+                    // PostgreSQL format - already an object
+                    locationData = employee.location as Address;
+                } else {
+                    throw new Error('Invalid location format');
+                }
                 return { lat: locationData.lat, lon: locationData.lon };
             } catch (e) {
                 console.warn(`[RouteMap] Invalid location data for employee ${employee.name}:`, e);
@@ -540,13 +576,10 @@
     }
 
     onMount(() => {
-        console.log('[RouteMap] Component mounted');
         initMap();
     });
 
     onDestroy(() => {
-        console.log('[RouteMap] Component destroyed');
-        
         if (animationInterval) {
             clearInterval(animationInterval);
         }

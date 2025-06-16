@@ -6,8 +6,34 @@
     export let route: Route;
 
     $: isSelected = $selectedRoute === route.id;
-    $: startLocation = JSON.parse(route.startLocation as string) as Address;
-    $: endLocation = JSON.parse(route.endLocation as string) as Address;
+    $: startLocation = (() => {
+        try {
+            if (typeof route.startLocation === 'string') {
+                return JSON.parse(route.startLocation) as Address;
+            } else if (typeof route.startLocation === 'object') {
+                return route.startLocation as Address;
+            } else {
+                throw new Error('Invalid startLocation format');
+            }
+        } catch (e) {
+            console.warn('Error parsing route startLocation:', e);
+            return null;
+        }
+    })();
+    $: endLocation = (() => {
+        try {
+            if (typeof route.endLocation === 'string') {
+                return JSON.parse(route.endLocation) as Address;
+            } else if (typeof route.endLocation === 'object') {
+                return route.endLocation as Address;
+            } else {
+                throw new Error('Invalid endLocation format');
+            }
+        } catch (e) {
+            console.warn('Error parsing route endLocation:', e);
+            return null;
+        }
+    })();
 
     function handleClick() {
         if (isSelected) {
@@ -34,7 +60,7 @@
     role="button"
     tabindex="0"
     aria-pressed={isSelected}
-    aria-label="Route from {formatAddress(startLocation)} to {formatAddress(endLocation)}"
+    aria-label="Route from {startLocation ? formatAddress(startLocation) : 'Unknown'} to {endLocation ? formatAddress(endLocation) : 'Unknown'}"
 >
     <div class="card-body p-4">
         <!-- Header with goods type and reward -->
@@ -58,11 +84,11 @@
             <div class="grid grid-cols-2 gap-2">
                 <div>
                     <div class="font-medium text-xs opacity-70 uppercase tracking-wide">From</div>
-                    <div class="text-xs leading-tight">{formatAddress(startLocation)}</div>
+                    <div class="text-xs leading-tight">{startLocation ? formatAddress(startLocation) : 'Unknown location'}</div>
                 </div>
                 <div>
                     <div class="font-medium text-xs opacity-70 uppercase tracking-wide">To</div>
-                    <div class="text-xs leading-tight">{formatAddress(endLocation)}</div>
+                    <div class="text-xs leading-tight">{endLocation ? formatAddress(endLocation) : 'Unknown location'}</div>
                 </div>
             </div>
 

@@ -219,32 +219,78 @@ export const gameDataAPI = {
     async loadAllEmployeeRoutes() {
         const currentEmployees = get(employees);
         
+        console.log('[ROUTES DEBUG] Starting loadAllEmployeeRoutes');
+        console.log('[ROUTES DEBUG] Number of employees:', currentEmployees.length);
+        
         try {
             for (const employee of currentEmployees) {
-                // Get available routes
-                const availableRouteIds = JSON.parse(employee.availableRoutes as string) as string[];
+                console.log('[ROUTES DEBUG] Processing employee:', employee.id, employee.name);
+                console.log('[ROUTES DEBUG] Employee availableRoutes raw:', employee.availableRoutes);
+                console.log('[ROUTES DEBUG] Employee availableRoutes type:', typeof employee.availableRoutes);
+                
+                // Handle both SQLite (string) and PostgreSQL (array/object) formats
+                let availableRouteIds: string[] = [];
+                try {
+                    if (typeof employee.availableRoutes === 'string') {
+                        // SQLite format - parse JSON string
+                        availableRouteIds = JSON.parse(employee.availableRoutes) as string[];
+                    } else if (Array.isArray(employee.availableRoutes)) {
+                        // PostgreSQL format - already an array
+                        availableRouteIds = employee.availableRoutes as string[];
+                    } else {
+                        // Fallback - empty array
+                        console.warn('[ROUTES DEBUG] Unexpected availableRoutes format, using empty array');
+                        availableRouteIds = [];
+                    }
+                } catch (parseError) {
+                    console.error('[ROUTES DEBUG] Error parsing availableRoutes:', parseError);
+                    availableRouteIds = [];
+                }
+                
+                console.log('[ROUTES DEBUG] Parsed availableRouteIds:', availableRouteIds);
+                
                 let availableRoutes: Route[] = [];
                 
                 if (availableRouteIds.length > 0) {
+                    console.log('[ROUTES DEBUG] Fetching routes:', `/api/routes?ids=${availableRouteIds.join(',')}`);
                     const routesResponse = await fetch(`/api/routes?ids=${availableRouteIds.join(',')}`);
+                    console.log('[ROUTES DEBUG] Routes response status:', routesResponse.status);
+                    
                     if (routesResponse.ok) {
                         availableRoutes = await routesResponse.json();
+                        console.log('[ROUTES DEBUG] Fetched available routes:', availableRoutes.length);
+                    } else {
+                        const errorText = await routesResponse.text();
+                        console.error('[ROUTES DEBUG] Failed to fetch available routes:', routesResponse.status, errorText);
                     }
+                } else {
+                    console.log('[ROUTES DEBUG] No available route IDs to fetch');
                 }
 
                 // Get current route if assigned
                 let currentRoute: Route | null = null;
                 if (employee.currentRoute) {
+                    console.log('[ROUTES DEBUG] Fetching current route:', `/api/routes/${employee.currentRoute}`);
                     const routeResponse = await fetch(`/api/routes/${employee.currentRoute}`);
+                    console.log('[ROUTES DEBUG] Current route response status:', routeResponse.status);
+                    
                     if (routeResponse.ok) {
                         currentRoute = await routeResponse.json();
+                        console.log('[ROUTES DEBUG] Fetched current route:', currentRoute?.id);
+                    } else {
+                        const errorText = await routeResponse.text();
+                        console.error('[ROUTES DEBUG] Failed to fetch current route:', routeResponse.status, errorText);
                     }
+                } else {
+                    console.log('[ROUTES DEBUG] No current route assigned');
                 }
 
+                console.log('[ROUTES DEBUG] Setting employee routes for:', employee.id, 'available:', availableRoutes.length, 'current:', currentRoute?.id || 'none');
                 gameDataActions.setEmployeeRoutes(employee.id, availableRoutes, currentRoute);
             }
+            console.log('[ROUTES DEBUG] Successfully loaded all employee routes');
         } catch (error) {
-            console.error('Error loading employee routes:', error);
+            console.error('[ROUTES DEBUG] Error loading employee routes:', error);
             addError('Failed to load employee routes', 'error');
             throw error;
         }

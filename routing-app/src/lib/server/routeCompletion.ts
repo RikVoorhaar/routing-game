@@ -50,13 +50,15 @@ export async function processCompletedRoutes(gameStateId: string): Promise<{
             
             if (currentTime - routeStartTime >= routeDuration) {
                 // Route is completed
+                const rewardNum = typeof route.reward === 'string' ? parseFloat(route.reward) : route.reward;
+                
                 completedRouteUpdates.push({
                     employeeId: employee.id,
                     routeId: route.id,
-                    reward: route.reward,
+                    reward: rewardNum,
                     endLocation: route.endLocation as string
                 });
-                totalReward += route.reward;
+                totalReward += rewardNum;
                 processedRoutes++;
             }
         }
@@ -92,9 +94,14 @@ export async function processCompletedRoutes(gameStateId: string): Promise<{
                         .where(eq(routes.id, update.routeId));
                 }
 
+                // Convert string numbers to actual numbers for proper mathematical addition
+                const currentMoney = typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money;
+                const totalRewardNum = totalReward; // totalReward is already a number from the loop above
+                const newMoney = currentMoney + totalRewardNum;
+
                 // Update game state with total rewards
                 await tx.update(gameStates)
-                    .set({ money: gameState.money + totalReward })
+                    .set({ money: newMoney.toString() }) // Convert back to string for database storage
                     .where(eq(gameStates.id, gameStateId));
             });
 

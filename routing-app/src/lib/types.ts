@@ -42,9 +42,9 @@ export interface Employee {
     id: string;
     gameId: string;
     name: string;
-    upgradeState: string; // JSON string
-    location: string | null; // JSON string or null
-    availableRoutes: string; // JSON string
+    upgradeState: string | object; // JSON string (SQLite) or object (PostgreSQL)
+    location: string | object | null; // JSON string (SQLite) or object (PostgreSQL) or null
+    availableRoutes: string | string[]; // JSON string (SQLite) or array (PostgreSQL)
     timeRoutesGenerated: string | Date | null;
     currentRoute: string | null;
     speedMultiplier: number;
@@ -53,15 +53,15 @@ export interface Employee {
 
 export interface Route {
     id: string;
-    startLocation: string; // JSON string
-    endLocation: string; // JSON string
-    lengthTime: number;
+    startLocation: string | object; // JSON string (SQLite) or object (PostgreSQL)
+    endLocation: string | object; // JSON string (SQLite) or object (PostgreSQL)
+    lengthTime: number; // in seconds (can be floating point)
     startTime: string | Date | null;
     endTime: string | Date | null;
     goodsType: string;
     weight: number;
     reward: number;
-    routeData: string; // JSON string
+    routeData: string | object; // JSON string (SQLite) or object (PostgreSQL)
 }
 
 // Client-safe constants

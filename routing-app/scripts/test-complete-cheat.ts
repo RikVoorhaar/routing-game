@@ -1,6 +1,6 @@
 // Script to test the complete routes cheat functionality
-import { createClient } from '@libsql/client';
-import { drizzle } from 'drizzle-orm/libsql';
+import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/postgres-js';
 import * as schema from '../src/lib/server/db/schema';
 import { eq, and, isNotNull, isNull } from 'drizzle-orm';
 import dotenv from 'dotenv';
@@ -13,9 +13,9 @@ async function testCompleteRoutesCheat() {
     console.log('-----------------------------');
     
     // Connect to database
-    const client = createClient({
-        url: process.env.DATABASE_URL || 'file:local.db'
-    });
+    const client = postgres(
+        process.env.DATABASE_URL || 'postgresql://routing_user:routing_password@localhost:5432/routing_game'
+    );
     
     // Create database connection with the schema
     const db = drizzle(client, { schema });
@@ -42,7 +42,7 @@ async function testCompleteRoutesCheat() {
         console.log(`Found ${activeRoutes.length} active routes:`);
         activeRoutes.forEach(({ employee, route }) => {
             console.log(`  Employee ${employee.name} (${employee.id}) on route ${route.id}`);
-            console.log(`    Route: ${route.startTime ? new Date(route.startTime).toISOString() : 'null'} -> ${route.endTime ? new Date(route.endTime).toISOString() : 'null'}`);
+            console.log(`    Route: ${route.startTime ? route.startTime.toISOString() : 'null'} -> ${route.endTime ? route.endTime.toISOString() : 'null'}`);
             console.log(`    Reward: €${route.reward}`);
         });
         
@@ -53,24 +53,38 @@ async function testCompleteRoutesCheat() {
         
         // Simulate the cheat completion
         let totalReward = 0;
-        const currentTime = Date.now();
+        const currentTime = new Date();
         
         console.log('\nSimulating route completion...');
         
         for (const { employee, route } of activeRoutes) {
-            totalReward += route.reward;
-            console.log(`  Completing route ${route.id} for employee ${employee.name} - reward: €${route.reward}`);
+            console.log(`Completing route ${route.id} for employee ${employee.name}...`);
+            
+            // Update route completion
+            await db.update(schema.routes)
+                .set({ endTime: currentTime })
+                .where(eq(schema.routes.id, route.id));
+            
+            // Clear employee's current route
+            await db.update(schema.employees)
+                .set({ currentRoute: null })
+                .where(eq(schema.employees.id, employee.id));
+            
+            // Add to total reward
+            totalReward += parseFloat(route.reward.toString());
+            
+            console.log(`  Completed! Reward: €${route.reward}`);
         }
         
-        console.log(`\nTotal reward would be: €${totalReward}`);
-        console.log(`Current timestamp: ${currentTime} (${new Date(currentTime).toISOString()})`);
-        
-        // Ask if we should actually complete them
-        console.log('\nThis was a dry run. To actually complete routes, run the cheat through the UI.');
+        console.log(`\nTotal rewards earned: €${totalReward.toFixed(2)}`);
+        console.log('All active routes completed successfully!');
         
     } catch (error) {
-        console.error('Error testing complete routes cheat:', error);
+        console.error('Error during cheat test:', error);
+    } finally {
+        await client.end();
     }
 }
 
+// Run the test
 testCompleteRoutesCheat(); 
