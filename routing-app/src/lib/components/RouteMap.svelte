@@ -12,6 +12,7 @@
     import { interpolateLocationAtTime } from '$lib/routing-client';
     import type { Employee, Route, PathPoint, Address, Coordinate } from '$lib/types';
     import { DEFAULT_EMPLOYEE_LOCATION } from '$lib/types';
+    import { log } from '$lib/logger';
 
     // Animation configuration
     const ANIMATION_FPS = 30; // Frames per second for smooth animation
@@ -67,7 +68,7 @@
                 shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
             });
 
-            console.log('[RouteMap] Creating Leaflet map');
+            log.info('[RouteMap] Creating Leaflet map');
             
             // Create map
             leafletMap = L.map(mapElement, {
@@ -93,7 +94,7 @@
             startAnimation();
             
         } catch (error) {
-            console.error('[RouteMap] Failed to initialize map:', error);
+            log.error('[RouteMap] Failed to initialize map:', error);
         }
     }
 
@@ -192,7 +193,7 @@
                         }
                         position = { lat: locationData.lat, lon: locationData.lon };
                     } catch (e) {
-                        console.warn(`[RouteMap] Invalid location data for employee ${employee.name}:`, e);
+                        log.warn(`[RouteMap] Invalid location data for employee ${employee.name}:`, e);
                         position = { lat: DEFAULT_EMPLOYEE_LOCATION.lat, lon: DEFAULT_EMPLOYEE_LOCATION.lon };
                     }
                 } else {
@@ -221,7 +222,7 @@
 
                 employeeMarkers[employee.id] = marker;
             } catch (error) {
-                console.warn(`[RouteMap] Failed to create marker for employee ${employee.name}:`, error);
+                log.warn(`[RouteMap] Failed to create marker for employee ${employee.name}:`, error);
                 // Don't store null/undefined markers
             }
         });
@@ -291,11 +292,11 @@
                 // PostgreSQL format - already an array
                 return routeDataString as PathPoint[];
             } else {
-                console.warn('[RouteMap] Invalid route data format:', typeof routeDataString);
+                log.warn('[RouteMap] Invalid route data format:', typeof routeDataString);
                 return [];
             }
         } catch (e) {
-            console.error('[RouteMap] Failed to parse route data:', e);
+            log.error('[RouteMap] Failed to parse route data:', e);
             return [];
         }
     }
@@ -447,7 +448,7 @@
                 }
                 return { lat: locationData.lat, lon: locationData.lon };
             } catch (e) {
-                console.warn(`[RouteMap] Invalid location data for employee ${employee.name}:`, e);
+                log.warn(`[RouteMap] Invalid location data for employee ${employee.name}:`, e);
             }
         }
         return { lat: DEFAULT_EMPLOYEE_LOCATION.lat, lon: DEFAULT_EMPLOYEE_LOCATION.lon };
