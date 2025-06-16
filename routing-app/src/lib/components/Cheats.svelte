@@ -1,6 +1,6 @@
 <script lang="ts">
     import Cheat from './Cheat.svelte';
-    import { cheatsEnabled } from '$lib/stores/gameData';
+    import { cheatsEnabled } from '$lib/stores/cheats';
     
     let isCollapsed = false;
 

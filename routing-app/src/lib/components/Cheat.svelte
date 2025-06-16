@@ -1,5 +1,6 @@
 <script lang="ts">
     import { gameDataAPI } from '$lib/stores/gameData';
+    import { cheatSettings, cheatActions } from '$lib/stores/cheats';
 
     let moneyAmount = 0;
     let isProcessing = false;
@@ -171,5 +172,22 @@
                 <span class="label-text-alt text-error">{regenerateRoutesError}</span>
             </div>
         {/if}
+    </div>
+
+    <!-- Tile Debug Toggle -->
+    <div class="form-control">
+        <div class="label">
+            <span class="label-text">🗺️ Tile Debug</span>
+        </div>
+        <div class="form-control">
+            <label class="label cursor-pointer">
+                <span class="label-text">Show active map tiles</span>
+                <input 
+                    type="checkbox" 
+                    class="toggle toggle-primary" 
+                    bind:checked={$cheatSettings.showTileDebug}
+                />
+            </label>
+        </div>
     </div>
 </div> 

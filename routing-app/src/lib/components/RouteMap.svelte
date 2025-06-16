@@ -8,6 +8,7 @@
     } from '$lib/stores/gameData';
     import { selectedEmployee, selectEmployee } from '$lib/stores/selectedEmployee';
     import { selectedRoute, selectRoute } from '$lib/stores/selectedRoute';
+    import { cheatSettings, activeTiles, cheatActions } from '$lib/stores/cheats';
     import { interpolateLocationAtTime } from '$lib/routing-client';
     import type { Employee, Route, PathPoint, Address, Coordinate } from '$lib/types';
     import { DEFAULT_EMPLOYEE_LOCATION } from '$lib/types';
@@ -23,6 +24,7 @@
     let employeeMarkers: Record<string, any> = {};
     let routePolylines: Record<string, any> = {};
     let availableRoutePolylines: any[] = []; // For showing available routes
+    let tileLayer: any = null; // Reference to the tile layer for event handling
 
     // Animation state
     let animationInterval: NodeJS.Timeout | null = null;
@@ -83,8 +85,11 @@
             // Add tile layer
             L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors',
-                maxZoom: 19
+                maxZoom: 17
             }).addTo(leafletMap);
+
+            // Setup tile event listeners for debugging
+            setupTileDebugListeners();
 
             console.log('[RouteMap] Map created successfully');
             
@@ -460,6 +465,80 @@
         return polyline;
     }
 
+    function setupTileDebugListeners() {
+        if (!leafletMap || !L) return;
+
+        // Find the tile layer
+        leafletMap.eachLayer((layer: any) => {
+            if (layer instanceof L.TileLayer) {
+                tileLayer = layer;
+                
+                // Listen for tile events
+                layer.on('tileloadstart', (e: any) => {
+                    if ($cheatSettings.showTileDebug && e.coords) {
+                        const tileKey = `${e.coords.z}/${e.coords.x}/${e.coords.y}`;
+                        cheatActions.addActiveTile(tileKey);
+                    }
+                });
+
+                layer.on('tileload', (e: any) => {
+                    // Tile loaded successfully - could be used for additional info
+                });
+
+                layer.on('tileerror', (e: any) => {
+                    if ($cheatSettings.showTileDebug && e.coords) {
+                        const tileKey = `${e.coords.z}/${e.coords.x}/${e.coords.y}`;
+                        cheatActions.removeActiveTile(tileKey);
+                    }
+                });
+            }
+        });
+
+        // Listen for map events that change tiles
+        leafletMap.on('moveend zoomend', () => {
+            if ($cheatSettings.showTileDebug) {
+                updateActiveTiles();
+            }
+        });
+    }
+
+    function updateActiveTiles() {
+        if (!leafletMap || !tileLayer) return;
+
+        const bounds = leafletMap.getBounds();
+        const zoom = leafletMap.getZoom();
+        const activeTileSet = new Set<string>();
+
+        // Calculate visible tiles based on current bounds and zoom
+        const northWest = leafletMap.project(bounds.getNorthWest(), zoom);
+        const southEast = leafletMap.project(bounds.getSouthEast(), zoom);
+        
+        const tileSize = 256; // Standard tile size
+        const minTileX = Math.floor(northWest.x / tileSize);
+        const maxTileX = Math.floor(southEast.x / tileSize);
+        const minTileY = Math.floor(northWest.y / tileSize);
+        const maxTileY = Math.floor(southEast.y / tileSize);
+
+        // Add all visible tiles to the set
+        for (let x = minTileX; x <= maxTileX; x++) {
+            for (let y = minTileY; y <= maxTileY; y++) {
+                const tileKey = `${zoom}/${x}/${y}`;
+                activeTileSet.add(tileKey);
+            }
+        }
+
+        cheatActions.setActiveTiles(activeTileSet);
+    }
+
+    // Reactive update when tile debug setting changes
+    $: {
+        if (leafletMap && $cheatSettings.showTileDebug) {
+            updateActiveTiles();
+        } else if (!$cheatSettings.showTileDebug) {
+            cheatActions.clearActiveTiles();
+        }
+    }
+
     onMount(() => {
         console.log('[RouteMap] Component mounted');
         initMap();
@@ -488,6 +567,27 @@
 <div class="map-container">
     <div bind:this={mapElement} class="map-element"></div>
 </div>
+
+<!-- Tile Debug Display -->
+{#if $cheatSettings.showTileDebug}
+    <div class="tile-debug-container">
+        <div class="card bg-base-200 shadow-sm">
+            <div class="card-body p-4">
+                <h4 class="card-title text-sm text-base-content/70">
+                    🗺️ Active Map Tiles ({$activeTiles.size})
+                </h4>
+                <div class="tile-list">
+                    {#each Array.from($activeTiles).sort() as tile}
+                        <span class="badge badge-outline badge-sm">{tile}</span>
+                    {/each}
+                    {#if $activeTiles.size === 0}
+                        <span class="text-base-content/50 text-xs">No active tiles</span>
+                    {/if}
+                </div>
+            </div>
+        </div>
+    </div>
+{/if}
 
 <style>
     .map-container {
@@ -578,5 +678,30 @@
         color: #059669;
         font-weight: 600;
         margin-top: 2px;
+    }
+
+    .tile-debug-container {
+        margin-top: 16px;
+    }
+
+    .tile-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        max-height: 120px;
+        overflow-y: auto;
+    }
+
+    .tile-list::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .tile-list::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .tile-list::-webkit-scrollbar-thumb {
+        background: #d1d5db;
+        border-radius: 2px;
     }
 </style> 
