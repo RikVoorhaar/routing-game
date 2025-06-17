@@ -23,3 +23,6 @@ DEV:
 - [x] Currency should be a float
 - [x] end address is formatted as coords, but start is a string
 - [ ] Add batched API endpoint to routing server for processing multiple routing requests in one call (performance optimization)
+- [ ] Many (1-2%) jobs fail to generate and are skipped. What are the causes of these skips, and are they necessary?
+- [ ] ALl the jobs show up as not costing anything
+- [ ] There are issue with the routes schema that I have notes on

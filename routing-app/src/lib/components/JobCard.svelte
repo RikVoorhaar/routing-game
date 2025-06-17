@@ -31,21 +31,27 @@
         '#1f2937'  // tier 8 - dark gray
     ];
 
-    function formatCurrency(value: string | number): string {
+    function formatCurrency(value: string | number | null | undefined): string {
+        if (value == null) return '€0.00';
         const numValue = typeof value === 'string' ? parseFloat(value) : value;
+        if (isNaN(numValue)) return '€0.00';
         return new Intl.NumberFormat('en-US', { 
             style: 'currency', 
             currency: 'EUR' 
         }).format(numValue);
     }
 
-    function formatDistance(distanceKm: string | number): string {
+    function formatDistance(distanceKm: string | number | null | undefined): string {
+        if (distanceKm == null) return '0.0 km';
         const numValue = typeof distanceKm === 'string' ? parseFloat(distanceKm) : distanceKm;
+        if (isNaN(numValue)) return '0.0 km';
         return `${numValue.toFixed(1)} km`;
     }
 
-    function formatTime(timeSeconds: string | number): string {
+    function formatTime(timeSeconds: string | number | null | undefined): string {
+        if (timeSeconds == null) return '0m';
         const numValue = typeof timeSeconds === 'string' ? parseFloat(timeSeconds) : timeSeconds;
+        if (isNaN(numValue)) return '0m';
         const hours = Math.floor(numValue / 3600);
         const minutes = Math.floor((numValue % 3600) / 60);
         

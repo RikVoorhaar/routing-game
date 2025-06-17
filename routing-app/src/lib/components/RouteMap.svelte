@@ -703,20 +703,56 @@
         return `€${numValue.toFixed(0)}`;
     }
 
-    function createJobMarkerHTML(job: Job, isSelected: boolean): string {
-        const tierColor = getTierColor(job.jobTier);
-        const borderStyle = job.jobTier <= 3 ? 'solid' : job.jobTier <= 5 ? 'dashed' : job.jobTier <= 7 ? 'dotted' : 'double';
+    // Roman numeral conversion
+    function toRomanNumeral(tier: number | undefined | null): string {
+        if (tier == null || isNaN(tier)) return '?';
+        const romanNumerals = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+        return romanNumerals[tier] || tier.toString();
+    }
+
+    // Category icons (Unicode symbols)
+    const CATEGORY_ICONS = [
+        '🛒', // Groceries
+        '📦', // Packages
+        '🍕', // Food
+        '🪑', // Furniture  
+        '👥', // People
+        '⚠️', // Fragile Goods
+        '🏗️', // Construction
+        '🧪', // Liquids
+        '☠️'  // Toxic Goods
+    ];
+
+    function getCategoryIcon(category: number | undefined | null): string {
+        if (category == null || isNaN(category)) return '❓';
+        return CATEGORY_ICONS[category] || '📋';
+    }
+
+    function createJobMarkerHTML(job: any, isSelected: boolean): string {
+        // Handle both camelCase and snake_case field names
+        const jobTier = job.jobTier ?? job.job_tier ?? 1;
+        const jobCategory = job.jobCategory ?? job.job_category ?? 0;
+        
+        const tierColor = getTierColor(jobTier);
+        const romanNumeral = toRomanNumeral(jobTier);
+        const categoryIcon = getCategoryIcon(jobCategory);
         
         return `
-            <div class="flex items-center gap-1 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg cursor-pointer transition-all duration-200 hover:scale-110 hover:shadow-xl min-w-16 max-w-24 px-2 py-1 ${isSelected ? 'scale-115 shadow-xl border-4' : 'border-2'}" 
-                 style="border-color: ${tierColor}; border-style: ${borderStyle}; background-color: ${tierColor}15">
-                <div class="flex items-center justify-center w-4 h-4 rounded-full text-white text-xs font-bold flex-shrink-0" 
-                     style="background-color: ${tierColor}">
-                    ${job.jobTier}
+            <div class="relative flex flex-col items-center cursor-pointer transition-all duration-200 hover:scale-110 ${isSelected ? 'scale-125' : ''}" 
+                 style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
+                <!-- Tier badge with background -->
+                <div class="absolute -top-2 left-1/2 transform -translate-x-1/2 px-1 rounded text-[9px] font-bold leading-tight z-10" 
+                     style="background-color: rgba(0,0,0,0.8); color: ${tierColor}; border: 1px solid ${tierColor};">
+                    ${romanNumeral}
                 </div>
-                <div class="text-xs font-bold text-green-600 truncate">
-                    ${formatJobCurrency(job.approximateValue)}
+                <!-- Main marker circle with category icon -->
+                <div class="flex items-center justify-center w-7 h-7 rounded-full text-white border-2 border-white relative" 
+                     style="background-color: ${tierColor};">
+                    <span class="text-sm" title="Category: ${getCategoryIcon(jobCategory)}">${categoryIcon}</span>
                 </div>
+                <!-- Pointer triangle -->
+                <div class="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[8px] border-transparent" 
+                     style="border-top-color: ${tierColor}; margin-top: -1px;"></div>
             </div>
         `;
     }
@@ -733,16 +769,29 @@
         jobMarkers = [];
 
         // Create markers for current jobs
-        currentJobs.forEach(job => {
+        currentJobs.forEach((job, index) => {
             try {
+                // Debug: log job structure for first few jobs
+                if (index < 3) {
+                    console.log('Job data structure:', job);
+                }
+
+                // Validate essential job fields
+                if (!job.location) {
+                    console.warn('Job missing location:', job.id);
+                    return;
+                }
+
                 // Parse location (PostGIS EWKT format: "SRID=4326;POINT(lon lat)")
                 const locationMatch = job.location.match(/POINT\(([^)]+)\)/);
                 if (!locationMatch) {
+                    console.warn('Invalid location format for job:', job.id, job.location);
                     return;
                 }
 
                 const [lon, lat] = locationMatch[1].split(' ').map(Number);
                 if (isNaN(lat) || isNaN(lon)) {
+                    console.warn('Invalid coordinates for job:', job.id, lon, lat);
                     return;
                 }
 
@@ -753,10 +802,10 @@
                     icon: L.divIcon({
                         html: markerHTML,
                         className: 'custom-job-marker',
-                        iconSize: [80, 40],
-                        iconAnchor: [40, 20]
+                        iconSize: [28, 36], // Slightly larger for better icon visibility
+                        iconAnchor: [14, 36] // Anchor at bottom point of triangle
                     }),
-                    title: `Tier ${job.jobTier} Job - €${Number(job.approximateValue).toFixed(0)}`
+                    title: `Tier ${job.jobTier ?? job['job_tier'] ?? '?'} Job - €${Number(job.approximateValue ?? job['approximate_value'] ?? 0).toFixed(0)}`
                 }).addTo(leafletMap);
 
                 // Add click handler
@@ -768,7 +817,7 @@
                 jobMarkers.push(marker);
 
             } catch (error) {
-                console.warn('Failed to create job marker:', error);
+                console.warn('Failed to create job marker:', error, 'Job:', job);
             }
         });
     }
@@ -854,6 +903,10 @@
         background: transparent !important;
         border: none !important;
         z-index: 500;
+    }
+
+    :global(.custom-job-marker:hover) {
+        z-index: 501;
     }
 
 

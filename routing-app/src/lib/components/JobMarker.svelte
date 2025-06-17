@@ -21,45 +21,56 @@
         '#1f2937'  // tier 8 - dark gray
     ];
 
+    // Category icons (Unicode symbols)
+    const CATEGORY_ICONS = [
+        '🛒', // Groceries
+        '📦', // Packages
+        '🍕', // Food
+        '🪑', // Furniture  
+        '👥', // People
+        '⚠️', // Fragile Goods
+        '🏗️', // Construction
+        '🧪', // Liquids
+        '☠️'  // Toxic Goods
+    ];
+
     function getTierColor(tier: number): string {
         return TIER_COLORS[tier] || TIER_COLORS[0];
     }
 
-    function formatCurrency(value: string | number): string {
-        const numValue = typeof value === 'string' ? parseFloat(value) : value;
-        if (numValue >= 1000) {
-            return `€${(numValue / 1000).toFixed(1)}k`;
-        }
-        return `€${numValue.toFixed(0)}`;
+    function getCategoryIcon(category: number): string {
+        return CATEGORY_ICONS[category] || '📋';
+    }
+
+    // Roman numeral conversion
+    function toRomanNumeral(tier: number): string {
+        const romanNumerals = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+        return romanNumerals[tier] || tier.toString();
     }
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <div 
-    class="flex items-center gap-1 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg cursor-pointer transition-all duration-200 hover:scale-110 hover:shadow-xl min-w-16 max-w-24 px-2 py-1"
-    class:border-4={isSelected}
-    class:border-2={!isSelected}
-    class:scale-115={isSelected}
-    class:border-solid={job.jobTier <= 3}
-    class:border-dashed={job.jobTier > 3 && job.jobTier <= 5}
-    class:border-dotted={job.jobTier > 5 && job.jobTier <= 7}
-    class:border-double={job.jobTier > 7}
-    style="border-color: {getTierColor(job.jobTier)}; background-color: {getTierColor(job.jobTier)}15"
+    class="relative flex flex-col items-center cursor-pointer transition-all duration-200 hover:scale-110"
+    class:scale-125={isSelected}
+    style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));"
     on:click={onClick}
-    title="Tier {job.jobTier} Job - {formatCurrency(job.approximateValue)}"
+    title="Tier {job.jobTier} {getCategoryIcon(job.jobCategory)} Job - €{Number(job.approximateValue).toFixed(0)}"
 >
+    <!-- Compact marker circle -->
     <div 
-        class="flex items-center justify-center w-4 h-4 rounded-full text-white text-xs font-bold flex-shrink-0" 
+        class="flex items-center justify-center w-6 h-6 rounded-full text-white text-xs font-bold relative border-2 border-white" 
         style="background-color: {getTierColor(job.jobTier)}"
     >
-        {job.jobTier}
+        <span class="text-[10px] leading-none">{toRomanNumeral(job.jobTier)}</span>
+        <span class="absolute -top-1 -right-1 text-[8px]" title="Category: {getCategoryIcon(job.jobCategory)}">{getCategoryIcon(job.jobCategory)}</span>
     </div>
-    <div class="flex flex-col items-center flex-1 min-w-0">
-        <div class="text-xs font-bold text-green-600 truncate w-full text-center">
-            {formatCurrency(job.approximateValue)}
-        </div>
-    </div>
+    <!-- Pointer triangle -->
+    <div 
+        class="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[8px] border-transparent -mt-px" 
+        style="border-top-color: {getTierColor(job.jobTier)}"
+    ></div>
 </div>
 
  
