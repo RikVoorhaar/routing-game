@@ -8,11 +8,16 @@
     } from '$lib/stores/gameData';
     import { selectedEmployee, selectEmployee } from '$lib/stores/selectedEmployee';
     import { selectedRoute, selectRoute } from '$lib/stores/selectedRoute';
+    import { selectedJob, selectJob } from '$lib/stores/selectedJob';
     import { cheatSettings, activeTiles, cheatActions } from '$lib/stores/cheats';
     import { interpolateLocationAtTime } from '$lib/routing-client';
     import type { Employee, Route, PathPoint, Address, Coordinate } from '$lib/types';
+    import type { InferSelectModel } from 'drizzle-orm';
+    import type { jobs } from '$lib/server/db/schema';
     import { DEFAULT_EMPLOYEE_LOCATION } from '$lib/types';
     import { log } from '$lib/logger';
+
+    type Job = InferSelectModel<typeof jobs>;
 
     // Animation configuration
     const ANIMATION_FPS = 30; // Frames per second for smooth animation
@@ -26,6 +31,11 @@
     let routePolylines: Record<string, any> = {};
     let availableRoutePolylines: any[] = []; // For showing available routes
     let tileLayer: any = null; // Reference to the tile layer for event handling
+    
+    // Job-related variables
+    let jobMarkers: any[] = [];
+    let currentJobs: Job[] = [];
+    let lastLoadedTiles = new Set<string>();
 
     // Animation state
     let animationInterval: NodeJS.Timeout | null = null;
@@ -49,6 +59,13 @@
         if (leafletMap && $selectedRoute !== undefined) {
             // When the selected route changes, update the map immediately
             updateMap();
+        }
+    }
+
+    // --- Reactivity for job updates ---
+    $: {
+        if (leafletMap) {
+            updateJobMarkers();
         }
     }
 
@@ -89,6 +106,9 @@
             
             // Initial map update
             updateMap();
+            
+            // Load initial jobs
+            loadJobsForVisibleTiles();
             
             // Start animation loop
             startAnimation();
@@ -251,15 +271,19 @@
     }
 
     function createMarkerHTML(employeeName: string, isAnimated: boolean, progress: number, eta: string | null, isSelected: boolean): string {
+        const borderColor = isAnimated ? 'border-green-500' : 'border-gray-500';
+        const bgColor = isAnimated ? 'bg-green-50' : 'bg-gray-50';
+        const selectedClasses = isSelected ? 'border-red-500 bg-red-50 border-4 scale-110' : 'border-2';
+        
         return `
-            <div class="employee-marker ${isAnimated ? 'animated' : 'idle'} ${isSelected ? 'selected' : ''}">
-                <div class="marker-content">
-                    <span class="employee-name">${employeeName}</span>
+            <div class="flex items-center justify-center min-w-24 px-2 py-1 bg-white shadow-md text-xs font-medium transition-all duration-300 cursor-pointer hover:scale-105 hover:shadow-lg rounded-lg ${borderColor} ${bgColor} ${selectedClasses}">
+                <div class="flex flex-col items-center gap-0.5">
+                    <span class="font-semibold text-gray-900 whitespace-nowrap">${employeeName}</span>
                     ${isAnimated ? `
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: ${progress}%"></div>
+                        <div class="w-20 h-1 bg-gray-200 rounded-full overflow-hidden">
+                            <div class="h-full bg-green-500 transition-all duration-500 rounded-full" style="width: ${progress}%"></div>
                         </div>
-                        <div class="eta">ETA: ${eta || 'Calculating...'}</div>
+                        <div class="text-xs text-green-600 font-semibold">ETA: ${eta || 'Calculating...'}</div>
                     ` : ''}
                 </div>
             </div>
@@ -536,6 +560,8 @@
             if ($cheatSettings.showTileDebug) {
                 updateActiveTiles();
             }
+            // Load jobs for new tiles when map moves
+            loadJobsForVisibleTiles();
         });
     }
 
@@ -567,6 +593,186 @@
         cheatActions.setActiveTiles(activeTileSet);
     }
 
+    // Job-related functions
+    async function loadJobsForVisibleTiles() {
+        if (!leafletMap || !L) return;
+
+        const bounds = leafletMap.getBounds();
+        const zoom = leafletMap.getZoom();
+        
+        // Only load jobs at higher zoom levels (when sufficiently zoomed in)
+        if (zoom < 12) {
+            clearJobMarkers();
+            return;
+        }
+
+        const activeTileSet = new Set<string>();
+
+        // Calculate visible tiles based on current bounds and zoom
+        const northWest = leafletMap.project(bounds.getNorthWest(), zoom);
+        const southEast = leafletMap.project(bounds.getSouthEast(), zoom);
+        
+        const tileSize = 256; // Standard tile size
+        const minTileX = Math.floor(northWest.x / tileSize);
+        const maxTileX = Math.floor(southEast.x / tileSize);
+        const minTileY = Math.floor(northWest.y / tileSize);
+        const maxTileY = Math.floor(southEast.y / tileSize);
+
+        // Add all visible tiles to the set
+        for (let x = minTileX; x <= maxTileX; x++) {
+            for (let y = minTileY; y <= maxTileY; y++) {
+                const tileKey = `${zoom}/${x}/${y}`;
+                activeTileSet.add(tileKey);
+            }
+        }
+
+        // Only fetch tiles we haven't loaded yet
+        const tilesToLoad = Array.from(activeTileSet).filter(tile => !lastLoadedTiles.has(tile));
+        
+        if (tilesToLoad.length === 0) return;
+
+        try {
+            // Fetch jobs for new tiles in parallel
+            const jobPromises = tilesToLoad.map(async (tileKey) => {
+                const [z, x, y] = tileKey.split('/').map(Number);
+                const response = await fetch(`/api/jobs/${z}/${x}/${y}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if ($cheatSettings.showTileDebug) {
+                        console.log(`🗺️ [Jobs] Tile ${tileKey}: ${data.jobs?.length || 0} jobs`);
+                    }
+                    return data.jobs || [];
+                } else {
+                    return [];
+                }
+            });
+
+            const allJobs = await Promise.all(jobPromises);
+            const newJobs = allJobs.flat();
+
+            // Add new jobs to current jobs list (avoid duplicates)
+            const existingJobIds = new Set(currentJobs.map(job => job.id));
+            const uniqueNewJobs = newJobs.filter(job => !existingJobIds.has(job.id));
+            
+            currentJobs = [...currentJobs, ...uniqueNewJobs];
+            lastLoadedTiles = new Set([...lastLoadedTiles, ...tilesToLoad]);
+
+            // Update job markers
+            updateJobMarkers();
+
+        } catch (error) {
+            console.error('Error loading jobs for tiles:', error);
+        }
+    }
+
+    function clearJobMarkers() {
+        jobMarkers.forEach(marker => {
+            if (marker && leafletMap.hasLayer(marker)) {
+                leafletMap.removeLayer(marker);
+            }
+        });
+        jobMarkers = [];
+        currentJobs = [];
+        lastLoadedTiles.clear();
+    }
+
+    // Tier colors for job markers
+    const TIER_COLORS = [
+        '#6b7280', // tier 0 (shouldn't exist)
+        '#10b981', // tier 1 - green
+        '#3b82f6', // tier 2 - blue  
+        '#8b5cf6', // tier 3 - purple
+        '#f59e0b', // tier 4 - amber
+        '#ef4444', // tier 5 - red
+        '#ec4899', // tier 6 - pink
+        '#8b5cf6', // tier 7 - violet
+        '#1f2937'  // tier 8 - dark gray
+    ];
+
+    function getTierColor(tier: number): string {
+        return TIER_COLORS[tier] || TIER_COLORS[0];
+    }
+
+    function formatJobCurrency(value: string | number | undefined | null): string {
+        if (value === undefined || value === null) return '€0';
+        const numValue = typeof value === 'string' ? parseFloat(value) : value;
+        if (isNaN(numValue)) return '€0';
+        if (numValue >= 1000) {
+            return `€${(numValue / 1000).toFixed(1)}k`;
+        }
+        return `€${numValue.toFixed(0)}`;
+    }
+
+    function createJobMarkerHTML(job: Job, isSelected: boolean): string {
+        const tierColor = getTierColor(job.jobTier);
+        const borderStyle = job.jobTier <= 3 ? 'solid' : job.jobTier <= 5 ? 'dashed' : job.jobTier <= 7 ? 'dotted' : 'double';
+        
+        return `
+            <div class="flex items-center gap-1 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg cursor-pointer transition-all duration-200 hover:scale-110 hover:shadow-xl min-w-16 max-w-24 px-2 py-1 ${isSelected ? 'scale-115 shadow-xl border-4' : 'border-2'}" 
+                 style="border-color: ${tierColor}; border-style: ${borderStyle}; background-color: ${tierColor}15">
+                <div class="flex items-center justify-center w-4 h-4 rounded-full text-white text-xs font-bold flex-shrink-0" 
+                     style="background-color: ${tierColor}">
+                    ${job.jobTier}
+                </div>
+                <div class="text-xs font-bold text-green-600 truncate">
+                    ${formatJobCurrency(job.approximateValue)}
+                </div>
+            </div>
+        `;
+    }
+
+    function updateJobMarkers() {
+        if (!leafletMap || !L) return;
+
+        // Clear existing job markers
+        jobMarkers.forEach(marker => {
+            if (marker && leafletMap.hasLayer(marker)) {
+                leafletMap.removeLayer(marker);
+            }
+        });
+        jobMarkers = [];
+
+        // Create markers for current jobs
+        currentJobs.forEach(job => {
+            try {
+                // Parse location (PostGIS EWKT format: "SRID=4326;POINT(lon lat)")
+                const locationMatch = job.location.match(/POINT\(([^)]+)\)/);
+                if (!locationMatch) {
+                    return;
+                }
+
+                const [lon, lat] = locationMatch[1].split(' ').map(Number);
+                if (isNaN(lat) || isNaN(lon)) {
+                    return;
+                }
+
+                const isSelected = $selectedJob?.id === job.id;
+                const markerHTML = createJobMarkerHTML(job, isSelected);
+
+                const marker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        html: markerHTML,
+                        className: 'custom-job-marker',
+                        iconSize: [80, 40],
+                        iconAnchor: [40, 20]
+                    }),
+                    title: `Tier ${job.jobTier} Job - €${Number(job.approximateValue).toFixed(0)}`
+                }).addTo(leafletMap);
+
+                // Add click handler
+                marker.on('click', () => {
+                    selectJob(job);
+                    log.info('[RouteMap] Selected job:', job.id);
+                });
+
+                jobMarkers.push(marker);
+
+            } catch (error) {
+                console.warn('Failed to create job marker:', error);
+            }
+        });
+    }
+
     // Reactive update when tile debug setting changes
     $: {
         if (leafletMap && $cheatSettings.showTileDebug) {
@@ -584,6 +790,9 @@
         if (animationInterval) {
             clearInterval(animationInterval);
         }
+        
+        // Clear job markers before destroying map
+        clearJobMarkers();
         
         if (leafletMap) {
             leafletMap.remove();
@@ -604,13 +813,13 @@
 
 <!-- Tile Debug Display -->
 {#if $cheatSettings.showTileDebug}
-    <div class="tile-debug-container">
+    <div class="mt-4">
         <div class="card bg-base-200 shadow-sm">
             <div class="card-body p-4">
                 <h4 class="card-title text-sm text-base-content/70">
                     🗺️ Active Map Tiles ({$activeTiles.size})
                 </h4>
-                <div class="tile-list">
+                <div class="flex flex-wrap gap-1 max-h-30 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300">
                     {#each Array.from($activeTiles).sort() as tile}
                         <span class="badge badge-outline badge-sm">{tile}</span>
                     {/each}
@@ -641,101 +850,11 @@
         border: none !important;
     }
 
-    :global(.employee-marker) {
-        background: white;
-        border: 2px solid #3b82f6;
-        border-radius: 8px;
-        padding: 4px 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        font-size: 12px;
-        font-weight: 500;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 100px;
-        transition: all 0.3s ease;
-        cursor: pointer;
+    :global(.custom-job-marker) {
+        background: transparent !important;
+        border: none !important;
+        z-index: 500;
     }
 
-    :global(.employee-marker:hover) {
-        transform: scale(1.05);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    }
 
-    :global(.employee-marker.animated) {
-        border-color: #10b981;
-        background: #f0fdf4;
-    }
-
-    :global(.employee-marker.idle) {
-        border-color: #6b7280;
-        background: #f9fafb;
-    }
-
-    :global(.employee-marker.selected) {
-        border-color: #dc2626;
-        background: #fef2f2;
-        border-width: 3px;
-        transform: scale(1.1);
-    }
-
-    :global(.marker-content) {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 2px;
-    }
-
-    :global(.employee-name) {
-        font-weight: 600;
-        color: #1f2937;
-        white-space: nowrap;
-    }
-
-    :global(.progress-bar) {
-        width: 80px;
-        height: 4px;
-        background: #e5e7eb;
-        border-radius: 2px;
-        overflow: hidden;
-    }
-
-    :global(.progress-fill) {
-        height: 100%;
-        background: #10b981;
-        transition: width 0.5s ease;
-        border-radius: 2px;
-    }
-
-    :global(.eta) {
-        font-size: 10px;
-        color: #059669;
-        font-weight: 600;
-        margin-top: 2px;
-    }
-
-    .tile-debug-container {
-        margin-top: 16px;
-    }
-
-    .tile-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
-        max-height: 120px;
-        overflow-y: auto;
-    }
-
-    .tile-list::-webkit-scrollbar {
-        width: 4px;
-    }
-
-    .tile-list::-webkit-scrollbar-track {
-        background: transparent;
-    }
-
-    .tile-list::-webkit-scrollbar-thumb {
-        background: #d1d5db;
-        border-radius: 2px;
-    }
 </style> 

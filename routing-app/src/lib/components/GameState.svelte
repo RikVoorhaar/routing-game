@@ -6,6 +6,7 @@
     import ErrorOverlay from './ErrorOverlay.svelte';
     import Cheats from './Cheats.svelte';
     import RouteMap from './RouteMap.svelte';
+    import JobCard from './JobCard.svelte';
     import { faker } from '@faker-js/faker';
     import { addError } from '$lib/stores/errors';
     import { 
@@ -197,10 +198,15 @@
         <Cheats />
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Left Panel - Employees -->
-            <div class="lg:col-span-1">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-bold">Employees ({$employees.length})</h2>
+            <!-- Left Panel - Jobs and Employees -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- Selected Job Card -->
+                <JobCard />
+                
+                <!-- Employees Section -->
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold">Employees ({$employees.length})</h2>
                     <button 
                         class="btn btn-primary"
                         class:btn-disabled={!canAffordEmployee}
@@ -257,6 +263,7 @@
                         {/each}
                     </div>
                 {/if}
+                </div>
             </div>
 
             <!-- Right Panel - Map -->

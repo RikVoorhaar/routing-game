@@ -342,22 +342,25 @@ export async function generateAllJobs(): Promise<void> {
     await clearAllJobs();
     profiler.end('clearAllJobs');
     
-    // Get all addresses
-    profiler.start('getAllAddresses');
-    const allAddresses = await db.select().from(addresses);
-    profiler.end('getAllAddresses');
+    // Get total address count first
+    profiler.start('getAddressCount');
+    const totalAddressCountResult = await db.execute(sql`SELECT COUNT(*) as count FROM address`);
+    const totalAddresses = Number(totalAddressCountResult[0]?.count || 0);
+    profiler.end('getAddressCount');
     
-    console.log(`Found ${allAddresses.length} total addresses`);
+    console.log(`Found ${totalAddresses} total addresses`);
     
-    // Sample 1% of addresses
+    // Sample 1% of addresses using SQL random
     profiler.start('sampleAddresses');
-    const sampleSize = Math.ceil(allAddresses.length * 0.01);
-    const sampledAddresses = allAddresses
-        .sort(() => Math.random() - 0.5) // Shuffle
-        .slice(0, sampleSize);
+    const sampleSize = Math.ceil(totalAddresses * 0.01);
+    const sampledAddresses = await db.execute(sql`
+        SELECT * FROM address 
+        ORDER BY RANDOM() 
+        LIMIT ${sampleSize}
+    `) as unknown as Array<InferSelectModel<typeof addresses>>;
     profiler.end('sampleAddresses');
     
-    console.log(`Generating jobs for ${sampledAddresses.length} addresses (1% sample)`);
+    console.log(`Generating jobs for ${sampledAddresses.length} addresses (1% random sample)`);
     
     let successCount = 0;
     let totalAttempts = 0;

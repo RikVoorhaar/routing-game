@@ -22,6 +22,34 @@ const COLORS = {
 const args = process.argv.slice(2);
 const command = args[0] || 'help';
 
+// Parse arguments for generate command
+function parseGenerateArgs() {
+    if (command !== 'generate') return { fraction: 0.01 }; // Default 1%
+    
+    let fraction = 0.01; // Default 1%
+    
+    // Look for fraction argument: --fraction=0.02 or -f 0.02
+    for (let i = 1; i < args.length; i++) {
+        const arg = args[i];
+        if (arg.startsWith('--fraction=')) {
+            fraction = parseFloat(arg.split('=')[1]);
+        } else if (arg === '-f' || arg === '--fraction') {
+            if (i + 1 < args.length) {
+                fraction = parseFloat(args[i + 1]);
+                i++; // Skip next argument since we consumed it
+            }
+        }
+    }
+    
+    // Validate fraction
+    if (isNaN(fraction) || fraction <= 0 || fraction > 1) {
+        console.error('Error: Fraction must be a number between 0 and 1');
+        process.exit(1);
+    }
+    
+    return { fraction };
+}
+
 async function main() {
     try {
         switch (command) {
@@ -29,7 +57,8 @@ async function main() {
                 await testJobGeneration();
                 break;
             case 'generate':
-                await generateJobsWithProgress();
+                const { fraction } = parseGenerateArgs();
+                await generateJobsWithProgress(fraction);
                 break;
             case 'clear':
                 await clearAllJobs();
@@ -44,14 +73,19 @@ Job Generation Script
 
 Commands:
   test      - Generate a few test jobs to validate the system
-  generate  - Generate jobs for 1% of all addresses (~7,159 jobs) with progress bar
+  generate  - Generate jobs for a fraction of all addresses with progress bar
   clear     - Clear all existing jobs
   stats     - Show job statistics
   help      - Show this help message
 
+Generate Options:
+  -f, --fraction  Fraction of addresses to sample (0-1, default: 0.01 = 1%)
+
 Examples:
   npm run job-generator test
-  npm run job-generator generate
+  npm run job-generator generate                    # Generate jobs for 1% of addresses
+  npm run job-generator generate --fraction=0.02    # Generate jobs for 2% of addresses
+  npm run job-generator generate -f 0.005           # Generate jobs for 0.5% of addresses
   npm run job-generator stats
                 `);
                 break;
@@ -166,13 +200,24 @@ async function showJobStats() {
     }
 }
 
-async function generateJobsWithProgress() {
+async function generateJobsWithProgress(fraction: number = 0.01) {
     try {
-        // Configuration
-        const TARGET_JOBS = 7159; // 1% of 715,932 addresses
+        // Get total address count first
+        const totalAddressCountResult = await db.execute(sql`SELECT COUNT(*) as count FROM address`);
+        const totalAddresses = Number(totalAddressCountResult[0]?.count || 0);
+        
+        if (totalAddresses === 0) {
+            console.error('No addresses found in database!');
+            process.exit(1);
+        }
+        
+        // Calculate target number of jobs
+        const TARGET_JOBS = Math.ceil(totalAddresses * fraction);
         const CONCURRENCY = 20; // Optimal from our testing
         
         console.log(`${COLORS.bright}${COLORS.blue}🎯 Job Generation Configuration${COLORS.reset}`);
+        console.log(`  Total Addresses: ${COLORS.cyan}${totalAddresses.toLocaleString()}${COLORS.reset}`);
+        console.log(`  Sample Fraction: ${COLORS.yellow}${(fraction * 100).toFixed(1)}%${COLORS.reset}`);
         console.log(`  Target Jobs: ${COLORS.cyan}${TARGET_JOBS.toLocaleString()}${COLORS.reset}`);
         console.log(`  Concurrency: ${COLORS.yellow}${CONCURRENCY}${COLORS.reset}`);
         console.log(`  Expected Time: ${COLORS.gray}~${Math.ceil(TARGET_JOBS * 30 / 1000 / CONCURRENCY)}s${COLORS.reset}\n`);
@@ -184,12 +229,26 @@ async function generateJobsWithProgress() {
         const clearTime = performance.now() - clearStart;
         console.log(`${COLORS.green}✅ Cleared jobs in ${clearTime.toFixed(0)}ms${COLORS.reset}\n`);
         
-        // Get sample addresses
-        console.log(`${COLORS.gray}📍 Selecting ${TARGET_JOBS.toLocaleString()} random addresses...${COLORS.reset}`);
+        // Get random sample of addresses using SQL
+        console.log(`${COLORS.gray}📍 Randomly selecting ${TARGET_JOBS.toLocaleString()} addresses...${COLORS.reset}`);
         const selectStart = performance.now();
-        const sampleAddresses = await db.select().from(addresses).limit(TARGET_JOBS);
+        const sampleAddresses = await db.execute(sql`
+            SELECT * FROM address 
+            ORDER BY RANDOM() 
+            LIMIT ${TARGET_JOBS}
+        `) as unknown as Array<{
+            id: string;
+            street: string | null;
+            houseNumber: string | null;
+            postcode: string | null;
+            city: string | null;
+            location: string;
+            lat: string;
+            lon: string;
+            createdAt: Date;
+        }>;
         const selectTime = performance.now() - selectStart;
-        console.log(`${COLORS.green}✅ Selected ${sampleAddresses.length.toLocaleString()} addresses in ${selectTime.toFixed(0)}ms${COLORS.reset}\n`);
+        console.log(`${COLORS.green}✅ Selected ${sampleAddresses.length.toLocaleString()} random addresses in ${selectTime.toFixed(0)}ms${COLORS.reset}\n`);
         
         // Initialize progress bar
         const progressBar = new cliProgress.SingleBar({
