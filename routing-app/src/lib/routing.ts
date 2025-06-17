@@ -1,7 +1,25 @@
 import { getRandomAddressInAnnulus } from './addresses';
 import type { Coordinate, RoutingResult, PathPoint } from './types';
+import http from 'http';
 
 const ROUTING_SERVER_URL = 'http://localhost:8050';
+
+// Reuse the same HTTP agent for connection pooling
+const httpAgent = new http.Agent({
+    keepAlive: true,
+    keepAliveMsecs: 30000,
+    maxSockets: 50,
+    maxFreeSockets: 10,
+});
+
+// Enhanced fetch with keep-alive agent
+async function fetchWithKeepAlive(url: string, options: RequestInit = {}): Promise<Response> {
+    return fetch(url, {
+        ...options,
+        // @ts-expect-error - Node.js specific agent option
+        agent: httpAgent,
+    });
+}
 
 interface ServerPathPoint {
     coordinates: { lat: number; lon: number };
@@ -11,7 +29,6 @@ interface ServerPathPoint {
     is_walking_segment: boolean;
 }
 
-
 async function getShortestPath(from: Coordinate, to: Coordinate, maxSpeed?: number): Promise<RoutingResult> {
     let url = `${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`;
     
@@ -19,7 +36,7 @@ async function getShortestPath(from: Coordinate, to: Coordinate, maxSpeed?: numb
         url += `&max_speed=${maxSpeed}`;
     }
 
-    const response = await fetch(url);
+    const response = await fetchWithKeepAlive(url);
 
     if (!response.ok) {
         throw new Error(`Failed to get shortest path: ${response.statusText}`);

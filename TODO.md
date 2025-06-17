@@ -22,3 +22,4 @@ DEV:
 - [ ] The rewards are way too low
 - [x] Currency should be a float
 - [x] end address is formatted as coords, but start is a string
+- [ ] Add batched API endpoint to routing server for processing multiple routing requests in one call (performance optimization)

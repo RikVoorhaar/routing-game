@@ -100,7 +100,7 @@ export async function generateSingleRoute(
         id: crypto.randomUUID(),
         startLocation: stringifyJson(location),
         endLocation: stringifyJson(routeResult.destination),
-        lengthTime: routeResult.travelTimeSeconds,
+        lengthTime: routeResult.travelTimeSeconds.toString(),
         startTime: null,
         endTime: null,
         goodsType,

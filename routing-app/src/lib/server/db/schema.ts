@@ -8,6 +8,8 @@ import {
 	boolean,
 	jsonb,
 	index,
+	serial,
+	varchar,
   } from 'drizzle-orm/pg-core';
   import { sql } from 'drizzle-orm';
   
@@ -25,16 +27,16 @@ import {
   
   // Addresses table - stores geographic addresses with PostGIS geometry
   export const addresses = pgTable('address', {
-	id: text('id').notNull().primaryKey(),
-	street: text('street'),
-	houseNumber: text('house_number'),
-	postcode: text('postcode'),
-	city: text('city'),
+	id: varchar('id').notNull().primaryKey(),
+	street: varchar('street'),
+	houseNumber: varchar('house_number'),
+	postcode: varchar('postcode'),
+	city: varchar('city'),
 	// PostGIS geometry column for efficient spatial queries
 	location: text('location').notNull(), // POINT geometry as text (handled by PostGIS)
 	lat: numeric('lat').notNull(),
 	lon: numeric('lon').notNull(),
-	createdAt: timestamp('created_at', { withTimezone: true })
+	createdAt: timestamp('created_at', { withTimezone: false })
 	  .notNull()
 	  .default(sql`CURRENT_TIMESTAMP`),
   }, (table) => [
@@ -87,6 +89,37 @@ import {
 	reward: numeric('reward').notNull(),
 	routeData: jsonb('route_data').notNull(), // JSONB: Route data
   });
+  
+  // Jobs table - generated jobs for the job market with spatial indexing
+  export const jobs = pgTable('job', {
+	id: serial('id').primaryKey(), // Auto-increment key
+	lat: numeric('lat').notNull(), // Latitude for spatial queries
+	lon: numeric('lon').notNull(), // Longitude for spatial queries
+	startAddressId: varchar('start_address_id')
+	  .notNull()
+	  .references(() => addresses.id, { onDelete: 'cascade' }),
+	endAddressId: varchar('end_address_id')
+	  .notNull()
+	  .references(() => addresses.id, { onDelete: 'cascade' }),
+	routeId: text('route_id')
+	  .notNull()
+	  .references(() => routes.id, { onDelete: 'cascade' }),
+	jobTier: integer('job_tier').notNull(),
+	jobCategory: integer('job_category').notNull(), // Refers to JobCategory enum
+	totalDistanceKm: numeric('total_distance_km').notNull(),
+	totalTimeSeconds: numeric('total_time_seconds').notNull(),
+	timeGenerated: timestamp('time_generated', { withTimezone: true })
+	  .notNull()
+	  .default(sql`CURRENT_TIMESTAMP`),
+	approximateValue: numeric('approximate_value').notNull(),
+  }, (table) => [
+	// Regular indexes
+	index('jobs_tier_idx').on(table.jobTier),
+	index('jobs_category_idx').on(table.jobCategory),
+	index('jobs_value_idx').on(table.approximateValue), // For sorting by value
+	index('jobs_time_generated_idx').on(table.timeGenerated),
+	// Note: Spatial index will be created with raw SQL since Drizzle doesn't support PostGIS
+  ]);
   
   // Accounts table - OAuth providers info
   export const accounts = pgTable(
