@@ -93,8 +93,8 @@ import {
   // Jobs table - generated jobs for the job market with spatial indexing
   export const jobs = pgTable('job', {
 	id: serial('id').primaryKey(), // Auto-increment key
-	lat: numeric('lat').notNull(), // Latitude for spatial queries
-	lon: numeric('lon').notNull(), // Longitude for spatial queries
+	// PostGIS geometry column for efficient spatial queries
+	location: text('location').notNull(), // POINT geometry as text (handled by PostGIS)
 	startAddressId: varchar('start_address_id')
 	  .notNull()
 	  .references(() => addresses.id, { onDelete: 'cascade' }),
@@ -118,7 +118,8 @@ import {
 	index('jobs_category_idx').on(table.jobCategory),
 	index('jobs_value_idx').on(table.approximateValue), // For sorting by value
 	index('jobs_time_generated_idx').on(table.timeGenerated),
-	// Note: Spatial index will be created with raw SQL since Drizzle doesn't support PostGIS
+	// Create a spatial index on the geometry column for efficient spatial queries
+	index('jobs_location_idx').on(sql`${table.location}`),
   ]);
   
   // Accounts table - OAuth providers info

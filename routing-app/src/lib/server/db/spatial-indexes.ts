@@ -9,14 +9,13 @@ export async function createSpatialIndexes(): Promise<void> {
     console.log('Creating spatial indexes...');
     
     try {
-        // Create spatial index on jobs table for lat/lon coordinates
+        // Create spatial index on jobs table for location column (EWKT format)
         await db.execute(sql`
             CREATE INDEX IF NOT EXISTS jobs_location_gist_idx 
-            ON job USING GIST (ST_Point(lon::float, lat::float))
+            ON job USING GIST (ST_GeomFromEWKT(location))
         `);
         
-        // Create spatial index on addresses location column (already created via schema)
-        // This is redundant but ensures it exists
+        // Create spatial index on addresses location column (standard WKT format)
         await db.execute(sql`
             CREATE INDEX IF NOT EXISTS addresses_location_gist_idx 
             ON address USING GIST (ST_GeomFromText(location))

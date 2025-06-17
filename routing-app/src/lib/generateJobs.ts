@@ -5,6 +5,7 @@ import { type Coordinate } from './types';
 import { db, client } from './server/db/standalone';
 import { sql, desc, inArray } from 'drizzle-orm';
 import { distance } from '@turf/turf';
+import { getTileBounds } from './geo';
 
 // Performance profiling utility
 class Profiler {
@@ -300,8 +301,7 @@ export async function generateJobFromAddress(startAddress: InferSelectModel<type
         
         // Create job record
         const jobRecord = {
-            lat: startAddress.lat,
-            lon: startAddress.lon,
+            location: `SRID=4326;POINT(${startAddress.lon} ${startAddress.lat})`, // PostGIS POINT geometry with SRID
             startAddressId: startAddress.id,
             endAddressId: endAddressId,
             routeId: routeRecord.id,
@@ -447,9 +447,34 @@ export async function getJobsNearLocation(
     const result = await db.execute(sql`
         SELECT * FROM job 
         WHERE ST_DWithin(
-            ST_Point(${lon}, ${lat}),
-            ST_Point(lon::float, lat::float),
+            ST_SetSRID(ST_Point(${lon}, ${lat}), 4326),
+            ST_GeomFromEWKT(location),
             ${radiusMeters}
+        )
+        ORDER BY approximate_value DESC
+        LIMIT ${limit}
+    `);
+    
+    return result as unknown as Array<InferSelectModel<typeof jobs>>;
+}
+
+/**
+ * Gets jobs within a tile using x,y,z tile coordinates
+ */
+export async function getJobsInTile(
+    x: number,
+    y: number,
+    z: number,
+    limit: number = 100
+): Promise<Array<InferSelectModel<typeof jobs>>> {
+    // Convert tile coordinates to geographic bounds
+    const bounds = getTileBounds(x, y, z);
+    
+    const result = await db.execute(sql`
+        SELECT * FROM job 
+        WHERE ST_Within(
+            ST_GeomFromEWKT(location),
+            ST_MakeEnvelope(${bounds.west}, ${bounds.south}, ${bounds.east}, ${bounds.north}, 4326)
         )
         ORDER BY approximate_value DESC
         LIMIT ${limit}
