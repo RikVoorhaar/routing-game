@@ -238,33 +238,6 @@ export async function generateJobFromAddress(startAddress: InferSelectModel<type
         const approximateValue = computeJobValue(jobTier, jobCategory, totalDistanceKm, totalTimeSeconds);
         profiler.end('computeJobValue');
         
-        // Create route record
-        const routeRecord = {
-            id: crypto.randomUUID(),
-            startLocation: {
-                id: startAddress.id,
-                lat: Number(startAddress.lat),
-                lon: Number(startAddress.lon),
-                street: startAddress.street,
-                house_number: startAddress.houseNumber,
-                city: startAddress.city,
-                postcode: startAddress.postcode
-            },
-            endLocation: routeResult.destination,
-            lengthTime: totalTimeSeconds.toString(),
-            startTime: null,
-            endTime: null,
-            goodsType: JobCategory[jobCategory].toLowerCase(),
-            weight: '0', // Jobs don't have weight like employee routes
-            reward: approximateValue.toString(),
-            routeData: routeResult.path
-        };
-        
-        // Insert route
-        profiler.start('insertRoute');
-        await db.insert(routes).values(routeRecord);
-        profiler.end('insertRoute');
-        
         // Find end address ID by coordinates (approximate match)
         profiler.start('findEndAddress');
         const endAddressResults = await db.select()
@@ -298,6 +271,23 @@ export async function generateJobFromAddress(startAddress: InferSelectModel<type
             endAddressId = (endAddressQuery[0] as { id: string }).id;
         }
         profiler.end('findEndAddress');
+        
+        // Create route record with address IDs
+        const routeRecord = {
+            id: crypto.randomUUID(),
+            startAddressId: startAddress.id,
+            endAddressId: endAddressId,
+            lengthTime: totalTimeSeconds.toString(),
+            goodsType: JobCategory[jobCategory].toLowerCase(),
+            weight: '0', // Jobs don't have weight like employee routes
+            reward: approximateValue.toString(),
+            routeData: routeResult.path
+        };
+        
+        // Insert route
+        profiler.start('insertRoute');
+        await db.insert(routes).values(routeRecord);
+        profiler.end('insertRoute');
         
         // Create job record
         const jobRecord = {

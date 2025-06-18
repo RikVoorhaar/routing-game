@@ -31,3 +31,5 @@ DEV:
 - [ ] remove the restriction that jobs aren't shown at tile levels below 12
 - [ ] Add filters to the map jobs, in particular checkboxes for each category, and a min/max slider for the tier. When you select an employee it should automatically adjust the _max_ tier, and the categories to those unlocked. 
 - [ ] Implement licenses, levels, xp, etc. 
+- [ ] IN generateJobs.ts, use the job categories defined in jobCategories.ts
+- [ ] In generateJobs.ts, remove all profiling code.

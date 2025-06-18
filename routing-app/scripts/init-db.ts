@@ -80,6 +80,7 @@ async function dropAllTables(db: ReturnType<typeof drizzle>, existingTables: str
     'verification_token',
     'account', 
     'credential',
+    'active_job',
     'route',
     'employee',
     'game_state',

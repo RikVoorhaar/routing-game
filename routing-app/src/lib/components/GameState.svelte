@@ -113,19 +113,7 @@
         }
     }
 
-    async function handleEmployeeRouteGenerated(event: CustomEvent<{ employeeId: string }>) {
-        const { employeeId } = event.detail;
-        
-        try {
-            // Refresh employee data and routes
-            await gameDataAPI.refreshEmployee(employeeId);
-            await gameDataAPI.loadAllEmployeeRoutes();
-        } catch (error) {
-            console.error('Error refreshing employee data:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Failed to refresh employee data';
-            addError(`Failed to refresh employee: ${errorMessage}`, 'error');
-        }
-    }
+
 
     async function handleEmployeeRouteAssigned(event: CustomEvent<{ employeeId: string; routeId: string }>) {
         const { employeeId } = event.detail;
@@ -255,7 +243,6 @@
                                     availableRoutes={employeeRoutes.available}
                                     currentRoute={employeeRoutes.current}
                                     gameStateId={$currentGameState?.id || ''}
-                                    on:generateRoutes={handleEmployeeRouteGenerated}
                                     on:assignRoute={handleEmployeeRouteAssigned}
                                     on:routeCompleted={handleEmployeeRouteCompleted}
                                 />

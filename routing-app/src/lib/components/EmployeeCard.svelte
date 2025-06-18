@@ -3,7 +3,6 @@
     import { onDestroy } from 'svelte';
     import { selectedEmployee, selectEmployee } from '$lib/stores/selectedEmployee';
     import type { Employee, Route, Address } from '$lib/types';
-    import { MIN_ROUTE_REGEN_INTERVAL } from '$lib/types';
     import { addError } from '$lib/stores/errors';
     import { selectedRoute, clearSelection } from '$lib/stores/selectedRoute';
     import { formatMoney, formatAddress, formatTimeFromMs } from '$lib/formatting';
@@ -15,12 +14,11 @@
     export let gameStateId: string;
 
     const dispatch = createEventDispatcher<{
-        generateRoutes: { employeeId: string };
         assignRoute: { employeeId: string; routeId: string };
+        assignJob: { employeeId: string; jobId: string };
         routeCompleted: { employeeId: string; reward: number; newBalance: number };
     }>();
 
-    let isGenerating = false;
     let isAssigning = false;
     let isCompletingRoute = false;
     let previouslyCompleted = false; // Track if we've already processed completion
@@ -73,15 +71,6 @@
             return { vehicleType: 'bicycle', capacity: 10 };
         }
     })();
-
-    // Check if routes can be regenerated
-    $: canRegenerateRoutes = !employee.timeRoutesGenerated || 
-        (Date.now() - new Date(employee.timeRoutesGenerated).getTime()) >= MIN_ROUTE_REGEN_INTERVAL;
-
-    // Calculate time until routes can be regenerated
-    $: timeUntilRegen = employee.timeRoutesGenerated ? 
-        Math.max(0, MIN_ROUTE_REGEN_INTERVAL - (Date.now() - new Date(employee.timeRoutesGenerated).getTime())) : 0;
-    $: regenWaitMinutes = Math.ceil(timeUntilRegen / 1000 / 60);
 
     // Route progress calculation
     $: routeProgress = currentRoute && currentRoute.startTime ? 
@@ -173,34 +162,6 @@
         };
     }
 
-    async function handleGenerateRoutes() {
-        isGenerating = true;
-        
-        try {
-            const response = await fetch('/api/employees', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'generateRoutes',
-                    employeeId: employee.id,
-                    gameStateId
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to generate routes');
-            }
-
-            dispatch('generateRoutes', { employeeId: employee.id });
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to generate routes';
-            addError(`Route generation failed: ${errorMessage}`, 'error');
-        } finally {
-            isGenerating = false;
-        }
-    }
-
     async function handleAssignRoute() {
         if (!$selectedRoute || !selectedRouteIsForThisEmployee) return;
         
@@ -228,6 +189,35 @@
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Failed to assign route';
             addError(`Route assignment failed: ${errorMessage}`, 'error');
+        } finally {
+            isAssigning = false;
+        }
+    }
+
+    async function handleAssignJob(jobId: string) {
+        isAssigning = true;
+        
+        try {
+            const response = await fetch('/api/employees', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'assignJob',
+                    employeeId: employee.id,
+                    gameStateId,
+                    jobId: jobId
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to assign job');
+            }
+
+            dispatch('assignJob', { employeeId: employee.id, jobId: jobId });
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to assign job';
+            addError(`Job assignment failed: ${errorMessage}`, 'error');
         } finally {
             isAssigning = false;
         }
@@ -386,7 +376,7 @@
                 </div>
 
                 {#if availableRoutes.length > 0}
-                    <!-- Route Selection -->
+                    <!-- Route Selection (for employee-generated routes) -->
                     <div class="form-control">
                         <div class="label py-1">
                             <span class="label-text text-xs">Available Routes</span>
@@ -419,23 +409,10 @@
                         </div>
                     </div>
                 {:else}
-                    <!-- Generate Routes -->
-                    <div class="text-center">
-                        <button 
-                            class="btn btn-outline btn-sm"
-                            class:btn-disabled={!canRegenerateRoutes}
-                            on:click={handleGenerateRoutes}
-                            disabled={isGenerating || !canRegenerateRoutes}
-                        >
-                            {#if isGenerating}
-                                <span class="loading loading-spinner loading-xs"></span>
-                                Generating...
-                            {:else if !canRegenerateRoutes}
-                                Routes in {regenWaitMinutes}min
-                            {:else}
-                                Generate Routes
-                            {/if}
-                        </button>
+                    <!-- Idle Employee -->
+                    <div class="text-center text-sm text-base-content/70">
+                        <p>Employee is idle</p>
+                        <p class="text-xs mt-1">Jobs are available from the global job market</p>
                     </div>
                 {/if}
             </div>

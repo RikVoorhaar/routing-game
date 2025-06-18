@@ -457,42 +457,7 @@ export const gameDataAPI = {
         }
     },
 
-    // Regenerate routes for all employees using cheats API
-    async regenerateAllRoutes() {
-        const gameState = get(currentGameState);
-        const user = get(currentUser);
-        
-        if (!gameState || !user?.cheatsEnabled) {
-            throw new Error('Cannot regenerate routes: No game state or cheats not enabled');
-        }
 
-        try {
-            const response = await fetch('/api/cheats/regenerate-routes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    gameStateId: gameState.id
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to regenerate routes');
-            }
-
-            const result = await response.json();
-            
-            // Refresh employee data and routes to reflect the changes
-            await this.refreshEmployees();
-            await this.loadAllEmployeeRoutes();
-            
-            return result;
-        } catch (error) {
-            log.error('Error regenerating routes:', error);
-            addError(`Failed to regenerate routes: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
-            throw error;
-        }
-    },
 
     // Refresh all employee data from server
     async refreshEmployees() {
