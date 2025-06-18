@@ -46,6 +46,9 @@ export const cheatsEnabled = derived(currentUser, ($currentUser) => {
     return $currentUser?.cheatsEnabled || false;
 });
 
+// Current map jobs store  
+export const currentMapJobs = writable<any[]>([]);
+
 // Store actions for updating data
 export const gameDataActions = {
     // Initialize stores with page data
@@ -220,14 +223,9 @@ export const gameDataAPI = {
     async loadAllEmployeeRoutes() {
         const currentEmployees = get(employees);
         
-        log.debug('[ROUTES DEBUG] Starting loadAllEmployeeRoutes');
-        log.debug('[ROUTES DEBUG] Number of employees:', currentEmployees.length);
         
         try {
             for (const employee of currentEmployees) {
-                log.debug('[ROUTES DEBUG] Processing employee:', employee.id, employee.name);
-                log.debug('[ROUTES DEBUG] Employee availableRoutes raw:', employee.availableRoutes);
-                log.debug('[ROUTES DEBUG] Employee availableRoutes type:', typeof employee.availableRoutes);
                 
                 // Handle both SQLite (string) and PostgreSQL (array/object) formats
                 let availableRouteIds: string[] = [];
@@ -248,48 +246,34 @@ export const gameDataAPI = {
                     availableRouteIds = [];
                 }
                 
-                log.debug('[ROUTES DEBUG] Parsed availableRouteIds:', availableRouteIds);
                 
                 let availableRoutes: Route[] = [];
                 
                 if (availableRouteIds.length > 0) {
-                    log.debug('[ROUTES DEBUG] Fetching routes:', `/api/routes?ids=${availableRouteIds.join(',')}`);
                     const routesResponse = await fetch(`/api/routes?ids=${availableRouteIds.join(',')}`);
-                    log.debug('[ROUTES DEBUG] Routes response status:', routesResponse.status);
                     
                     if (routesResponse.ok) {
                         availableRoutes = await routesResponse.json();
-                        log.debug('[ROUTES DEBUG] Fetched available routes:', availableRoutes.length);
                     } else {
                         const errorText = await routesResponse.text();
                         log.error('[ROUTES DEBUG] Failed to fetch available routes:', routesResponse.status, errorText);
                     }
-                } else {
-                    log.debug('[ROUTES DEBUG] No available route IDs to fetch');
-                }
 
                 // Get current route if assigned
                 let currentRoute: Route | null = null;
                 if (employee.currentRoute) {
-                    log.debug('[ROUTES DEBUG] Fetching current route:', `/api/routes/${employee.currentRoute}`);
                     const routeResponse = await fetch(`/api/routes/${employee.currentRoute}`);
-                    log.debug('[ROUTES DEBUG] Current route response status:', routeResponse.status);
                     
                     if (routeResponse.ok) {
                         currentRoute = await routeResponse.json();
-                        log.debug('[ROUTES DEBUG] Fetched current route:', currentRoute?.id);
                     } else {
                         const errorText = await routeResponse.text();
                         log.error('[ROUTES DEBUG] Failed to fetch current route:', routeResponse.status, errorText);
                     }
-                } else {
-                    log.debug('[ROUTES DEBUG] No current route assigned');
-                }
-
-                log.debug('[ROUTES DEBUG] Setting employee routes for:', employee.id, 'available:', availableRoutes.length, 'current:', currentRoute?.id || 'none');
+                } 
                 gameDataActions.setEmployeeRoutes(employee.id, availableRoutes, currentRoute);
             }
-            log.debug('[ROUTES DEBUG] Successfully loaded all employee routes');
+        }
         } catch (error) {
             log.error('[ROUTES DEBUG] Error loading employee routes:', error);
             addError('Failed to load employee routes', 'error');

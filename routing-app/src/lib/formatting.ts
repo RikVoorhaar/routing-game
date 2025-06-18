@@ -105,4 +105,52 @@ export function formatWeight(weight: number | string): string {
         return `${(numericWeight / 1000).toFixed(1)}t`;
     }
     return `${numericWeight}kg`;
+}
+
+/**
+ * Formats remaining time in seconds to human readable format (for ETA display)
+ * @param seconds Duration in seconds (can be number or string)
+ * @returns Formatted time string (e.g., "2h 30m", "5m 30s", "45s", "Arriving")
+ */
+export function formatTimeRemaining(seconds: number | string): string {
+    const numericSeconds = typeof seconds === 'string' ? parseFloat(seconds) : seconds;
+    if (numericSeconds <= 0) return 'Arriving';
+    
+    const hours = Math.floor(numericSeconds / 3600);
+    const minutes = Math.floor((numericSeconds % 3600) / 60);
+    const remainingSeconds = Math.floor(numericSeconds % 60);
+
+    if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+    } else if (minutes > 0) {
+        return `${minutes}m ${remainingSeconds}s`;
+    } else {
+        return `${remainingSeconds}s`;
+    }
+}
+
+/**
+ * Formats job value as compact currency (for job markers)
+ * @param value The value to format (can be number or string)
+ * @returns Compact formatted currency string (e.g., "€1.2k", "€500")
+ */
+export function formatJobCurrency(value: string | number | undefined | null): string {
+    if (value === undefined || value === null) return '€0';
+    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(numValue)) return '€0';
+    if (numValue >= 1000) {
+        return `€${(numValue / 1000).toFixed(1)}k`;
+    }
+    return `€${numValue.toFixed(0)}`;
+}
+
+/**
+ * Converts a number to Roman numeral (for job tiers)
+ * @param tier The tier number to convert
+ * @returns Roman numeral string (e.g., "I", "II", "III", etc.)
+ */
+export function toRomanNumeral(tier: number | undefined | null): string {
+    if (tier == null || isNaN(tier)) return '?';
+    const romanNumerals = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+    return romanNumerals[tier] || tier.toString();
 } 
