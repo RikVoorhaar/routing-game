@@ -26,3 +26,8 @@ DEV:
 - [ ] Many (1-2%) jobs fail to generate and are skipped. What are the causes of these skips, and are they necessary?
 - [ ] ALl the jobs show up as not costing anything
 - [ ] There are issue with the routes schema that I have notes on
+- [ ] Jobs shouldn't be allowed to be generated too close to each other. E.g. they need to be at least 20m apart.
+- [ ] The current max of 100 jobs per tile is too large, reduce to like 25
+- [ ] remove the restriction that jobs aren't shown at tile levels below 12
+- [ ] Add filters to the map jobs, in particular checkboxes for each category, and a min/max slider for the tier. When you select an employee it should automatically adjust the _max_ tier, and the categories to those unlocked. 
+- [ ] Implement licenses, levels, xp, etc. 

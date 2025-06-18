@@ -5,8 +5,7 @@
     import { 
         employees, 
         routesByEmployee, 
-        currentGameState,
-        currentMapJobs
+        currentGameState
     } from '$lib/stores/gameData';
     import { selectedEmployee, selectEmployee } from '$lib/stores/selectedEmployee';
     import { selectedRoute, selectRoute } from '$lib/stores/selectedRoute';
@@ -18,11 +17,7 @@
     import MarkerRenderer from './map/MarkerRenderer.svelte';
     import RouteRenderer from './map/RouteRenderer.svelte';
     import type { Employee, Route, Address } from '$lib/types';
-    import type { InferSelectModel } from 'drizzle-orm';
-    import type { jobs as jobsSchema } from '$lib/server/db/schema';
     import { log } from '$lib/logger';
-
-    type Job = InferSelectModel<typeof jobsSchema>;
 
     // Animation configuration
     const ANIMATION_FPS = 30; // Frames per second for smooth animation
@@ -289,8 +284,7 @@
                         });
                     }
                     
-                    // Still update the store for other components that need it
-                    currentMapJobs.set(result.allJobs);
+                    // Note: No longer updating currentMapJobs store since we're doing tile-based rendering
                 } else {
                     log.debug('[RouteMap] No tile changes, skipping job update');
                 }
@@ -342,7 +336,6 @@
             {L} 
             employees={$employees} 
             routesByEmployee={$routesByEmployee}
-            currentJobs={$currentMapJobs}
         />
         
         <RouteRenderer 
