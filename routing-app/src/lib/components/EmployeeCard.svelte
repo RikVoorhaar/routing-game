@@ -133,12 +133,10 @@
 
     // Tailwind class string for the card
     $: cardClass = [
-        'card bg-base-200 shadow-lg border transition-all duration-150 cursor-pointer',
-        'focus:outline-none focus:ring-2 focus:ring-primary/70',
-        'hover:shadow-xl hover:border-primary/60',
-        isSelected ? 'border-4 border-primary ring-2 ring-primary/30 scale-105' : '',
-        'w-full',
-        'overflow-visible'
+        'card bg-base-200 shadow cursor-pointer transition-all duration-150',
+        'hover:shadow-lg hover:border-primary/60',
+        isSelected ? 'border-2 border-primary ring-1 ring-primary/30' : 'border border-transparent',
+        'w-full'
     ].join(' ');
 
     function calculateRouteProgress(route: Route) {
@@ -147,9 +145,8 @@
         const startTime = new Date(route.startTime).getTime();
         const currentTime = Date.now();
         
-        // Convert lengthTime to number if it's a string (PostgreSQL numeric fields)
         const routeLengthTime = typeof route.lengthTime === 'string' ? parseFloat(route.lengthTime) : route.lengthTime;
-        const totalDuration = routeLengthTime * 1000; // Convert to milliseconds
+        const totalDuration = routeLengthTime * 1000;
         
         const elapsed = currentTime - startTime;
         const progress = Math.min(100, (elapsed / totalDuration) * 100);
@@ -275,159 +272,82 @@
             routeCompletionState = 'error';
         }
     }
+
+    function handleClick() {
+        if (isSelected) {
+            // If already selected, unselect
+            selectEmployee(null);
+        } else {
+            // Select this employee
+            selectEmployee(employee.id);
+        }
+    }
+
+    function getXPForNextLevel(level: number): number {
+        return level * 100;
+    }
 </script>
 
 <button
-  type="button"
-  class={cardClass}
-  on:click={() => selectEmployee(employee.id)}
-  on:keydown={(e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      selectEmployee(employee.id);
-    }
-  }}
+    type="button"
+    class={cardClass}
+    on:click={handleClick}
+    on:keydown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            handleClick();
+        }
+    }}
 >
-    <div class="card-body p-6">
-        <div class="flex justify-between items-start mb-3">
-            <h3 class="card-title text-lg font-bold text-primary">{employee.name}</h3>
-            <div class="badge badge-secondary">{upgradeState.vehicleType}</div>
-        </div>
+    <div class="card-body p-3">
+        <!-- Employee Name -->
+        <h3 class="card-title text-base font-semibold mb-2">{employee.name}</h3>
 
-        <!-- Current Status -->
-        {#if currentRoute}
-            <!-- On Route -->
-            <div class="mb-4">
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-sm font-medium">Route Progress</span>
+        <!-- Current Route Progress -->
+        {#if currentRoute && routeProgress}
+            <div class="mb-3">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-xs text-base-content/70">Route Progress</span>
                     <span class="text-xs text-base-content/70">
-                        {routeProgress ? Math.round(routeProgress.progress) : 0}%
+                        {Math.round(routeProgress.progress)}%
                     </span>
                 </div>
                 
                 <progress 
-                    class="progress progress-primary w-full" 
-                    value={routeProgress?.progress || 0} 
+                    class="progress progress-primary w-full h-2" 
+                    value={routeProgress.progress} 
                     max="100"
                 ></progress>
                 
-                {#if routeProgress && !routeProgress.isComplete}
-                    <div class="text-xs text-base-content/70 mt-1">
+                {#if !routeProgress.isComplete}
+                    <div class="text-xs text-base-content/60 mt-1">
                         ETA: {formatTimeFromMs(routeProgress.remainingTimeMs)}
                     </div>
-                {:else if routeProgress && routeProgress.isComplete}
+                {:else}
                     <div class="text-xs text-success mt-1 font-medium">
-                        {#if routeCompletionState === 'processing'}
-                            <span class="loading loading-spinner loading-xs"></span>
-                            Processing completion...
-                        {:else if routeCompletionState === 'completed'}
-                            ✅ Route Completed!
-                        {:else if routeCompletionState === 'error'}
-                            ❌ Completion failed - check errors
-                        {:else}
-                            ✅ Route Completed!
-                        {/if}
+                        ✅ Completed!
                     </div>
                 {/if}
-
-                <!-- Route Details -->
-                <div class="mt-3 space-y-1 text-xs">
-                    <div><strong>From:</strong> {(() => {
-                        try {
-                            if (typeof currentRoute.startLocation === 'string') {
-                                return formatAddress(JSON.parse(currentRoute.startLocation));
-                            } else if (typeof currentRoute.startLocation === 'object') {
-                                return formatAddress(currentRoute.startLocation as Address);
-                            } else {
-                                return 'Unknown location';
-                            }
-                        } catch (e) {
-                            return 'Unknown location';
-                        }
-                    })()}</div>
-                    <div><strong>To:</strong> {(() => {
-                        try {
-                            if (typeof currentRoute.endLocation === 'string') {
-                                return formatAddress(JSON.parse(currentRoute.endLocation));
-                            } else if (typeof currentRoute.endLocation === 'object') {
-                                return formatAddress(currentRoute.endLocation as Address);
-                            } else {
-                                return 'Unknown location';
-                            }
-                        } catch (e) {
-                            return 'Unknown location';
-                        }
-                    })()}</div>
-                    <div class="flex justify-between">
-                        <span><strong>Goods:</strong> {currentRoute.goodsType}</span>
-                        <span><strong>Reward:</strong> {formatMoney(currentRoute.reward)}</span>
-                    </div>
-                </div>
             </div>
         {:else}
-            <!-- Not on Route -->
-            <div class="mb-4">
-                <div class="text-sm mb-2">
-                    <strong>Current Location:</strong>
-                    {#if location}
-                        <div class="text-xs text-base-content/70">{formatAddress(location)}</div>
-                    {:else}
-                        <div class="text-xs text-error">No location set</div>
-                    {/if}
-                </div>
-
-                {#if availableRoutes.length > 0}
-                    <!-- Route Selection (for employee-generated routes) -->
-                    <div class="form-control">
-                        <div class="label py-1">
-                            <span class="label-text text-xs">Available Routes</span>
-                        </div>
-                        
-                        <!-- Route Cards -->
-                        <div class="space-y-2 max-h-120 overflow-visible p-2">
-                            {#each availableRoutes as route (route.id)}
-                                <RouteCard {route} />
-                            {/each}
-                        </div>
-                        
-                        <!-- Go Button -->
-                        <div class="mt-3 pl-4">
-                            <button 
-                                class="btn btn-success btn-md max-w-lg"
-                                on:click={handleAssignRoute}
-                                disabled={!selectedRouteIsForThisEmployee || isAssigning}
-                            >
-                                {#if isAssigning}
-                                    <span class="loading loading-spinner loading-xs"></span>
-                                    Assigning...
-                                {:else}
-                                    <svg class="w-4 h-4 mr-2 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                                    </svg>
-                                    Start Route
-                                {/if}
-                            </button>
-                        </div>
-                    </div>
-                {:else}
-                    <!-- Idle Employee -->
-                    <div class="text-center text-sm text-base-content/70">
-                        <p>Employee is idle</p>
-                        <p class="text-xs mt-1">Jobs are available from the global job market</p>
-                    </div>
-                {/if}
+            <div class="mb-3">
+                <div class="text-xs text-base-content/60 italic">Idle</div>
             </div>
         {/if}
 
-        <!-- Employee Stats -->
-        <div class="stats stats-horizontal shadow bg-base-200">
-            <div class="stat py-2 px-3">
-                <div class="stat-title text-xs">Speed</div>
-                <div class="stat-value text-sm">{employee.speedMultiplier}x</div>
+        <!-- Driving Level -->
+        <!-- TODO: Re-enable when Employee type is updated with new fields -->
+        <!-- 
+        <div class="space-y-1">
+            <div class="flex justify-between items-center">
+                <span class="text-xs font-medium text-base-content/80">🚗 Driving</span>
+                <span class="text-xs">Level {employee.drivingLevel.level}</span>
             </div>
-            <div class="stat py-2 px-3">
-                <div class="stat-title text-xs">Capacity</div>
-                <div class="stat-value text-sm">{upgradeState.capacity}</div>
-            </div>
+            <progress 
+                class="progress progress-info w-full h-1.5" 
+                value={employee.drivingLevel.xp} 
+                max={getXPForNextLevel(employee.drivingLevel.level)}
+            ></progress>
         </div>
+        -->
     </div>
 </button> 

@@ -12,6 +12,7 @@ import {
 	varchar,
   } from 'drizzle-orm/pg-core';
   import { sql } from 'drizzle-orm';
+  import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
   
   // Users table - core user data
   export const users = pgTable('user', {
@@ -211,4 +212,28 @@ import {
 	updatedAt: timestamp('updated_at', { withTimezone: true })
 	  .notNull()
 	  .default(sql`CURRENT_TIMESTAMP`),
-  }); 
+  });
+
+// PostGIS setup functions - these need to be run after table creation
+export async function setupPostGIS(db: PostgresJsDatabase<any>) {
+  console.log('Setting up PostGIS extension...');
+  await db.execute(sql`CREATE EXTENSION IF NOT EXISTS postgis`);
+}
+
+export async function createSpatialIndexes(db: PostgresJsDatabase<any>) {
+  console.log('Creating spatial indexes...');
+  
+  // Create spatial index on jobs location column (PostGIS POINT geometry)
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_jobs_location_gist 
+    ON job USING GIST (ST_GeomFromEWKT(location))
+  `);
+  
+  // Create spatial index on addresses location column (PostGIS POINT geometry)  
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_addresses_location_gist 
+    ON address USING GIST (ST_GeomFromEWKT(location))
+  `);
+  
+  console.log('Spatial indexes created successfully');
+} 

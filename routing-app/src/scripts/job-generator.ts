@@ -83,10 +83,12 @@ Generate Options:
 
 Examples:
   npm run job-generator test
-  npm run job-generator generate                    # Generate jobs for 1% of addresses
-  npm run job-generator generate --fraction=0.02    # Generate jobs for 2% of addresses
-  npm run job-generator generate -f 0.005           # Generate jobs for 0.5% of addresses
+  npm run job-generator generate                          # Generate jobs for 1% of addresses
+  npm run job-generator generate -- --fraction=0.02      # Generate jobs for 2% of addresses
+  npm run job-generator generate -- -f 0.005             # Generate jobs for 0.5% of addresses
   npm run job-generator stats
+
+Note: Use -- to pass arguments through npm to the script
                 `);
                 break;
         }

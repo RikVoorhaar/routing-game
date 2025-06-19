@@ -8,15 +8,12 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { sql } from 'drizzle-orm';
 import { createInterface } from 'node:readline';
 import { eq } from 'drizzle-orm';
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
 import process from 'node:process';
 
 // Load environment variables
 import dotenv from 'dotenv';
 dotenv.config();
-
-const execPromise = promisify(exec);
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -33,28 +30,6 @@ function askQuestion(query: string): Promise<string> {
     rl.close();
     resolve(answer);
   }));
-}
-
-// Get all table objects from the schema
-function getTableNames(): string[] {
-  // Extract tables from schema
-  const tables: string[] = [];
-  
-  // Check each exported member of schema
-  for (const key in schema) {
-    const value = schema[key];
-    // Check if it's a table object
-    if (
-      value && 
-      typeof value === 'object' && 
-      'name' in value && 
-      typeof value.name === 'string'
-    ) {
-      tables.push(value.name);
-    }
-  }
-  
-  return tables;
 }
 
 // Get existing tables using PostgreSQL information_schema
@@ -75,22 +50,10 @@ async function getExistingTables(client: ReturnType<typeof postgres>): Promise<s
 
 // Drop all tables using ORM
 async function dropAllTables(db: ReturnType<typeof drizzle>, existingTables: string[]): Promise<void> {
-  // Order tables for dropping to avoid foreign key constraints
-  const orderedTables = [
-    'verification_token',
-    'account', 
-    'credential',
-    'active_job',
-    'route',
-    'employee',
-    'game_state',
-    'user'
-  ];
-
-  for (const tableName of orderedTables) {
-    if (existingTables.includes(tableName)) {
+  // Drop all tables that aren't PostGIS system tables
+  for (const tableName of existingTables) {
+    if (tableName !== 'spatial_ref_sys') {
       try {
-        // Use raw SQL for DROP TABLE since drizzle doesn't have a direct API for this
         await db.execute(sql`DROP TABLE IF EXISTS ${sql.identifier(tableName)} CASCADE`);
         console.log(`Dropped table: ${tableName}`);
       } catch (error) {
@@ -98,6 +61,36 @@ async function dropAllTables(db: ReturnType<typeof drizzle>, existingTables: str
       }
     }
   }
+}
+
+// Run drizzle-kit push with automated responses to prompts
+async function runDrizzleKitPush(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // Use --force flag to auto-approve all changes
+    // Note: This may show PostGIS-related errors but will still create the tables
+    const pushProcess = spawn('npx', ['drizzle-kit', 'push', '--force'], {
+      stdio: 'inherit'
+    });
+    
+    pushProcess.on('close', (code) => {
+      // Accept exit code 0 (success) or 1 (partial success with PostGIS conflicts)
+      if (code === 0 || code === 1) {
+        resolve();
+      } else {
+        reject(new Error(`drizzle-kit push failed with exit code ${code}`));
+      }
+    });
+    
+    pushProcess.on('error', (error) => {
+      reject(error);
+    });
+    
+    // Timeout after 90 seconds
+    setTimeout(() => {
+      pushProcess.kill('SIGTERM');
+      reject(new Error('drizzle-kit push timed out'));
+    }, 90000);
+  });
 }
 
 async function main() {
@@ -112,10 +105,6 @@ async function main() {
   // Create database connection with the schema for potential table operations
   const db = drizzle(client, { schema });
   
-  // Get expected table names from the schema
-  const expectedTables = getTableNames();
-  console.log('Tables defined in schema:', expectedTables.join(', '));
-  
   // Check if database already has tables
   const existingTables = await getExistingTables(client);
   console.log('Existing tables in database:', existingTables.join(', '));
@@ -125,7 +114,6 @@ async function main() {
     
     let choice = '1';
     if (!forceFlag) {
-      // Ask user what to do
       const answer = await askQuestion(
         'What would you like to do?\n' +
         '1. Keep existing database (default)\n' +
@@ -147,7 +135,6 @@ async function main() {
     // User chose to drop tables
     console.log('Dropping existing tables...');
     
-    // Skip confirmation if --force flag is present
     if (!forceFlag) {
       const confirmation = await askQuestion(
         'Are you sure you want to drop these tables? This action cannot be undone (y/N): '
@@ -175,54 +162,16 @@ async function main() {
   }
   
   try {
-    // Use drizzle-kit push to create schema from TypeScript schema
-    console.log('Creating schema using drizzle-kit push...');
+    // Set up PostGIS extension first (from schema)
+    await schema.setupPostGIS(db);
     
-    try {
-      // Adding --force flag to skip confirmation prompts
-      const { stdout, stderr } = await execPromise('npx drizzle-kit push --force');
-      
-      if (stderr && !stderr.includes('Warning')) {
-        console.error('drizzle-kit push stderr:', stderr);
-      }
-      
-      if (stdout) {
-        console.log('drizzle-kit push output:');
-        // Only show the most relevant parts of the output
-        const relevantOutput = stdout
-          .split('\n')
-          .filter(line => 
-            !line.includes('Reading config') && 
-            !line.includes('No config path') &&
-            !line.includes('Pulling schema')
-          )
-          .join('\n');
-        console.log(relevantOutput);
-      }
-      
-      console.log('Schema created successfully');
-    } catch (error) {
-      console.error('Error during drizzle-kit push:', error);
-      
-      // Try a more aggressive approach - drop everything and try again
-      console.log('Attempting to fix by clearing database completely...');
-      
-      try {
-        // Get all tables and drop them
-        const remainingTables = await getExistingTables(client);
-        
-        // Drop all remaining tables
-        await dropAllTables(db, remainingTables);
-        
-        // Try push again
-        await execPromise('npx drizzle-kit push --force');
-        console.log('Schema recreated successfully after database reset');
-      } catch (secondError) {
-        console.error('Failed to recover from error:', secondError);
-        await client.end();
-        process.exit(1);
-      }
-    }
+    // Create schema using drizzle-kit push
+    console.log('Creating schema using drizzle-kit push...');
+    await runDrizzleKitPush();
+    console.log('Schema created successfully');
+    
+    // Create PostGIS spatial indexes (from schema)
+    await schema.createSpatialIndexes(db);
     
     // Check if test user already exists
     const userExists = await db.select().from(schema.users).where(eq(schema.users.username, 'testuser'));

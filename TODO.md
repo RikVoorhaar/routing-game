@@ -38,3 +38,4 @@ DEV:
 - [ ] Implement a way to buy licenses
 - [ ] Implement a way to buy upgrades
 - [ ] The init db script hangs on `creating schema using drizzle kit push`. 
+- [ ] When the user clicks on a job, do stuff 

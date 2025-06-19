@@ -3,6 +3,7 @@
     import { computeEmployeeCosts } from '$lib/types';
     import { formatMoney } from '$lib/formatting';
     import EmployeeCard from './EmployeeCard.svelte';
+    import EmployeeDetails from './EmployeeDetails.svelte';
     import ErrorOverlay from './ErrorOverlay.svelte';
     import Cheats from './Cheats.svelte';
     import RouteMap from './RouteMap.svelte';
@@ -18,6 +19,7 @@
         routesByEmployee,
         getEmployeeRoutes 
     } from '$lib/stores/gameData';
+    import { selectedEmployee } from '$lib/stores/selectedEmployee';
     import type { GameState, Employee } from '$lib/types';
 
     // Props for initial data - we'll move this to stores
@@ -113,8 +115,6 @@
         }
     }
 
-
-
     async function handleEmployeeRouteAssigned(event: CustomEvent<{ employeeId: string; routeId: string }>) {
         const { employeeId } = event.detail;
         
@@ -156,6 +156,22 @@
         gameState.money = event.detail.newBalance;
         gameState = { ...gameState }; // Trigger reactivity
     }
+
+    // New employee system event handlers
+    async function handlePurchaseLicense(event: CustomEvent<{ employeeId: string; licenseType: any }>) {
+        // TODO: Implement license purchase logic
+        console.log('Purchase license:', event.detail);
+    }
+
+    async function handlePurchaseVehicle(event: CustomEvent<{ employeeId: string; vehicleType: any }>) {
+        // TODO: Implement vehicle purchase logic
+        console.log('Purchase vehicle:', event.detail);
+    }
+
+    async function handlePurchaseUpgrade(event: CustomEvent<{ employeeId: string; category: any }>) {
+        // TODO: Implement upgrade purchase logic
+        console.log('Purchase upgrade:', event.detail);
+    }
 </script>
 
 <div class="min-h-screen bg-base-200">
@@ -186,70 +202,92 @@
         <Cheats />
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Left Panel - Jobs and Employees -->
+            <!-- Left Panel - Employee Details and List -->
             <div class="lg:col-span-1 space-y-6">
                 <!-- Selected Job Card -->
                 <JobCard />
                 
-                <!-- Employees Section -->
-                <div>
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-2xl font-bold">Employees ({$employees.length})</h2>
-                    <button 
-                        class="btn btn-primary"
-                        class:btn-disabled={!canAffordEmployee}
-                        on:click={handleHireModalOpen}
-                        disabled={!canAffordEmployee}
-                    >
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-                        </svg>
-                        Hire Employee
-                        {#if hiringCost > 0}
-                            ({formatMoney(hiringCost)})
-                        {:else}
-                            (Free!)
-                        {/if}
-                    </button>
+                <!-- Employee Details -->
+                <!-- TODO: Re-enable when Employee type is updated -->
+                <!-- 
+                <EmployeeDetails 
+                    employee={$employees.find(emp => emp.id === $selectedEmployee) || null}
+                    currentRoute={$selectedEmployee ? ($routesByEmployee[$selectedEmployee]?.current || null) : null}
+                    gameStateId={$currentGameState?.id || ''}
+                    on:purchaseLicense={handlePurchaseLicense}
+                    on:purchaseVehicle={handlePurchaseVehicle}
+                    on:purchaseUpgrade={handlePurchaseUpgrade}
+                />
+                -->
+                
+                <!-- Temporary placeholder -->
+                <div class="card bg-base-100 shadow-lg">
+                    <div class="card-body p-4 text-center">
+                        <h3 class="text-lg font-bold mb-2">Employee Details</h3>
+                        <p class="text-base-content/70">
+                            {#if $selectedEmployee}
+                                {$employees.find(emp => emp.id === $selectedEmployee)?.name || 'Unknown'} selected
+                            {:else}
+                                Click an employee to view details
+                            {/if}
+                        </p>
+                    </div>
                 </div>
 
-                {#if $employees.length === 0}
-                    <div class="card bg-base-100 shadow-lg">
-                        <div class="card-body text-center py-16">
-                            <div class="mb-4">
-                                <svg class="w-24 h-24 mx-auto text-base-content/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                          d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z">
-                                    </path>
-                                </svg>
-                            </div>
-                            <h3 class="text-xl font-bold mb-2">No Employees Yet</h3>
-                            <p class="text-base-content/70 mb-6">Hire your first employee to start running routes and earning money!</p>
-                            <button 
-                                class="btn btn-primary btn-lg"
-                                on:click={handleHireModalOpen}
-                            >
-                                Hire Your First Employee (Free!)
-                            </button>
-                        </div>
+                <!-- Employees List -->
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-xl font-bold">Employees ({$employees.length})</h2>
+                        <button 
+                            class="btn btn-primary btn-sm"
+                            class:btn-disabled={!canAffordEmployee}
+                            on:click={handleHireModalOpen}
+                            disabled={!canAffordEmployee}
+                        >
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                            </svg>
+                            Hire
+                            {#if hiringCost > 0}
+                                ({formatMoney(hiringCost)})
+                            {:else}
+                                (Free!)
+                            {/if}
+                        </button>
                     </div>
-                {:else}
-                    <div class="space-y-4 overflow-visible">
-                        {#each $employees as employee (employee.id)}
-                            {@const employeeRoutes = $routesByEmployee[employee.id] || { available: [], current: null }}
-                            <div class="overflow-visible">
+
+                    {#if $employees.length === 0}
+                        <div class="card bg-base-100 shadow">
+                            <div class="card-body text-center py-8">
+                                <div class="mb-3">
+                                    <svg class="w-16 h-16 mx-auto text-base-content/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z">
+                                        </path>
+                                    </svg>
+                                </div>
+                                <h3 class="text-lg font-bold mb-2">No Employees Yet</h3>
+                                <p class="text-base-content/70 mb-4">Hire your first employee to start running routes!</p>
+                                <button 
+                                    class="btn btn-primary"
+                                    on:click={handleHireModalOpen}
+                                >
+                                    Hire Your First Employee (Free!)
+                                </button>
+                            </div>
+                        </div>
+                    {:else}
+                        <div class="space-y-2 max-h-80 overflow-y-auto pr-2">
+                            {#each $employees as employee (employee.id)}
+                                {@const employeeRoutes = $routesByEmployee[employee.id] || { available: [], current: null }}
                                 <EmployeeCard 
                                     {employee}
-                                    availableRoutes={employeeRoutes.available}
                                     currentRoute={employeeRoutes.current}
                                     gameStateId={$currentGameState?.id || ''}
-                                    on:assignRoute={handleEmployeeRouteAssigned}
-                                    on:routeCompleted={handleEmployeeRouteCompleted}
                                 />
-                            </div>
-                        {/each}
-                    </div>
-                {/if}
+                            {/each}
+                        </div>
+                    {/if}
                 </div>
             </div>
 
