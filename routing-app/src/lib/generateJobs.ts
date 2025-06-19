@@ -6,76 +6,7 @@ import { db, client } from './server/db/standalone';
 import { sql, desc, inArray } from 'drizzle-orm';
 import { distance } from '@turf/turf';
 import { getTileBounds } from './geo';
-
-// Performance profiling utility
-class Profiler {
-    private timers: Map<string, number> = new Map();
-    private stats: Map<string, { total: number; count: number; min: number; max: number }> = new Map();
-
-    start(label: string): void {
-        this.timers.set(label, performance.now());
-    }
-
-    end(label: string): number {
-        const start = this.timers.get(label);
-        if (!start) return 0;
-        
-        const duration = performance.now() - start;
-        this.timers.delete(label);
-        
-        // Update statistics
-        const existing = this.stats.get(label);
-        if (existing) {
-            existing.total += duration;
-            existing.count++;
-            existing.min = Math.min(existing.min, duration);
-            existing.max = Math.max(existing.max, duration);
-        } else {
-            this.stats.set(label, { total: duration, count: 1, min: duration, max: duration });
-        }
-        
-        return duration;
-    }
-
-    getStats(): Map<string, { total: number; count: number; min: number; max: number; avg: number }> {
-        const result = new Map();
-        for (const [label, stats] of this.stats) {
-            result.set(label, {
-                ...stats,
-                avg: stats.total / stats.count
-            });
-        }
-        return result;
-    }
-
-    reset(): void {
-        this.timers.clear();
-        this.stats.clear();
-    }
-
-    report(): void {
-        console.log('\n🔍 Performance Profile:');
-        console.log('Operation'.padEnd(25) + '| Count | Avg (ms) | Total (ms) | Min (ms) | Max (ms)');
-        console.log('-'.repeat(80));
-        
-        const sortedStats = Array.from(this.getStats().entries())
-            .sort(([,a], [,b]) => b.total - a.total);
-            
-        for (const [label, stats] of sortedStats) {
-            console.log(
-                label.padEnd(25) + 
-                `| ${String(stats.count).padStart(5)} | ` +
-                `${stats.avg.toFixed(1).padStart(8)} | ` +
-                `${stats.total.toFixed(1).padStart(10)} | ` +
-                `${stats.min.toFixed(1).padStart(8)} | ` +
-                `${stats.max.toFixed(1).padStart(8)}`
-            );
-        }
-        console.log();
-    }
-}
-
-const profiler = new Profiler();
+import { JobCategory } from './jobCategories';
 
 // Constants for job generation
 export const ROUTE_DISTANCES_KM = [
@@ -83,19 +14,6 @@ export const ROUTE_DISTANCES_KM = [
 ];
 
 export const MAX_TIER = 8; // Cut off at tier 8 for small map
-
-// Job categories enum with minimum tiers
-export enum JobCategory {
-    GROCERIES = 0,      // min tier 1
-    PACKAGES = 1,       // min tier 1
-    FOOD = 2,           // min tier 2, requires moped
-    FURNITURE = 3,      // min tier 3, requires car
-    PEOPLE = 4,         // min tier 4, requires taxi license
-    FRAGILE_GOODS = 5,  // min tier 5, requires fragile goods license
-    CONSTRUCTION = 6,   // min tier 6, requires trucking license
-    LIQUIDS = 7,        // min tier 7, requires liquids license
-    TOXIC_GOODS = 8     // min tier 8, requires toxic goods license
-}
 
 // Category multipliers for value calculation
 const CATEGORY_MULTIPLIERS = {
@@ -178,13 +96,9 @@ export function computeJobValue(
  * Generates a single job from a given address
  */
 export async function generateJobFromAddress(startAddress: InferSelectModel<typeof addresses>): Promise<boolean> {
-    profiler.start('generateJobFromAddress');
-    
     try {
         // Compute job tier
-        profiler.start('computeJobTier');
         const jobTier = computeJobTier();
-        profiler.end('computeJobTier');
         
         // Get distance range for this tier
         const minDistanceKm = ROUTE_DISTANCES_KM[jobTier - 1] || 0.1;
@@ -196,21 +110,16 @@ export async function generateJobFromAddress(startAddress: InferSelectModel<type
             lon: Number(startAddress.lon)
         };
         
-        profiler.start('getRandomRouteInAnnulus');
         const routeResult = await getRandomRouteInAnnulus(
             startLocation,
             minDistanceKm,
             maxDistanceKm
         );
-        profiler.end('getRandomRouteInAnnulus');
         
         // Get available categories for this tier
-        profiler.start('getAvailableCategories');
         const availableCategories = getAvailableCategories(jobTier);
-        profiler.end('getAvailableCategories');
         
         if (availableCategories.length === 0) {
-            profiler.end('generateJobFromAddress');
             return false; // No available categories for this tier
         }
         
@@ -229,17 +138,13 @@ export async function generateJobFromAddress(startAddress: InferSelectModel<type
         
         // Reject if route distance is more than 10x the straight-line distance
         if (totalDistanceKm > straightLineDistanceKm * 10) {
-            profiler.end('generateJobFromAddress');
             return false; // Suspiciously long route, skip silently
         }
         
         // Compute job value
-        profiler.start('computeJobValue');
         const approximateValue = computeJobValue(jobTier, jobCategory, totalDistanceKm, totalTimeSeconds);
-        profiler.end('computeJobValue');
         
         // Find end address ID by coordinates (approximate match)
-        profiler.start('findEndAddress');
         const endAddressResults = await db.select()
             .from(addresses)
             .where(sql`
@@ -262,15 +167,12 @@ export async function generateJobFromAddress(startAddress: InferSelectModel<type
             `);
             
             if (endAddressQuery.length === 0) {
-                profiler.end('findEndAddress');
-                profiler.end('generateJobFromAddress');
                 // Silently skip this job - no suitable end address found
                 return false;
             }
             
             endAddressId = (endAddressQuery[0] as { id: string }).id;
         }
-        profiler.end('findEndAddress');
         
         // Create route record with address IDs
         const routeRecord = {
@@ -285,9 +187,7 @@ export async function generateJobFromAddress(startAddress: InferSelectModel<type
         };
         
         // Insert route
-        profiler.start('insertRoute');
         await db.insert(routes).values(routeRecord);
-        profiler.end('insertRoute');
         
         // Create job record
         const jobRecord = {
@@ -303,15 +203,10 @@ export async function generateJobFromAddress(startAddress: InferSelectModel<type
         };
         
         // Insert job
-        profiler.start('insertJob');
         await db.insert(jobs).values(jobRecord);
-        profiler.end('insertJob');
         
-        profiler.end('generateJobFromAddress');
         return true;
     } catch {
-        profiler.end('generateJobFromAddress');
-        
         // All errors are handled silently - return false to indicate failure
         // This includes routing errors, database errors, and any other issues
         return false;
@@ -323,32 +218,23 @@ export async function generateJobFromAddress(startAddress: InferSelectModel<type
  */
 export async function generateAllJobs(): Promise<void> {
     console.log('Starting job generation...');
-    profiler.reset(); // Reset profiler for fresh statistics
-    
-    profiler.start('generateAllJobs');
     
     // Clear existing jobs and their routes
-    profiler.start('clearAllJobs');
     await clearAllJobs();
-    profiler.end('clearAllJobs');
     
     // Get total address count first
-    profiler.start('getAddressCount');
     const totalAddressCountResult = await db.execute(sql`SELECT COUNT(*) as count FROM address`);
     const totalAddresses = Number(totalAddressCountResult[0]?.count || 0);
-    profiler.end('getAddressCount');
     
     console.log(`Found ${totalAddresses} total addresses`);
     
     // Sample 1% of addresses using SQL random
-    profiler.start('sampleAddresses');
     const sampleSize = Math.ceil(totalAddresses * 0.01);
     const sampledAddresses = await db.execute(sql`
         SELECT * FROM address 
         ORDER BY RANDOM() 
         LIMIT ${sampleSize}
     `) as unknown as Array<InferSelectModel<typeof addresses>>;
-    profiler.end('sampleAddresses');
     
     console.log(`Generating jobs for ${sampledAddresses.length} addresses (1% random sample)`);
     
@@ -372,16 +258,10 @@ export async function generateAllJobs(): Promise<void> {
         }
     }
     
-    profiler.end('generateAllJobs');
-    
     console.log(`Job generation complete! Created ${successCount} jobs out of ${sampledAddresses.length} attempts`);
     console.log(`Success rate: ${(successCount / sampledAddresses.length * 100).toFixed(1)}%`);
     
-    // Show performance profile
-    profiler.report();
-    
     // Log some statistics
-    profiler.start('getJobStats');
     const jobStats = await db.execute(sql`
         SELECT 
             job_tier,
@@ -392,7 +272,6 @@ export async function generateAllJobs(): Promise<void> {
         GROUP BY job_tier, job_category 
         ORDER BY job_tier, job_category
     `);
-    profiler.end('getJobStats');
     
     console.log('Job statistics:', jobStats);
 }
@@ -477,7 +356,4 @@ export async function getJobsInTile(
 }
 
 // Export client for connection management
-export { client };
-
-// Export profiler for external use
-export { profiler }; 
+export { client }; 
