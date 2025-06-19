@@ -80,6 +80,36 @@ import {
 	index('routes_goods_type_idx').on(table.goodsType),
   ]);
   
+  // Active jobs table - declaration moved here to avoid circular reference
+  export const activeJobs = pgTable('active_job', {
+	id: text('id').notNull().primaryKey(),
+	employeeId: text('employee_id').notNull(), // Forward reference - will add constraint later
+	jobId: integer('job_id'), // Will reference jobs table - will add constraint later
+	// Route to get to the job start location (null if employee is already at job start)
+	routeToJobId: text('route_to_job_id')
+	  .references(() => routes.id, { onDelete: 'cascade' }),
+	// The actual job route
+	jobRouteId: text('job_route_id')
+	  .notNull()
+	  .references(() => routes.id, { onDelete: 'cascade' }),
+	startTime: timestamp('start_time', { withTimezone: true })
+	  .notNull()
+	  .default(sql`CURRENT_TIMESTAMP`),
+	endTime: timestamp('end_time', { withTimezone: true }), // null if not completed
+	// Modified route data with employee speed/modifiers applied
+	modifiedRouteToJobData: jsonb('modified_route_to_job_data'), // null if no route to job
+	modifiedJobRouteData: jsonb('modified_job_route_data').notNull(),
+	// Current phase: 'traveling_to_job' or 'on_job'
+	currentPhase: text('current_phase').notNull().default('traveling_to_job'), // 'traveling_to_job' | 'on_job'
+	// Time when the job phase started (for tracking progress within each phase)
+	jobPhaseStartTime: timestamp('job_phase_start_time', { withTimezone: true }),
+  }, (table) => [
+	index('active_jobs_employee_idx').on(table.employeeId),
+	index('active_jobs_job_idx').on(table.jobId),
+	index('active_jobs_start_time_idx').on(table.startTime),
+	index('active_jobs_current_phase_idx').on(table.currentPhase),
+  ]);
+
   // Employees table - tracks user's employees and their states
   export const employees = pgTable('employee', {
 	id: text('id').notNull().primaryKey(),
@@ -87,12 +117,14 @@ import {
 	  .notNull()
 	  .references(() => gameStates.id, { onDelete: 'cascade' }),
 	name: text('name').notNull(),
-	upgradeState: jsonb('upgrade_state').notNull(), // JSONB: { vehicleType: string, capacity: number }
+	vehicleLevel: integer('vehicle_level').notNull().default(0), // VehicleType enum
+	licenseLevel: integer('license_level').notNull().default(0), // LicenseType enum
+	categoryLevel: jsonb('category_level').notNull(), // JSONB: Record<JobCategory, { level: number, xp: number }>
+	drivingLevel: jsonb('driving_level').notNull(), // JSONB: { level: number, xp: number }
+	upgradeState: jsonb('upgrade_state').notNull(), // JSONB: Record<JobCategory, number> (upgrade levels)
 	location: jsonb('location'), // JSONB: Address | null
-	availableRoutes: jsonb('available_routes').notNull().default('[]'), // JSONB: string[] (route IDs)
-	timeRoutesGenerated: timestamp('time_routes_generated', { withTimezone: true }), // null if no routes generated
-	speedMultiplier: numeric('speed_multiplier').notNull().default('1.0'),
-	maxSpeed: numeric('max_speed').notNull().default('20'),
+	activeJobId: text('active_job_id')
+	  .references(() => activeJobs.id, { onDelete: 'set null' }), // null if no active job
   });
   
   // Jobs table - generated jobs for the job market with spatial indexing
@@ -127,38 +159,7 @@ import {
 	index('jobs_location_idx').on(sql`${table.location}`),
   ]);
 
-  // Active jobs table - tracks employees actively working on jobs
-  export const activeJobs = pgTable('active_job', {
-	id: text('id').notNull().primaryKey(),
-	employeeId: text('employee_id')
-	  .notNull()
-	  .references(() => employees.id, { onDelete: 'cascade' }),
-	jobId: integer('job_id')
-	  .references(() => jobs.id, { onDelete: 'cascade' }), // null for employee-generated routes
-	// Route to get to the job start location (null if employee is already at job start)
-	routeToJobId: text('route_to_job_id')
-	  .references(() => routes.id, { onDelete: 'cascade' }),
-	// The actual job route
-	jobRouteId: text('job_route_id')
-	  .notNull()
-	  .references(() => routes.id, { onDelete: 'cascade' }),
-	startTime: timestamp('start_time', { withTimezone: true })
-	  .notNull()
-	  .default(sql`CURRENT_TIMESTAMP`),
-	endTime: timestamp('end_time', { withTimezone: true }), // null if not completed
-	// Modified route data with employee speed/modifiers applied
-	modifiedRouteToJobData: jsonb('modified_route_to_job_data'), // null if no route to job
-	modifiedJobRouteData: jsonb('modified_job_route_data').notNull(),
-	// Current phase: 'traveling_to_job' or 'on_job'
-	currentPhase: text('current_phase').notNull().default('traveling_to_job'), // 'traveling_to_job' | 'on_job'
-	// Time when the job phase started (for tracking progress within each phase)
-	jobPhaseStartTime: timestamp('job_phase_start_time', { withTimezone: true }),
-  }, (table) => [
-	index('active_jobs_employee_idx').on(table.employeeId),
-	index('active_jobs_job_idx').on(table.jobId),
-	index('active_jobs_start_time_idx').on(table.startTime),
-	index('active_jobs_current_phase_idx').on(table.currentPhase),
-  ]);
+
   
   // Accounts table - OAuth providers info
   export const accounts = pgTable(
