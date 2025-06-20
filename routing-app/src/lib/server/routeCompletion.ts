@@ -139,12 +139,10 @@ export async function processCompletedRoutes(gameStateId: string): Promise<{
 
                 // Update each completed job
                 for (const update of completedJobUpdates) {
-                    // Update employee: clear available routes, update location
+                    // Update employee location after job completion
                     await tx.update(employees)
                         .set({ 
                             location: JSON.stringify(update.endAddress),
-                            availableRoutes: JSON.stringify([]), // Clear available routes since they're all invalid now
-                            timeRoutesGenerated: null // Clear the timestamp so new routes can be generated immediately
                         })
                         .where(eq(employees.id, update.employeeId));
 

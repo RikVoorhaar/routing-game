@@ -1,5 +1,6 @@
 import { writable, derived, get } from 'svelte/store';
-import type { GameState, Employee, Route } from '$lib/types';
+import type { GameState, Route } from '$lib/types';
+import type { Employee } from '$lib/employeeUtils';
 import { addError } from './errors';
 import { log } from '$lib/logger';
 
@@ -227,53 +228,29 @@ export const gameDataAPI = {
         try {
             for (const employee of currentEmployees) {
                 
-                // Handle both SQLite (string) and PostgreSQL (array/object) formats
-                let availableRouteIds: string[] = [];
-                try {
-                    if (typeof employee.availableRoutes === 'string') {
-                        // SQLite format - parse JSON string
-                        availableRouteIds = JSON.parse(employee.availableRoutes) as string[];
-                    } else if (Array.isArray(employee.availableRoutes)) {
-                        // PostgreSQL format - already an array
-                        availableRouteIds = employee.availableRoutes as string[];
-                    } else {
-                        // Fallback - empty array
-                        log.warn('[ROUTES DEBUG] Unexpected availableRoutes format, using empty array');
-                        availableRouteIds = [];
-                    }
-                } catch (parseError) {
-                    log.error('[ROUTES DEBUG] Error parsing availableRoutes:', parseError);
-                    availableRouteIds = [];
-                }
-                
-                
+                // In the new job system, available routes are fetched from jobs dynamically
+                // rather than being pre-generated and stored with the employee
                 let availableRoutes: Route[] = [];
                 
-                if (availableRouteIds.length > 0) {
-                    const routesResponse = await fetch(`/api/routes?ids=${availableRouteIds.join(',')}`);
-                    
-                    if (routesResponse.ok) {
-                        availableRoutes = await routesResponse.json();
-                    } else {
-                        const errorText = await routesResponse.text();
-                        log.error('[ROUTES DEBUG] Failed to fetch available routes:', routesResponse.status, errorText);
-                    }
-
-                // Get current route if assigned
+                // Get current route if employee has an active job
                 let currentRoute: Route | null = null;
-                if (employee.currentRoute) {
-                    const routeResponse = await fetch(`/api/routes/${employee.currentRoute}`);
-                    
-                    if (routeResponse.ok) {
-                        currentRoute = await routeResponse.json();
-                    } else {
-                        const errorText = await routeResponse.text();
-                        log.error('[ROUTES DEBUG] Failed to fetch current route:', routeResponse.status, errorText);
+                if (employee.activeJobId) {
+                    // Fetch active job details to get the current route
+                    try {
+                        const activeJobResponse = await fetch(`/api/employees/${employee.id}/active-job`);
+                        if (activeJobResponse.ok) {
+                            const activeJobData = await activeJobResponse.json();
+                            if (activeJobData && activeJobData.route) {
+                                currentRoute = activeJobData.route;
+                            }
+                        }
+                    } catch (error) {
+                        log.error('[ROUTES DEBUG] Failed to fetch active job route:', error);
                     }
-                } 
+                }
+                
                 gameDataActions.setEmployeeRoutes(employee.id, availableRoutes, currentRoute);
             }
-        }
         } catch (error) {
             log.error('[ROUTES DEBUG] Error loading employee routes:', error);
             addError('Failed to load employee routes', 'error');

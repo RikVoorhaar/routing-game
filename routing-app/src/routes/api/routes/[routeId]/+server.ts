@@ -2,7 +2,8 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { routes, addresses } from '$lib/server/db/schema';
-import { eq, alias } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
 // GET /api/routes/[routeId] - Get a specific route with address data
 export const GET: RequestHandler = async ({ params, locals }) => {

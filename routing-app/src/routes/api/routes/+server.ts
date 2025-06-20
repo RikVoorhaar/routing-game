@@ -2,7 +2,8 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { routes, addresses } from '$lib/server/db/schema';
-import { inArray, eq, alias } from 'drizzle-orm';
+import { inArray, eq } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
 // GET /api/routes?ids=id1,id2,id3 - Get multiple routes by IDs with address data
 export const GET: RequestHandler = async ({ url, locals }) => {

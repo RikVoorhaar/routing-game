@@ -1,7 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { users, gameStates, employees, routes } from '$lib/server/db/schema';
+import { users, gameStates, employees, routes, activeJobs, addresses } from '$lib/server/db/schema';
 import { eq, and, isNotNull, isNull } from 'drizzle-orm';
 
 // POST /api/cheats/complete-routes - Instantly complete all active routes (cheats only)
@@ -50,79 +50,89 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         const allRoutes = await db.select().from(routes);
         console.log(`[CHEAT] Found ${allRoutes.length} total routes in database:`);
         allRoutes.forEach(route => {
-            console.log(`[CHEAT]   Route ${route.id}: startTime=${route.startTime ? new Date(route.startTime).toISOString() : 'null'}`);
+            console.log(`[CHEAT]   Route ${route.id}: reward=${route.reward}`);
         });
 
-        // Get all employees with active routes for this game state
-        // For the cheat, we'll complete ANY route an employee is assigned to
-        const employeesWithRoutes = await db
+        // Get all employees with active jobs for this game state
+        // For the cheat, we'll complete ANY active job an employee is working on
+        const employeesWithActiveJobs = await db
             .select({
                 employee: employees,
-                route: routes
+                activeJob: activeJobs,
+                route: routes,
+                endAddress: addresses
             })
             .from(employees)
-            .innerJoin(routes, eq(employees.currentRoute, routes.id))
+            .innerJoin(activeJobs, eq(employees.id, activeJobs.employeeId))
+            .innerJoin(routes, eq(activeJobs.jobRouteId, routes.id))
+            .innerJoin(addresses, eq(routes.endAddressId, addresses.id))
             .where(
                 and(
                     eq(employees.gameId, gameStateId),
-                    isNotNull(employees.currentRoute)
+                    isNull(activeJobs.endTime) // Only active (not completed) jobs
                 )
             );
 
-        console.log(`[CHEAT] Found ${employeesWithRoutes.length} employees with active routes for game ${gameStateId}`);
+        console.log(`[CHEAT] Found ${employeesWithActiveJobs.length} employees with active jobs for game ${gameStateId}`);
 
-        if (employeesWithRoutes.length === 0) {
-            console.log(`[CHEAT] No active routes to complete for game ${gameStateId}`);
+        if (employeesWithActiveJobs.length === 0) {
+            console.log(`[CHEAT] No active jobs to complete for game ${gameStateId}`);
             return json({ 
                 success: true, 
-                message: 'No active routes to complete',
+                message: 'No active jobs to complete',
                 completedRoutes: 0,
                 totalReward: 0
             });
         }
 
         let totalReward = 0;
-        const currentTime = new Date(); // Use Date object instead of Date.now()
+        const currentTime = new Date();
         
-        console.log(`[CHEAT] Completing routes at timestamp: ${currentTime.toISOString()}`);
+        console.log(`[CHEAT] Completing jobs at timestamp: ${currentTime.toISOString()}`);
 
-        // Log each route being completed
-        employeesWithRoutes.forEach(({ employee, route }) => {
-            console.log(`[CHEAT] Route ${route.id} for employee ${employee.name} (${employee.id})`);
-            console.log(`[CHEAT]   - Reward: €${route.reward}`);
-            console.log(`[CHEAT]   - Start: ${route.startTime ? new Date(route.startTime).toISOString() : 'null'}`);
-            console.log(`[CHEAT]   - End location: ${route.endLocation}`);
+        // Log each job being completed
+        employeesWithActiveJobs.forEach(({ employee, activeJob, route, endAddress }) => {
+            console.log(`[CHEAT] Active job ${activeJob.id} for employee ${employee.name} (${employee.id})`);
+            console.log(`[CHEAT]   - Route: ${route.id}, Reward: €${route.reward}`);
+            console.log(`[CHEAT]   - Job start: ${activeJob.startTime ? new Date(activeJob.startTime).toISOString() : 'null'}`);
+            console.log(`[CHEAT]   - End address: ${endAddress.street} ${endAddress.houseNumber}, ${endAddress.city}`);
         });
 
         // Calculate current money before transaction for return value
         const currentMoney = typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money;
 
-        // Process all active routes in a transaction (force complete them)
+        // Process all active jobs in a transaction (force complete them)
         await db.transaction(async (tx) => {
-            for (const { employee, route } of employeesWithRoutes) {
-                console.log(`[CHEAT] Processing route ${route.id} for employee ${employee.id}`);
+            for (const { employee, activeJob, route, endAddress } of employeesWithActiveJobs) {
+                console.log(`[CHEAT] Processing active job ${activeJob.id} for employee ${employee.id}`);
                 
                 // Calculate reward - convert string to number if needed
                 const routeReward = typeof route.reward === 'string' ? parseFloat(route.reward) : route.reward;
                 totalReward += routeReward;
 
-                // Update employee: clear current route, update location to end location, clear available routes
-                console.log(`[CHEAT] Updating employee ${employee.id} - clearing route and updating location`);
+                // Update employee location to job completion location
+                console.log(`[CHEAT] Updating employee ${employee.id} location to job completion address`);
                 await tx.update(employees)
                     .set({ 
-                        currentRoute: null,
-                        location: route.endLocation,
-                        availableRoutes: JSON.stringify([]), // Clear available routes since they're all invalid now
-                        timeRoutesGenerated: null // Clear the timestamp so new routes can be generated immediately
+                        location: JSON.stringify({
+                            id: endAddress.id,
+                            lat: endAddress.lat,
+                            lon: endAddress.lon,
+                            street: endAddress.street,
+                            houseNumber: endAddress.houseNumber,
+                            city: endAddress.city,
+                            postcode: endAddress.postcode
+                        })
                     })
                     .where(eq(employees.id, employee.id));
 
-                // Delete the completed route from database instead of marking as completed
-                console.log(`[CHEAT] Deleting completed route ${route.id} from database`);
-                await tx.delete(routes)
-                    .where(eq(routes.id, route.id));
+                // Mark the active job as completed
+                console.log(`[CHEAT] Marking active job ${activeJob.id} as completed`);
+                await tx.update(activeJobs)
+                    .set({ endTime: currentTime })
+                    .where(eq(activeJobs.id, activeJob.id));
                 
-                console.log(`[CHEAT] Successfully processed route ${route.id}`);
+                console.log(`[CHEAT] Successfully processed active job ${activeJob.id}`);
             }
 
             // Update game state with total rewards - convert string to number if needed
@@ -136,12 +146,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             console.log(`[CHEAT] Updated game state money from €${gameState.money} to €${newMoney}`);
         });
 
-        console.log(`[CHEAT] Force completed ${employeesWithRoutes.length} routes for game ${gameStateId}, total reward: ${totalReward}`);
+        console.log(`[CHEAT] Force completed ${employeesWithActiveJobs.length} active jobs for game ${gameStateId}, total reward: ${totalReward}`);
 
         return json({ 
             success: true, 
-            message: `Instantly completed ${employeesWithRoutes.length} routes`,
-            completedRoutes: employeesWithRoutes.length,
+            message: `Instantly completed ${employeesWithActiveJobs.length} active jobs`,
+            completedRoutes: employeesWithActiveJobs.length,
             totalReward: totalReward,
             newBalance: currentMoney + totalReward
         });

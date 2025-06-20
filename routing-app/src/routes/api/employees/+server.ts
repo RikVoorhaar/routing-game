@@ -5,6 +5,7 @@ import { gameStates, employees, routes, activeJobs, addresses, jobs } from '$lib
 import { eq, and, inArray } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { DEFAULT_EMPLOYEE_LOCATION, computeEmployeeCosts } from '$lib/types';
+import { createDefaultEmployee } from '$lib/employeeUtils';
 
 // POST /api/employees - Hire a new employee
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -52,17 +53,19 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             return error(400, `Insufficient funds. Need €${hiringCost}, but only have €${gameState.money}`);
         }
 
-        // Create the new employee
+        // Create the new employee with default values
+        const employeeData = createDefaultEmployee({ gameId: gameStateId, name: employeeName.trim() });
         const newEmployee = {
             id: nanoid(),
             gameId: gameStateId,
             name: employeeName.trim(),
-            upgradeState: JSON.stringify({ vehicleType: 'bicycle', capacity: 10 }),
+            vehicleLevel: employeeData.vehicleLevel,
+            licenseLevel: employeeData.licenseLevel,
+            categoryLevel: JSON.stringify(employeeData.categoryLevel),
+            drivingLevel: JSON.stringify(employeeData.drivingLevel),
+            upgradeState: JSON.stringify(employeeData.upgradeState),
             location: JSON.stringify(DEFAULT_EMPLOYEE_LOCATION),
-            availableRoutes: JSON.stringify([]), // Will be populated from job market
-            timeRoutesGenerated: null, // Not used in new system
-            speedMultiplier: '1.0',
-            maxSpeed: '20'
+            activeJobId: null
         };
 
         // Use a transaction to ensure consistency
@@ -214,7 +217,13 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
             }
 
             // Create modified route data based on employee modifiers
-            const speedMultiplier = parseFloat(employee.speedMultiplier as string) || 1.0;
+            // Calculate speed multiplier from employee's driving level and upgrades
+            const drivingLevel = typeof employee.drivingLevel === 'string' 
+                ? JSON.parse(employee.drivingLevel) 
+                : employee.drivingLevel;
+            const baseSpeedMultiplier = 1.0;
+            const drivingLevelBonus = drivingLevel.level * 0.1; // 10% speed bonus per driving level
+            const speedMultiplier = baseSpeedMultiplier + drivingLevelBonus;
             const originalRouteData = job.route.routeData as any;
             
             const modifiedJobRouteData = {
@@ -252,18 +261,17 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
                 return error(400, 'Route ID is required for route assignment');
             }
 
-            // Verify the route exists and belongs to this employee
-            let availableRoutes: string[] = [];
-            if (typeof employee.availableRoutes === 'string') {
-                availableRoutes = JSON.parse(employee.availableRoutes) as string[];
-            } else if (Array.isArray(employee.availableRoutes)) {
-                availableRoutes = employee.availableRoutes as string[];
-            } else {
-                return error(400, 'Invalid availableRoutes format');
-            }
-            
-            if (!availableRoutes.includes(routeId)) {
-                return error(400, 'Route not available for this employee');
+            // In the new job system, we no longer pre-generate routes for employees
+            // Instead, routes are generated dynamically from the job market
+            // For now, we'll verify the route exists in the database
+            const [route] = await db
+                .select()
+                .from(routes)
+                .where(eq(routes.id, routeId))
+                .limit(1);
+
+            if (!route) {
+                return error(404, 'Route not found');
             }
 
             // Check if employee is already on an active job
@@ -277,16 +285,7 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
                 return error(400, 'Employee is already on an active job');
             }
 
-            // Get the route details
-            const [route] = await db
-                .select()
-                .from(routes)
-                .where(eq(routes.id, routeId))
-                .limit(1);
-
-            if (!route) {
-                return error(404, 'Route not found');
-            }
+            // Route was already fetched above for verification
 
             // Parse employee location
             let employeeLocation;
@@ -335,7 +334,13 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
             }
 
             // Create modified route data based on employee modifiers
-            const speedMultiplier = parseFloat(employee.speedMultiplier as string) || 1.0;
+            // Calculate speed multiplier from employee's driving level and upgrades
+            const drivingLevel = typeof employee.drivingLevel === 'string' 
+                ? JSON.parse(employee.drivingLevel) 
+                : employee.drivingLevel;
+            const baseSpeedMultiplier = 1.0;
+            const drivingLevelBonus = drivingLevel.level * 0.1; // 10% speed bonus per driving level
+            const speedMultiplier = baseSpeedMultiplier + drivingLevelBonus;
             const originalRouteData = route.routeData as any;
             
             const modifiedJobRouteData = {
@@ -361,18 +366,8 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
                     jobPhaseStartTime: needsTravel ? null : new Date()
                 });
 
-                // Clear all available routes for this employee
-                await tx.update(employees)
-                    .set({ 
-                        availableRoutes: JSON.stringify([])
-                    })
-                    .where(eq(employees.id, employeeId));
-
-                // Delete all other available routes from the database since they're no longer valid
-                const otherRouteIds = availableRoutes.filter(id => id !== routeId);
-                if (otherRouteIds.length > 0) {
-                    await tx.delete(routes).where(inArray(routes.id, otherRouteIds));
-                }
+                // In the new job system, we don't need to clear available routes
+                // since they're generated dynamically from the job market
             });
 
             return json({ success: true, message: 'Route assigned successfully' });
@@ -431,8 +426,7 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
                             house_number: endAddress.houseNumber,
                             city: endAddress.city,
                             postcode: endAddress.postcode
-                        }),
-                        timeRoutesGenerated: null // Clear so new routes can be generated
+                        })
                     })
                     .where(eq(employees.id, employeeId));
 

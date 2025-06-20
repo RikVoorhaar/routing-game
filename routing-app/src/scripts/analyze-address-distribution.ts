@@ -29,7 +29,7 @@ interface DistributionStats {
 }
 
 class AddressDistributionAnalyzer {
-    private chunkGrid: ChunkGrid;
+    private chunkGrid!: ChunkGrid; // Initialized in analyze()
     private chunkMap: Map<string, number> = new Map(); // "(x,y)" -> chunkId
     private chunkStats: Map<number, ChunkStats> = new Map(); // chunkId -> stats
     private nextChunkId = 0;

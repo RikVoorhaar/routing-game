@@ -251,6 +251,7 @@
         </div>
 
       {:else if activeTab === 'upgrades'}
+        {@const currentVehicleConfig = getVehicleConfig(employee.vehicleLevel)}
         <div class="space-y-6">
           <!-- License Upgrade -->
           <div class="space-y-3">
@@ -261,8 +262,8 @@
                 <div class="badge badge-secondary">Level {employee.drivingLevel.level}</div>
               </div>
               
-              {@const nextLicense = getNextLicense(employee.licenseLevel)}
-              {#if nextLicense !== null}
+              {#if getNextLicense(employee.licenseLevel) !== null}
+                {@const nextLicense = getNextLicense(employee.licenseLevel)}
                 {@const nextLicenseConfig = getLicenseConfig(nextLicense)}
                 {@const canUpgrade = employee.drivingLevel.level >= nextLicenseConfig.minDrivingLevel}
                 
@@ -289,14 +290,13 @@
           <div class="space-y-3">
             <h3 class="font-semibold text-lg">Vehicle</h3>
             <div class="p-3 bg-base-200 rounded-lg">
-              {@const currentVehicleConfig = getVehicleConfig(employee.vehicleLevel)}
               <div class="flex justify-between items-center mb-2">
                 <span>Current: {currentVehicleConfig.name}</span>
                 <div class="badge badge-accent">{getEmployeeCapacity(employee)} capacity</div>
               </div>
               
-              {@const nextVehicle = getNextVehicle(employee.vehicleLevel, employee.licenseLevel)}
-              {#if nextVehicle !== null}
+              {#if getNextVehicle(employee.vehicleLevel, employee.licenseLevel) !== null}
+                {@const nextVehicle = getNextVehicle(employee.vehicleLevel, employee.licenseLevel)}
                 {@const nextVehicleConfig = getVehicleConfig(nextVehicle)}
                 
                 <button 

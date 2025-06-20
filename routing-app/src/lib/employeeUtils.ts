@@ -5,9 +5,9 @@
 import { JobCategory } from './jobCategories';
 import { VehicleType, LicenseType, VehicleClass, getVehicleConfig } from './vehicles';
 import { 
-    CategoryLevel, 
-    DrivingLevel, 
-    CategoryUpgrades,
+    type CategoryLevel, 
+    type DrivingLevel, 
+    type CategoryUpgrades,
     getDefaultCategoryLevels,
     getDefaultCategoryUpgrades,
     getDefaultDrivingLevel,
