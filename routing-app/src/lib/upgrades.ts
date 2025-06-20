@@ -180,6 +180,12 @@ export function canDoJobCategory(
     vehicleClass: VehicleClass
 ): boolean {
     const restrictions = JOB_CATEGORY_RESTRICTIONS[jobCategory];
+    
+    if (!restrictions) {
+        console.error('No restrictions found for job category:', jobCategory, 'type:', typeof jobCategory);
+        return false;
+    }
+    
     return licenseLevel >= restrictions.minLicense && 
            vehicleClassMeetsRequirement(vehicleClass, restrictions.minVehicleClass);
 }

@@ -305,30 +305,6 @@ export async function getJobsByValue(limit: number = 50): Promise<Array<InferSel
         .limit(limit);
 }
 
-/**
- * Gets jobs within a radius of a location using PostGIS
- */
-export async function getJobsNearLocation(
-    lat: number, 
-    lon: number, 
-    radiusKm: number = 10,
-    limit: number = 20
-): Promise<Array<InferSelectModel<typeof jobs>>> {
-    const radiusMeters = radiusKm * 1000;
-    
-    const result = await db.execute(sql`
-        SELECT * FROM job 
-        WHERE ST_DWithin(
-            ST_SetSRID(ST_Point(${lon}, ${lat}), 4326),
-            ST_GeomFromEWKT(location),
-            ${radiusMeters}
-        )
-        ORDER BY approximate_value DESC
-        LIMIT ${limit}
-    `);
-    
-    return result as unknown as Array<InferSelectModel<typeof jobs>>;
-}
 
 /**
  * Gets jobs within a tile using x,y,z tile coordinates
@@ -342,17 +318,18 @@ export async function getJobsInTile(
     // Convert tile coordinates to geographic bounds
     const bounds = getTileBounds(x, y, z);
     
-    const result = await db.execute(sql`
-        SELECT * FROM job 
-        WHERE ST_Within(
-            ST_GeomFromEWKT(location),
+    // Use Drizzle query builder to get proper field name conversion
+    const result = await db
+        .select()
+        .from(jobs)
+        .where(sql`ST_Within(
+            ST_GeomFromEWKT(${jobs.location}),
             ST_MakeEnvelope(${bounds.west}, ${bounds.south}, ${bounds.east}, ${bounds.north}, 4326)
-        )
-        ORDER BY approximate_value DESC
-        LIMIT ${limit}
-    `);
+        )`)
+        .orderBy(desc(jobs.approximateValue))
+        .limit(limit);
     
-    return result as unknown as Array<InferSelectModel<typeof jobs>>;
+    return result;
 }
 
 // Export client for connection management

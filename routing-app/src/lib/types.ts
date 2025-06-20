@@ -65,16 +65,16 @@ export interface Route {
 
 export interface Job {
     id: number;
-    location: string; // PostGIS POINT geometry
+    location: string; // PostGIS POINT geometry as text
     startAddressId: string;
     endAddressId: string;
     routeId: string;
     jobTier: number;
     jobCategory: number;
-    totalDistanceKm: string;
-    totalTimeSeconds: string;
+    totalDistanceKm: string; // Drizzle returns numeric as string
+    totalTimeSeconds: string; // Drizzle returns numeric as string
     timeGenerated: string | Date;
-    approximateValue: string;
+    approximateValue: string; // Drizzle returns numeric as string
 }
 
 export interface ActiveJob {

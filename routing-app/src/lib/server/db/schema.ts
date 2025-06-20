@@ -215,12 +215,12 @@ import {
   });
 
 // PostGIS setup functions - these need to be run after table creation
-export async function setupPostGIS(db: PostgresJsDatabase<any>) {
+export async function setupPostGIS(db: PostgresJsDatabase<Record<string, never>>) {
   console.log('Setting up PostGIS extension...');
   await db.execute(sql`CREATE EXTENSION IF NOT EXISTS postgis`);
 }
 
-export async function createSpatialIndexes(db: PostgresJsDatabase<any>) {
+export async function createSpatialIndexes(db: PostgresJsDatabase<Record<string, never>>) {
   console.log('Creating spatial indexes...');
   
   // Create spatial index on jobs location column (PostGIS POINT geometry)

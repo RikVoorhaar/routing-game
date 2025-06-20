@@ -9,11 +9,7 @@
     import { selectedJob, selectJob } from '$lib/stores/selectedJob';
     import { DEFAULT_EMPLOYEE_LOCATION } from '$lib/types';
     import { log } from '$lib/logger';
-    import type { Employee, Route, PathPoint, Address, Coordinate } from '$lib/types';
-    import type { InferSelectModel } from 'drizzle-orm';
-    import type { jobs as jobsSchema } from '$lib/server/db/schema';
-
-    type Job = InferSelectModel<typeof jobsSchema>;
+    import type { Employee, Route, PathPoint, Address, Coordinate, Job } from '$lib/types';
 
     export let map: any;
     export let L: any;

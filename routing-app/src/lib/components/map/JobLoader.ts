@@ -1,9 +1,6 @@
 import { cheatSettings } from '$lib/stores/cheats';
 import { get } from 'svelte/store';
-import type { InferSelectModel } from 'drizzle-orm';
-import type { jobs } from '$lib/server/db/schema';
-
-type Job = InferSelectModel<typeof jobs>;
+import type { Job } from '$lib/types';
 
 /**
  * Result of loading jobs for tiles
