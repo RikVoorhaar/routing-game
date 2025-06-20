@@ -208,8 +208,6 @@
                 <JobCard />
                 
                 <!-- Employee Details -->
-                <!-- TODO: Re-enable when Employee type is updated -->
-                <!-- 
                 <EmployeeDetails 
                     employee={$employees.find(emp => emp.id === $selectedEmployee) || null}
                     currentRoute={$selectedEmployee ? ($routesByEmployee[$selectedEmployee]?.current || null) : null}
@@ -218,21 +216,6 @@
                     on:purchaseVehicle={handlePurchaseVehicle}
                     on:purchaseUpgrade={handlePurchaseUpgrade}
                 />
-                -->
-                
-                <!-- Temporary placeholder -->
-                <div class="card bg-base-100 shadow-lg">
-                    <div class="card-body p-4 text-center">
-                        <h3 class="text-lg font-bold mb-2">Employee Details</h3>
-                        <p class="text-base-content/70">
-                            {#if $selectedEmployee}
-                                {$employees.find(emp => emp.id === $selectedEmployee)?.name || 'Unknown'} selected
-                            {:else}
-                                Click an employee to view details
-                            {/if}
-                        </p>
-                    </div>
-                </div>
 
                 <!-- Employees List -->
                 <div class="space-y-3">

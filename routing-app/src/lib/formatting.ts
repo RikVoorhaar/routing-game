@@ -16,6 +16,52 @@ export function formatMoney(amount: number | string): string {
 }
 
 /**
+ * Formats a currency value (for job cards and similar)
+ * @param value The value to format (can be number or string)
+ * @returns Formatted currency string
+ */
+export function formatCurrency(value: string | number | null | undefined): string {
+    if (value == null) return '€0.00';
+    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(numValue)) return '€0.00';
+    return new Intl.NumberFormat('en-US', { 
+        style: 'currency', 
+        currency: 'EUR' 
+    }).format(numValue);
+}
+
+/**
+ * Formats distance in kilometers
+ * @param distanceKm Distance in kilometers (can be number or string)
+ * @returns Formatted distance string (e.g., "5.2 km")
+ */
+export function formatDistance(distanceKm: string | number | null | undefined): string {
+    if (distanceKm == null) return '0.0 km';
+    const numValue = typeof distanceKm === 'string' ? parseFloat(distanceKm) : distanceKm;
+    if (isNaN(numValue)) return '0.0 km';
+    return `${numValue.toFixed(1)} km`;
+}
+
+/**
+ * Formats time duration in seconds for display (e.g., in job cards)
+ * @param timeSeconds Duration in seconds (can be number or string)
+ * @returns Formatted time string (e.g., "2h 30m", "25m")
+ */
+export function formatTime(timeSeconds: string | number | null | undefined): string {
+    if (timeSeconds == null) return '0m';
+    const numValue = typeof timeSeconds === 'string' ? parseFloat(timeSeconds) : timeSeconds;
+    if (isNaN(numValue)) return '0m';
+    const hours = Math.floor(numValue / 3600);
+    const minutes = Math.floor((numValue % 3600) / 60);
+    
+    if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+    } else {
+        return `${minutes}m`;
+    }
+}
+
+/**
  * Formats an address object into a readable string
  * @param address The address object to format
  * @returns Formatted address string

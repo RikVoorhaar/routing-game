@@ -1,70 +1,11 @@
 <script lang="ts">
     import { selectedJob, clearSelectedJob } from '$lib/stores/selectedJob';
+    import { getCategoryName, getTierColor } from '$lib/jobCategories';
+    import { formatCurrency, formatDistance, formatTime } from '$lib/formatting';
     import type { InferSelectModel } from 'drizzle-orm';
     import type { jobs } from '$lib/server/db/schema';
 
     type Job = InferSelectModel<typeof jobs>;
-
-    // Job category names mapping
-    const CATEGORY_NAMES = [
-        'Groceries',
-        'Packages', 
-        'Food',
-        'Furniture',
-        'People',
-        'Fragile Goods',
-        'Construction',
-        'Liquids',
-        'Toxic Goods'
-    ];
-
-    // Tier colors for consistency
-    const TIER_COLORS = [
-        '#6b7280', // tier 0 (shouldn't exist)
-        '#10b981', // tier 1 - green
-        '#3b82f6', // tier 2 - blue  
-        '#8b5cf6', // tier 3 - purple
-        '#f59e0b', // tier 4 - amber
-        '#ef4444', // tier 5 - red
-        '#ec4899', // tier 6 - pink
-        '#8b5cf6', // tier 7 - violet
-        '#1f2937'  // tier 8 - dark gray
-    ];
-
-    function formatCurrency(value: string | number | null | undefined): string {
-        if (value == null) return '€0.00';
-        const numValue = typeof value === 'string' ? parseFloat(value) : value;
-        if (isNaN(numValue)) return '€0.00';
-        return new Intl.NumberFormat('en-US', { 
-            style: 'currency', 
-            currency: 'EUR' 
-        }).format(numValue);
-    }
-
-    function formatDistance(distanceKm: string | number | null | undefined): string {
-        if (distanceKm == null) return '0.0 km';
-        const numValue = typeof distanceKm === 'string' ? parseFloat(distanceKm) : distanceKm;
-        if (isNaN(numValue)) return '0.0 km';
-        return `${numValue.toFixed(1)} km`;
-    }
-
-    function formatTime(timeSeconds: string | number | null | undefined): string {
-        if (timeSeconds == null) return '0m';
-        const numValue = typeof timeSeconds === 'string' ? parseFloat(timeSeconds) : timeSeconds;
-        if (isNaN(numValue)) return '0m';
-        const hours = Math.floor(numValue / 3600);
-        const minutes = Math.floor((numValue % 3600) / 60);
-        
-        if (hours > 0) {
-            return `${hours}h ${minutes}m`;
-        } else {
-            return `${minutes}m`;
-        }
-    }
-
-    function getTierColor(tier: number): string {
-        return TIER_COLORS[tier] || TIER_COLORS[0];
-    }
 </script>
 
 {#if $selectedJob}
@@ -80,7 +21,7 @@
                         Tier {$selectedJob.jobTier}
                     </span>
                     <span class="text-lg font-semibold text-base-content">
-                        {CATEGORY_NAMES[$selectedJob.jobCategory] || `Category ${$selectedJob.jobCategory}`}
+                        {getCategoryName($selectedJob.jobCategory)}
                     </span>
                 </div>
                 <button 

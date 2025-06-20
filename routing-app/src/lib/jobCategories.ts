@@ -14,6 +14,21 @@ export enum JobCategory {
 }
 
 /**
+ * Tier colors for consistent job tier styling
+ */
+export const TIER_COLORS = [
+    '#6b7280', // tier 0 (shouldn't exist)
+    '#10b981', // tier 1 - green
+    '#3b82f6', // tier 2 - blue  
+    '#8b5cf6', // tier 3 - purple
+    '#f59e0b', // tier 4 - amber
+    '#ef4444', // tier 5 - red
+    '#ec4899', // tier 6 - pink
+    '#8b5cf6', // tier 7 - violet
+    '#1f2937'  // tier 8 - dark gray
+];
+
+/**
  * Category display names
  */
 export const CATEGORY_NAMES: Record<JobCategory, string> = {
@@ -42,6 +57,16 @@ export const CATEGORY_ICONS: Record<JobCategory, string> = {
     [JobCategory.LIQUIDS]: '🧪',
     [JobCategory.TOXIC_GOODS]: '☠️'
 };
+
+/**
+ * Get tier color for a given tier number
+ * @param tier The tier number
+ * @returns Hex color string
+ */
+export function getTierColor(tier: number | undefined | null): string {
+    if (tier == null || isNaN(tier)) return TIER_COLORS[0];
+    return TIER_COLORS[tier] || TIER_COLORS[0];
+}
 
 /**
  * Get category icon for a given category number
