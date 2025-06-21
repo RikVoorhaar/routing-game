@@ -6,32 +6,29 @@ import { eq } from 'drizzle-orm';
 
 // POST /api/cheats/toggle - Toggle user's cheat permissions
 export const POST: RequestHandler = async ({ request, locals }) => {
-    const session = await locals.auth();
-    
-    if (!session?.user?.id) {
-        return error(401, 'Unauthorized');
-    }
+	const session = await locals.auth();
 
-    try {
-        const { enabled } = await request.json();
-        
-        if (typeof enabled !== 'boolean') {
-            return error(400, 'Invalid enabled value - must be boolean');
-        }
+	if (!session?.user?.id) {
+		return error(401, 'Unauthorized');
+	}
 
-        // Update user's cheat status
-        await db.update(users)
-            .set({ cheatsEnabled: enabled })
-            .where(eq(users.id, session.user.id));
+	try {
+		const { enabled } = await request.json();
 
-        return json({ 
-            success: true, 
-            message: `Cheats ${enabled ? 'enabled' : 'disabled'}`,
-            cheatsEnabled: enabled
-        });
+		if (typeof enabled !== 'boolean') {
+			return error(400, 'Invalid enabled value - must be boolean');
+		}
 
-    } catch (err) {
-        console.error('Error toggling cheats:', err);
-        return error(500, 'Failed to update cheats setting');
-    }
-}; 
+		// Update user's cheat status
+		await db.update(users).set({ cheatsEnabled: enabled }).where(eq(users.id, session.user.id));
+
+		return json({
+			success: true,
+			message: `Cheats ${enabled ? 'enabled' : 'disabled'}`,
+			cheatsEnabled: enabled
+		});
+	} catch (err) {
+		console.error('Error toggling cheats:', err);
+		return error(500, 'Failed to update cheats setting');
+	}
+};

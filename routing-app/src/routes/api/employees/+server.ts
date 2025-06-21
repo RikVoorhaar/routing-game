@@ -4,462 +4,462 @@ import { db } from '$lib/server/db';
 import { gameStates, employees, routes, activeJobs, addresses, jobs } from '$lib/server/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
-import { createDefaultEmployee, computeEmployeeCosts, DEFAULT_EMPLOYEE_LOCATION } from '$lib/employeeUtils';
+import {
+	createDefaultEmployee,
+	computeEmployeeCosts,
+	DEFAULT_EMPLOYEE_LOCATION
+} from '$lib/employeeUtils';
 
 // POST /api/employees - Hire a new employee
 export const POST: RequestHandler = async ({ request, locals }) => {
-    const session = await locals.auth();
-    
-    if (!session?.user?.id) {
-        return error(401, 'Unauthorized');
-    }
+	const session = await locals.auth();
 
-    try {
-        const { gameStateId, employeeName } = await request.json();
-        
-        if (!gameStateId || !employeeName || typeof employeeName !== 'string') {
-            return error(400, 'Game state ID and employee name are required');
-        }
+	if (!session?.user?.id) {
+		return error(401, 'Unauthorized');
+	}
 
-        // Verify the game state belongs to the current user
-        const [gameState] = await db
-            .select()
-            .from(gameStates)
-            .where(
-                and(
-                    eq(gameStates.id, gameStateId),
-                    eq(gameStates.userId, session.user.id)
-                )
-            )
-            .limit(1);
+	try {
+		const { gameStateId, employeeName } = await request.json();
 
-        if (!gameState) {
-            return error(404, 'Game state not found or access denied');
-        }
+		if (!gameStateId || !employeeName || typeof employeeName !== 'string') {
+			return error(400, 'Game state ID and employee name are required');
+		}
 
-        // Get current employee count for this game state
-        const existingEmployees = await db
-            .select()
-            .from(employees)
-            .where(eq(employees.gameId, gameStateId));
+		// Verify the game state belongs to the current user
+		const [gameState] = await db
+			.select()
+			.from(gameStates)
+			.where(and(eq(gameStates.id, gameStateId), eq(gameStates.userId, session.user.id)))
+			.limit(1);
 
-        const employeeCount = existingEmployees.length;
-        const hiringCost = computeEmployeeCosts(employeeCount);
+		if (!gameState) {
+			return error(404, 'Game state not found or access denied');
+		}
 
-        // Check if user has enough money - convert string to number if needed
-        const currentMoney = typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money;
-        if (currentMoney < hiringCost) {
-            return error(400, `Insufficient funds. Need €${hiringCost}, but only have €${gameState.money}`);
-        }
+		// Get current employee count for this game state
+		const existingEmployees = await db
+			.select()
+			.from(employees)
+			.where(eq(employees.gameId, gameStateId));
 
-        // Create the new employee with default values
-        const employeeData = createDefaultEmployee({ gameId: gameStateId, name: employeeName.trim() });
-        const newEmployee = {
-            id: nanoid(),
-            gameId: gameStateId,
-            name: employeeName.trim(),
-            vehicleLevel: employeeData.vehicleLevel,
-            licenseLevel: employeeData.licenseLevel,
-            categoryLevel: JSON.stringify(employeeData.categoryLevel),
-            drivingLevel: JSON.stringify(employeeData.drivingLevel),
-            upgradeState: JSON.stringify(employeeData.upgradeState),
-            location: JSON.stringify(DEFAULT_EMPLOYEE_LOCATION),
-            activeJobId: null
-        };
+		const employeeCount = existingEmployees.length;
+		const hiringCost = computeEmployeeCosts(employeeCount);
 
-        // Use a transaction to ensure consistency
-        await db.transaction(async (tx) => {
-            // Insert the new employee
-            await tx.insert(employees).values(newEmployee);
+		// Check if user has enough money - convert string to number if needed
+		const currentMoney =
+			typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money;
+		if (currentMoney < hiringCost) {
+			return error(
+				400,
+				`Insufficient funds. Need €${hiringCost}, but only have €${gameState.money}`
+			);
+		}
 
-            // Deduct the hiring cost from game state money
-            const newMoney = currentMoney - hiringCost;
-            
-            await tx.update(gameStates)
-                .set({ money: newMoney.toString() })
-                .where(eq(gameStates.id, gameStateId));
-        });
+		// Create the new employee with default values
+		const employeeData = createDefaultEmployee({ gameId: gameStateId, name: employeeName.trim() });
+		const newEmployee = {
+			id: nanoid(),
+			gameId: gameStateId,
+			name: employeeName.trim(),
+			vehicleLevel: employeeData.vehicleLevel,
+			licenseLevel: employeeData.licenseLevel,
+			categoryLevel: JSON.stringify(employeeData.categoryLevel),
+			drivingLevel: JSON.stringify(employeeData.drivingLevel),
+			upgradeState: JSON.stringify(employeeData.upgradeState),
+			location: JSON.stringify(DEFAULT_EMPLOYEE_LOCATION),
+			activeJobId: null
+		};
 
-        return json({
-            employee: newEmployee,
-            newBalance: (typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money) - hiringCost
-        }, { status: 201 });
+		// Use a transaction to ensure consistency
+		await db.transaction(async (tx) => {
+			// Insert the new employee
+			await tx.insert(employees).values(newEmployee);
 
-    } catch (err) {
-        console.error('Error hiring employee:', err);
-        return error(500, 'Failed to hire employee');
-    }
+			// Deduct the hiring cost from game state money
+			const newMoney = currentMoney - hiringCost;
+
+			await tx
+				.update(gameStates)
+				.set({ money: newMoney.toString() })
+				.where(eq(gameStates.id, gameStateId));
+		});
+
+		return json(
+			{
+				employee: newEmployee,
+				newBalance:
+					(typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money) -
+					hiringCost
+			},
+			{ status: 201 }
+		);
+	} catch (err) {
+		console.error('Error hiring employee:', err);
+		return error(500, 'Failed to hire employee');
+	}
 };
 
 // PUT /api/employees - Assign or complete jobs
 export const PUT: RequestHandler = async ({ request, locals }) => {
-    const session = await locals.auth();
-    
-    if (!session?.user?.id) {
-        return error(401, 'Unauthorized');
-    }
+	const session = await locals.auth();
 
-    try {
-        const { action, employeeId, gameStateId, routeId, jobId } = await request.json();
-        
-        if (!action || !employeeId || !gameStateId) {
-            return error(400, 'Action, employee ID, and game state ID are required');
-        }
+	if (!session?.user?.id) {
+		return error(401, 'Unauthorized');
+	}
 
-        // Verify the game state belongs to the current user
-        const [gameState] = await db
-            .select()
-            .from(gameStates)
-            .where(
-                and(
-                    eq(gameStates.id, gameStateId),
-                    eq(gameStates.userId, session.user.id)
-                )
-            )
-            .limit(1);
+	try {
+		const { action, employeeId, gameStateId, routeId, jobId } = await request.json();
 
-        if (!gameState) {
-            return error(404, 'Game state not found or access denied');
-        }
+		if (!action || !employeeId || !gameStateId) {
+			return error(400, 'Action, employee ID, and game state ID are required');
+		}
 
-        // Get the employee and verify ownership
-        const [employee] = await db
-            .select()
-            .from(employees)
-            .where(
-                and(
-                    eq(employees.id, employeeId),
-                    eq(employees.gameId, gameStateId)
-                )
-            )
-            .limit(1);
+		// Verify the game state belongs to the current user
+		const [gameState] = await db
+			.select()
+			.from(gameStates)
+			.where(and(eq(gameStates.id, gameStateId), eq(gameStates.userId, session.user.id)))
+			.limit(1);
 
-        if (!employee) {
-            return error(404, 'Employee not found');
-        }
+		if (!gameState) {
+			return error(404, 'Game state not found or access denied');
+		}
 
-        if (action === 'assignJob') {
-            if (!jobId) {
-                return error(400, 'Job ID is required for job assignment');
-            }
+		// Get the employee and verify ownership
+		const [employee] = await db
+			.select()
+			.from(employees)
+			.where(and(eq(employees.id, employeeId), eq(employees.gameId, gameStateId)))
+			.limit(1);
 
-            // Check if employee is already on an active job
-            const [existingActiveJob] = await db
-                .select()
-                .from(activeJobs)
-                .where(eq(activeJobs.employeeId, employeeId))
-                .limit(1);
+		if (!employee) {
+			return error(404, 'Employee not found');
+		}
 
-            if (existingActiveJob) {
-                return error(400, 'Employee is already on an active job');
-            }
+		if (action === 'assignJob') {
+			if (!jobId) {
+				return error(400, 'Job ID is required for job assignment');
+			}
 
-            // Get the job details with its route
-            const [job] = await db
-                .select({
-                    job: jobs,
-                    route: routes
-                })
-                .from(jobs)
-                .innerJoin(routes, eq(jobs.routeId, routes.id))
-                .where(eq(jobs.id, jobId))
-                .limit(1);
+			// Check if employee is already on an active job
+			const [existingActiveJob] = await db
+				.select()
+				.from(activeJobs)
+				.where(eq(activeJobs.employeeId, employeeId))
+				.limit(1);
 
-            if (!job) {
-                return error(404, 'Job not found');
-            }
+			if (existingActiveJob) {
+				return error(400, 'Employee is already on an active job');
+			}
 
-            // Parse employee location
-            let employeeLocation;
-            try {
-                if (typeof employee.location === 'string') {
-                    employeeLocation = JSON.parse(employee.location);
-                } else {
-                    employeeLocation = employee.location;
-                }
-            } catch {
-                return error(400, 'Invalid employee location format');
-            }
+			// Get the job details with its route
+			const [job] = await db
+				.select({
+					job: jobs,
+					route: routes
+				})
+				.from(jobs)
+				.innerJoin(routes, eq(jobs.routeId, routes.id))
+				.where(eq(jobs.id, jobId))
+				.limit(1);
 
-            // Get start address for the job
-            const [startAddress] = await db
-                .select()
-                .from(addresses)
-                .where(eq(addresses.id, job.route.startAddressId))
-                .limit(1);
+			if (!job) {
+				return error(404, 'Job not found');
+			}
 
-            if (!startAddress) {
-                return error(404, 'Job start address not found');
-            }
+			// Parse employee location
+			let employeeLocation;
+			try {
+				if (typeof employee.location === 'string') {
+					employeeLocation = JSON.parse(employee.location);
+				} else {
+					employeeLocation = employee.location;
+				}
+			} catch {
+				return error(400, 'Invalid employee location format');
+			}
 
-            // Determine if employee needs to travel to job start
-            let routeToJobId = null;
-            let needsTravel = false;
+			// Get start address for the job
+			const [startAddress] = await db
+				.select()
+				.from(addresses)
+				.where(eq(addresses.id, job.route.startAddressId))
+				.limit(1);
 
-            // Check if employee is already at the job start location (within 100m)
-            if (employeeLocation) {
-                const empLat = employeeLocation.lat || 0;
-                const empLon = employeeLocation.lon || 0;
-                const startLat = parseFloat(startAddress.lat);
-                const startLon = parseFloat(startAddress.lon);
-                
-                // Simple distance check (rough approximation)
-                const latDiff = Math.abs(empLat - startLat);
-                const lonDiff = Math.abs(empLon - startLon);
-                const distance = Math.sqrt(latDiff * latDiff + lonDiff * lonDiff) * 111000; // Convert to meters
-                
-                if (distance > 100) {
-                    needsTravel = true;
-                    // In a real implementation, you would generate a route from employee location to job start
-                    // For now, we'll skip the travel phase
-                }
-            }
+			if (!startAddress) {
+				return error(404, 'Job start address not found');
+			}
 
-            // Create modified route data based on employee modifiers
-            // Calculate speed multiplier from employee's driving level and upgrades
-            const drivingLevel = typeof employee.drivingLevel === 'string' 
-                ? JSON.parse(employee.drivingLevel) 
-                : employee.drivingLevel;
-            const baseSpeedMultiplier = 1.0;
-            const drivingLevelBonus = drivingLevel.level * 0.1; // 10% speed bonus per driving level
-            const speedMultiplier = baseSpeedMultiplier + drivingLevelBonus;
-            const originalRouteData = job.route.routeData as any;
-            
-            const modifiedJobRouteData = {
-                ...originalRouteData,
-                travelTimeSeconds: originalRouteData.travelTimeSeconds / speedMultiplier
-            };
+			// Determine if employee needs to travel to job start
+			let routeToJobId = null;
+			let needsTravel = false;
 
-            // Use a transaction to ensure consistency
-            await db.transaction(async (tx) => {
-                // Create active job
-                const activeJobId = nanoid();
-                await tx.insert(activeJobs).values({
-                    id: activeJobId,
-                    employeeId: employeeId,
-                    jobId: jobId,
-                    routeToJobId: routeToJobId,
-                    jobRouteId: job.route.id,
-                    startTime: new Date(),
-                    endTime: null,
-                    modifiedRouteToJobData: null, // No travel needed for now
-                    modifiedJobRouteData: modifiedJobRouteData,
-                    currentPhase: needsTravel ? 'traveling_to_job' : 'on_job',
-                    jobPhaseStartTime: needsTravel ? null : new Date()
-                });
+			// Check if employee is already at the job start location (within 100m)
+			if (employeeLocation) {
+				const empLat = employeeLocation.lat || 0;
+				const empLon = employeeLocation.lon || 0;
+				const startLat = parseFloat(startAddress.lat);
+				const startLon = parseFloat(startAddress.lon);
 
-                // Remove the job from the job market (it's now taken)
-                await tx.delete(jobs).where(eq(jobs.id, jobId));
-            });
+				// Simple distance check (rough approximation)
+				const latDiff = Math.abs(empLat - startLat);
+				const lonDiff = Math.abs(empLon - startLon);
+				const distance = Math.sqrt(latDiff * latDiff + lonDiff * lonDiff) * 111000; // Convert to meters
 
-            return json({ success: true, message: 'Job assigned successfully' });
+				if (distance > 100) {
+					needsTravel = true;
+					// In a real implementation, you would generate a route from employee location to job start
+					// For now, we'll skip the travel phase
+				}
+			}
 
-        } else if (action === 'assignRoute') {
-            // This is for employee-generated routes (still supported)
-            if (!routeId) {
-                return error(400, 'Route ID is required for route assignment');
-            }
+			// Create modified route data based on employee modifiers
+			// Calculate speed multiplier from employee's driving level and upgrades
+			const drivingLevel =
+				typeof employee.drivingLevel === 'string'
+					? JSON.parse(employee.drivingLevel)
+					: employee.drivingLevel;
+			const baseSpeedMultiplier = 1.0;
+			const drivingLevelBonus = drivingLevel.level * 0.1; // 10% speed bonus per driving level
+			const speedMultiplier = baseSpeedMultiplier + drivingLevelBonus;
+			const originalRouteData = job.route.routeData as any;
 
-            // In the new job system, we no longer pre-generate routes for employees
-            // Instead, routes are generated dynamically from the job market
-            // For now, we'll verify the route exists in the database
-            const [route] = await db
-                .select()
-                .from(routes)
-                .where(eq(routes.id, routeId))
-                .limit(1);
+			const modifiedJobRouteData = {
+				...originalRouteData,
+				travelTimeSeconds: originalRouteData.travelTimeSeconds / speedMultiplier
+			};
 
-            if (!route) {
-                return error(404, 'Route not found');
-            }
+			// Use a transaction to ensure consistency
+			await db.transaction(async (tx) => {
+				// Create active job
+				const activeJobId = nanoid();
+				await tx.insert(activeJobs).values({
+					id: activeJobId,
+					employeeId: employeeId,
+					jobId: jobId,
+					routeToJobId: routeToJobId,
+					jobRouteId: job.route.id,
+					startTime: new Date(),
+					endTime: null,
+					modifiedRouteToJobData: null, // No travel needed for now
+					modifiedJobRouteData: modifiedJobRouteData,
+					currentPhase: needsTravel ? 'traveling_to_job' : 'on_job',
+					jobPhaseStartTime: needsTravel ? null : new Date()
+				});
 
-            // Check if employee is already on an active job
-            const [existingActiveJob] = await db
-                .select()
-                .from(activeJobs)
-                .where(eq(activeJobs.employeeId, employeeId))
-                .limit(1);
+				// Remove the job from the job market (it's now taken)
+				await tx.delete(jobs).where(eq(jobs.id, jobId));
+			});
 
-            if (existingActiveJob) {
-                return error(400, 'Employee is already on an active job');
-            }
+			return json({ success: true, message: 'Job assigned successfully' });
+		} else if (action === 'assignRoute') {
+			// This is for employee-generated routes (still supported)
+			if (!routeId) {
+				return error(400, 'Route ID is required for route assignment');
+			}
 
-            // Route was already fetched above for verification
+			// In the new job system, we no longer pre-generate routes for employees
+			// Instead, routes are generated dynamically from the job market
+			// For now, we'll verify the route exists in the database
+			const [route] = await db.select().from(routes).where(eq(routes.id, routeId)).limit(1);
 
-            // Parse employee location
-            let employeeLocation;
-            try {
-                if (typeof employee.location === 'string') {
-                    employeeLocation = JSON.parse(employee.location);
-                } else {
-                    employeeLocation = employee.location;
-                }
-            } catch {
-                return error(400, 'Invalid employee location format');
-            }
+			if (!route) {
+				return error(404, 'Route not found');
+			}
 
-            // Get start address for the route
-            const [startAddress] = await db
-                .select()
-                .from(addresses)
-                .where(eq(addresses.id, route.startAddressId))
-                .limit(1);
+			// Check if employee is already on an active job
+			const [existingActiveJob] = await db
+				.select()
+				.from(activeJobs)
+				.where(eq(activeJobs.employeeId, employeeId))
+				.limit(1);
 
-            if (!startAddress) {
-                return error(404, 'Route start address not found');
-            }
+			if (existingActiveJob) {
+				return error(400, 'Employee is already on an active job');
+			}
 
-            // Determine if employee needs to travel to job start
-            let routeToJobId = null;
-            let needsTravel = false;
+			// Route was already fetched above for verification
 
-            // Check if employee is already at the job start location (within 100m)
-            if (employeeLocation) {
-                const empLat = employeeLocation.lat || 0;
-                const empLon = employeeLocation.lon || 0;
-                const startLat = parseFloat(startAddress.lat);
-                const startLon = parseFloat(startAddress.lon);
-                
-                // Simple distance check (rough approximation)
-                const latDiff = Math.abs(empLat - startLat);
-                const lonDiff = Math.abs(empLon - startLon);
-                const distance = Math.sqrt(latDiff * latDiff + lonDiff * lonDiff) * 111000; // Convert to meters
-                
-                if (distance > 100) {
-                    needsTravel = true;
-                    // In a real implementation, you would generate a route from employee location to job start
-                    // For now, we'll skip the travel phase
-                }
-            }
+			// Parse employee location
+			let employeeLocation;
+			try {
+				if (typeof employee.location === 'string') {
+					employeeLocation = JSON.parse(employee.location);
+				} else {
+					employeeLocation = employee.location;
+				}
+			} catch {
+				return error(400, 'Invalid employee location format');
+			}
 
-            // Create modified route data based on employee modifiers
-            // Calculate speed multiplier from employee's driving level and upgrades
-            const drivingLevel = typeof employee.drivingLevel === 'string' 
-                ? JSON.parse(employee.drivingLevel) 
-                : employee.drivingLevel;
-            const baseSpeedMultiplier = 1.0;
-            const drivingLevelBonus = drivingLevel.level * 0.1; // 10% speed bonus per driving level
-            const speedMultiplier = baseSpeedMultiplier + drivingLevelBonus;
-            const originalRouteData = route.routeData as any;
-            
-            const modifiedJobRouteData = {
-                ...originalRouteData,
-                travelTimeSeconds: originalRouteData.travelTimeSeconds / speedMultiplier
-            };
+			// Get start address for the route
+			const [startAddress] = await db
+				.select()
+				.from(addresses)
+				.where(eq(addresses.id, route.startAddressId))
+				.limit(1);
 
-            // Use a transaction to ensure consistency
-            await db.transaction(async (tx) => {
-                // Create active job
-                const activeJobId = nanoid();
-                await tx.insert(activeJobs).values({
-                    id: activeJobId,
-                    employeeId: employeeId,
-                    jobId: null, // This is an employee-generated route, not a job market job
-                    routeToJobId: routeToJobId,
-                    jobRouteId: routeId,
-                    startTime: new Date(),
-                    endTime: null,
-                    modifiedRouteToJobData: null, // No travel needed for now
-                    modifiedJobRouteData: modifiedJobRouteData,
-                    currentPhase: needsTravel ? 'traveling_to_job' : 'on_job',
-                    jobPhaseStartTime: needsTravel ? null : new Date()
-                });
+			if (!startAddress) {
+				return error(404, 'Route start address not found');
+			}
 
-                // In the new job system, we don't need to clear available routes
-                // since they're generated dynamically from the job market
-            });
+			// Determine if employee needs to travel to job start
+			let routeToJobId = null;
+			let needsTravel = false;
 
-            return json({ success: true, message: 'Route assigned successfully' });
+			// Check if employee is already at the job start location (within 100m)
+			if (employeeLocation) {
+				const empLat = employeeLocation.lat || 0;
+				const empLon = employeeLocation.lon || 0;
+				const startLat = parseFloat(startAddress.lat);
+				const startLon = parseFloat(startAddress.lon);
 
-        } else if (action === 'completeRoute') {
-            // This action is now handled automatically by the route completion system
-            // But we can keep it for manual completion (cheats, etc.)
-            
-            // Get the employee's current active job
-            const [activeJob] = await db
-                .select()
-                .from(activeJobs)
-                .where(eq(activeJobs.employeeId, employeeId))
-                .limit(1);
+				// Simple distance check (rough approximation)
+				const latDiff = Math.abs(empLat - startLat);
+				const lonDiff = Math.abs(empLon - startLon);
+				const distance = Math.sqrt(latDiff * latDiff + lonDiff * lonDiff) * 111000; // Convert to meters
 
-            if (!activeJob) {
-                return error(400, 'Employee is not currently on an active job');
-            }
+				if (distance > 100) {
+					needsTravel = true;
+					// In a real implementation, you would generate a route from employee location to job start
+					// For now, we'll skip the travel phase
+				}
+			}
 
-            if (activeJob.endTime) {
-                return error(400, 'Job is already completed');
-            }
+			// Create modified route data based on employee modifiers
+			// Calculate speed multiplier from employee's driving level and upgrades
+			const drivingLevel =
+				typeof employee.drivingLevel === 'string'
+					? JSON.parse(employee.drivingLevel)
+					: employee.drivingLevel;
+			const baseSpeedMultiplier = 1.0;
+			const drivingLevelBonus = drivingLevel.level * 0.1; // 10% speed bonus per driving level
+			const speedMultiplier = baseSpeedMultiplier + drivingLevelBonus;
+			const originalRouteData = route.routeData as any;
 
-            // Get the job route for reward calculation
-            const [jobRoute] = await db
-                .select()
-                .from(routes)
-                .where(eq(routes.id, activeJob.jobRouteId))
-                .limit(1);
+			const modifiedJobRouteData = {
+				...originalRouteData,
+				travelTimeSeconds: originalRouteData.travelTimeSeconds / speedMultiplier
+			};
 
-            if (!jobRoute) {
-                return error(404, 'Job route not found');
-            }
+			// Use a transaction to ensure consistency
+			await db.transaction(async (tx) => {
+				// Create active job
+				const activeJobId = nanoid();
+				await tx.insert(activeJobs).values({
+					id: activeJobId,
+					employeeId: employeeId,
+					jobId: null, // This is an employee-generated route, not a job market job
+					routeToJobId: routeToJobId,
+					jobRouteId: routeId,
+					startTime: new Date(),
+					endTime: null,
+					modifiedRouteToJobData: null, // No travel needed for now
+					modifiedJobRouteData: modifiedJobRouteData,
+					currentPhase: needsTravel ? 'traveling_to_job' : 'on_job',
+					jobPhaseStartTime: needsTravel ? null : new Date()
+				});
 
-            // Get the end address for location update
-            const [endAddress] = await db
-                .select()
-                .from(addresses)
-                .where(eq(addresses.id, jobRoute.endAddressId))
-                .limit(1);
+				// In the new job system, we don't need to clear available routes
+				// since they're generated dynamically from the job market
+			});
 
-            if (!endAddress) {
-                return error(404, 'End address not found');
-            }
+			return json({ success: true, message: 'Route assigned successfully' });
+		} else if (action === 'completeRoute') {
+			// This action is now handled automatically by the route completion system
+			// But we can keep it for manual completion (cheats, etc.)
 
-            // Use a transaction to ensure consistency
-            await db.transaction(async (tx) => {
-                // Update employee location to end address
-                await tx.update(employees)
-                    .set({ 
-                        location: JSON.stringify({
-                            id: endAddress.id,
-                            lat: parseFloat(endAddress.lat),
-                            lon: parseFloat(endAddress.lon),
-                            street: endAddress.street,
-                            house_number: endAddress.houseNumber,
-                            city: endAddress.city,
-                            postcode: endAddress.postcode
-                        })
-                    })
-                    .where(eq(employees.id, employeeId));
+			// Get the employee's current active job
+			const [activeJob] = await db
+				.select()
+				.from(activeJobs)
+				.where(eq(activeJobs.employeeId, employeeId))
+				.limit(1);
 
-                // Mark the active job as completed
-                await tx.update(activeJobs)
-                    .set({ endTime: new Date() })
-                    .where(eq(activeJobs.id, activeJob.id));
+			if (!activeJob) {
+				return error(400, 'Employee is not currently on an active job');
+			}
 
-                // Award the job reward to the game state
-                const currentMoney = typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money;
-                const jobReward = typeof jobRoute.reward === 'string' ? parseFloat(jobRoute.reward) : jobRoute.reward;
-                const newMoney = currentMoney + jobReward;
-                
-                await tx.update(gameStates)
-                    .set({ money: newMoney.toString() })
-                    .where(eq(gameStates.id, gameStateId));
-            });
+			if (activeJob.endTime) {
+				return error(400, 'Job is already completed');
+			}
 
-            const reward = typeof jobRoute.reward === 'string' ? parseFloat(jobRoute.reward) : jobRoute.reward;
-            const newBalance = (typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money) + reward;
+			// Get the job route for reward calculation
+			const [jobRoute] = await db
+				.select()
+				.from(routes)
+				.where(eq(routes.id, activeJob.jobRouteId))
+				.limit(1);
 
-            return json({ 
-                success: true, 
-                message: 'Job completed successfully',
-                reward: reward,
-                newBalance: newBalance
-            });
+			if (!jobRoute) {
+				return error(404, 'Job route not found');
+			}
 
-        } else {
-            return error(400, 'Invalid action');
-        }
+			// Get the end address for location update
+			const [endAddress] = await db
+				.select()
+				.from(addresses)
+				.where(eq(addresses.id, jobRoute.endAddressId))
+				.limit(1);
 
-    } catch (err) {
-        console.error('Error updating employee:', err);
-        return error(500, 'Failed to update employee');
-    }
-}; 
+			if (!endAddress) {
+				return error(404, 'End address not found');
+			}
+
+			// Use a transaction to ensure consistency
+			await db.transaction(async (tx) => {
+				// Update employee location to end address
+				await tx
+					.update(employees)
+					.set({
+						location: JSON.stringify({
+							id: endAddress.id,
+							lat: parseFloat(endAddress.lat),
+							lon: parseFloat(endAddress.lon),
+							street: endAddress.street,
+							house_number: endAddress.houseNumber,
+							city: endAddress.city,
+							postcode: endAddress.postcode
+						})
+					})
+					.where(eq(employees.id, employeeId));
+
+				// Mark the active job as completed
+				await tx
+					.update(activeJobs)
+					.set({ endTime: new Date() })
+					.where(eq(activeJobs.id, activeJob.id));
+
+				// Award the job reward to the game state
+				const currentMoney =
+					typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money;
+				const jobReward =
+					typeof jobRoute.reward === 'string' ? parseFloat(jobRoute.reward) : jobRoute.reward;
+				const newMoney = currentMoney + jobReward;
+
+				await tx
+					.update(gameStates)
+					.set({ money: newMoney.toString() })
+					.where(eq(gameStates.id, gameStateId));
+			});
+
+			const reward =
+				typeof jobRoute.reward === 'string' ? parseFloat(jobRoute.reward) : jobRoute.reward;
+			const newBalance =
+				(typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money) +
+				reward;
+
+			return json({
+				success: true,
+				message: 'Job completed successfully',
+				reward: reward,
+				newBalance: newBalance
+			});
+		} else {
+			return error(400, 'Invalid action');
+		}
+	} catch (err) {
+		console.error('Error updating employee:', err);
+		return error(500, 'Failed to update employee');
+	}
+};

@@ -19,7 +19,7 @@ npm run analyze-addresses
 # Analyze with 1km × 1km chunks
 npm run analyze-addresses 1.0
 
-# Analyze with 250m × 250m chunks  
+# Analyze with 250m × 250m chunks
 npm run analyze-addresses 0.25
 ```
 
@@ -99,4 +99,4 @@ Addresses per chunk (for occupied chunks):
        3 addresses: ███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   31 chunks
 ```
 
-This analysis helps understand the spatial density patterns of addresses across the region. 
+This analysis helps understand the spatial density patterns of addresses across the region.

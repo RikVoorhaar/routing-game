@@ -9,4 +9,4 @@ console.log(secret);
 console.log('=====================\n');
 console.log('Add this to your .env file:');
 console.log(`AUTH_SECRET="${secret}"`);
-console.log('\n'); 
+console.log('\n');

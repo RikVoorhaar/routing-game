@@ -30,12 +30,11 @@ export interface ActiveJobComputation {
  * Computes the value/payout for a given job based on employee skills and game state
  */
 export function computeJobValue(job: Job, _employee: Employee, _gameState: GameState): number {
-    // TODO: Implement job value computation
+	// TODO: Implement job value computation
 	const baseReward = parseFloat(job.approximateValue);
 
-    return baseReward;
+	return baseReward;
 }
-
 
 /**
  * Computes the time taken for traveling to job + completing the job

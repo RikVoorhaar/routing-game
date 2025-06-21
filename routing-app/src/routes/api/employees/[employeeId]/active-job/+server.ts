@@ -5,59 +5,58 @@ import { employees, activeJobs, routes } from '$lib/server/db/schema';
 import { eq, and } from 'drizzle-orm';
 
 export const GET: RequestHandler = async ({ params, locals }) => {
-    const session = await locals.auth();
-    
-    if (!session?.user?.id) {
-        return error(401, 'Unauthorized');
-    }
+	const session = await locals.auth();
 
-    const { employeeId } = params;
+	if (!session?.user?.id) {
+		return error(401, 'Unauthorized');
+	}
 
-    if (!employeeId) {
-        return error(400, 'Employee ID is required');
-    }
+	const { employeeId } = params;
 
-    try {
-        // Get the employee and verify ownership
-        const [employee] = await db
-            .select()
-            .from(employees)
-            .where(eq(employees.id, employeeId))
-            .limit(1);
+	if (!employeeId) {
+		return error(400, 'Employee ID is required');
+	}
 
-        if (!employee) {
-            return error(404, 'Employee not found');
-        }
+	try {
+		// Get the employee and verify ownership
+		const [employee] = await db
+			.select()
+			.from(employees)
+			.where(eq(employees.id, employeeId))
+			.limit(1);
 
-        // Verify the employee belongs to a game state owned by the current user
-        // This check happens through the game state relationship in the schema
+		if (!employee) {
+			return error(404, 'Employee not found');
+		}
 
-        // Get the active job for this employee if one exists
-        if (!employee.activeJobId) {
-            return json({ activeJob: null, route: null });
-        }
+		// Verify the employee belongs to a game state owned by the current user
+		// This check happens through the game state relationship in the schema
 
-        const [activeJobData] = await db
-            .select({
-                activeJob: activeJobs,
-                route: routes
-            })
-            .from(activeJobs)
-            .leftJoin(routes, eq(activeJobs.jobRouteId, routes.id))
-            .where(eq(activeJobs.id, employee.activeJobId))
-            .limit(1);
+		// Get the active job for this employee if one exists
+		if (!employee.activeJobId) {
+			return json({ activeJob: null, route: null });
+		}
 
-        if (!activeJobData) {
-            return json({ activeJob: null, route: null });
-        }
+		const [activeJobData] = await db
+			.select({
+				activeJob: activeJobs,
+				route: routes
+			})
+			.from(activeJobs)
+			.leftJoin(routes, eq(activeJobs.jobRouteId, routes.id))
+			.where(eq(activeJobs.id, employee.activeJobId))
+			.limit(1);
 
-        return json({
-            activeJob: activeJobData.activeJob,
-            route: activeJobData.route
-        });
+		if (!activeJobData) {
+			return json({ activeJob: null, route: null });
+		}
 
-    } catch (err) {
-        console.error('Error fetching employee active job:', err);
-        return error(500, 'Failed to fetch employee active job');
-    }
-}; 
+		return json({
+			activeJob: activeJobData.activeJob,
+			route: activeJobData.route
+		});
+	} catch (err) {
+		console.error('Error fetching employee active job:', err);
+		return error(500, 'Failed to fetch employee active job');
+	}
+};

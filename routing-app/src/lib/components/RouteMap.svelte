@@ -6,11 +6,7 @@
 	import { selectedEmployee } from '$lib/stores/selectedEmployee';
 	import { selectedRoute, selectRoute } from '$lib/stores/selectedRoute';
 	import { cheatSettings, activeTiles } from '$lib/stores/cheats';
-	import {
-		mapDisplaySettings,
-		displayedRoutes,
-		mapDisplayActions,
-	} from '$lib/stores/mapDisplay';
+	import { mapDisplaySettings, displayedRoutes, mapDisplayActions } from '$lib/stores/mapDisplay';
 	import { MapManager } from './map/MapManager';
 	import { JobLoader } from './map/JobLoader';
 	import MarkerRenderer from './map/MarkerRenderer.svelte';
@@ -359,7 +355,7 @@
 	<div class="mt-4">
 		<div class="card bg-base-200 shadow-sm">
 			<div class="card-body p-4">
-				<h4 class="card-title text-base-content/70 text-sm">
+				<h4 class="card-title text-sm text-base-content/70">
 					🗺️ Active Map Tiles ({$activeTiles.size})
 				</h4>
 				<div
@@ -369,7 +365,7 @@
 						<span class="badge badge-outline badge-sm">{tile}</span>
 					{/each}
 					{#if $activeTiles.size === 0}
-						<span class="text-base-content/50 text-xs">No active tiles</span>
+						<span class="text-xs text-base-content/50">No active tiles</span>
 					{/if}
 				</div>
 			</div>

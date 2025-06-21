@@ -203,7 +203,7 @@
 </script>
 
 {#if $selectedJob}
-	<div class="card bg-base-100 border-base-300 border shadow-lg">
+	<div class="card border border-base-300 bg-base-100 shadow-lg">
 		<div class="card-body p-4">
 			<!-- Header with tier badge and close button -->
 			<div class="mb-3 flex items-center justify-between">
@@ -214,12 +214,12 @@
 					>
 						Tier {$selectedJob.jobTier}
 					</span>
-					<span class="text-base-content text-lg font-semibold">
+					<span class="text-lg font-semibold text-base-content">
 						{getCategoryName($selectedJob.jobCategory)}
 					</span>
 				</div>
 				<button
-					class="btn btn-sm btn-ghost btn-circle"
+					class="btn btn-circle btn-ghost btn-sm"
 					on:click={handleCancel}
 					title="Close job details"
 				>
@@ -230,29 +230,29 @@
 			<!-- Job details grid -->
 			<div class="mb-4 grid grid-cols-2 gap-4 text-sm">
 				<div class="text-center">
-					<div class="text-base-content/60 text-xs font-medium">Reward</div>
-					<div class="text-success text-lg font-bold">
+					<div class="text-xs font-medium text-base-content/60">Reward</div>
+					<div class="text-lg font-bold text-success">
 						{formatCurrency($selectedJob.approximateValue)}
 					</div>
 				</div>
 
 				<div class="text-center">
-					<div class="text-base-content/60 text-xs font-medium">Distance</div>
-					<div class="text-info text-lg font-bold">
+					<div class="text-xs font-medium text-base-content/60">Distance</div>
+					<div class="text-lg font-bold text-info">
 						{formatDistance($selectedJob.totalDistanceKm)}
 					</div>
 				</div>
 
 				<div class="text-center">
-					<div class="text-base-content/60 text-xs font-medium">Duration</div>
-					<div class="text-warning text-lg font-bold">
+					<div class="text-xs font-medium text-base-content/60">Duration</div>
+					<div class="text-lg font-bold text-warning">
 						{formatTime($selectedJob.totalTimeSeconds)}
 					</div>
 				</div>
 
 				<div class="text-center">
-					<div class="text-base-content/60 text-xs font-medium">Job ID</div>
-					<div class="text-base-content text-base font-bold">
+					<div class="text-xs font-medium text-base-content/60">Job ID</div>
+					<div class="text-base font-bold text-base-content">
 						#{$selectedJob.id}
 					</div>
 				</div>
@@ -355,12 +355,12 @@
 			</div>
 
 			<!-- Additional info -->
-			<div class="text-base-content/70 mt-3 text-xs">
+			<div class="mt-3 text-xs text-base-content/70">
 				Posted: {new Date($selectedJob.timeGenerated).toLocaleDateString()}
 
 				{#if activeJobsForJob.length > 0}
 					<br />
-					<span class="badge badge-sm badge-outline">
+					<span class="badge badge-outline badge-sm">
 						{activeJobsForJob.length} active assignment{activeJobsForJob.length === 1 ? '' : 's'}
 					</span>
 				{/if}

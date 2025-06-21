@@ -6,22 +6,26 @@ A SvelteKit application with Auth.js for authentication, PostgreSQL for database
 
 1. Clone the repository
 2. Install dependencies:
+
    ```bash
    npm install
    ```
 
 3. Start the PostgreSQL database:
+
    ```bash
    cd ../routing_server
    docker compose up -d postgres
    ```
 
 4. Generate a secure Auth.js secret:
+
    ```bash
    npm run generate-auth-secret
    ```
 
 5. Create a `.env` file in the root directory with the following:
+
    ```
    DATABASE_URL="postgresql://routing_user:routing_password@localhost:5432/routing_game"
    AUTH_SECRET="paste-your-generated-secret-here"
@@ -38,6 +42,7 @@ A SvelteKit application with Auth.js for authentication, PostgreSQL for database
 ## Development
 
 Run the development server:
+
 ```bash
 npm run dev
 ```
@@ -45,6 +50,7 @@ npm run dev
 ## Authentication
 
 This project uses Auth.js for authentication with the following features:
+
 - Credential-based authentication (username/password)
 - Session stored in PostgreSQL database
 - Protected routes
@@ -53,6 +59,7 @@ This project uses Auth.js for authentication with the following features:
 ## Database
 
 The application uses:
+
 - PostgreSQL for database storage
 - Drizzle ORM for database access
 - JSONB for storing complex data structures

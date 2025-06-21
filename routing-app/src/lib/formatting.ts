@@ -6,13 +6,13 @@ import type { Address } from './types';
  * @returns Formatted currency string
  */
 export function formatMoney(amount: number | string): string {
-    const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'EUR',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    }).format(numericAmount);
+	const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+	return new Intl.NumberFormat('en-US', {
+		style: 'currency',
+		currency: 'EUR',
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2
+	}).format(numericAmount);
 }
 
 /**
@@ -21,13 +21,13 @@ export function formatMoney(amount: number | string): string {
  * @returns Formatted currency string
  */
 export function formatCurrency(value: string | number | null | undefined): string {
-    if (value == null) return '€0.00';
-    const numValue = typeof value === 'string' ? parseFloat(value) : value;
-    if (isNaN(numValue)) return '€0.00';
-    return new Intl.NumberFormat('en-US', { 
-        style: 'currency', 
-        currency: 'EUR' 
-    }).format(numValue);
+	if (value == null) return '€0.00';
+	const numValue = typeof value === 'string' ? parseFloat(value) : value;
+	if (isNaN(numValue)) return '€0.00';
+	return new Intl.NumberFormat('en-US', {
+		style: 'currency',
+		currency: 'EUR'
+	}).format(numValue);
 }
 
 /**
@@ -36,10 +36,10 @@ export function formatCurrency(value: string | number | null | undefined): strin
  * @returns Formatted distance string (e.g., "5.2 km")
  */
 export function formatDistance(distanceKm: string | number | null | undefined): string {
-    if (distanceKm == null) return '0.0 km';
-    const numValue = typeof distanceKm === 'string' ? parseFloat(distanceKm) : distanceKm;
-    if (isNaN(numValue)) return '0.0 km';
-    return `${numValue.toFixed(1)} km`;
+	if (distanceKm == null) return '0.0 km';
+	const numValue = typeof distanceKm === 'string' ? parseFloat(distanceKm) : distanceKm;
+	if (isNaN(numValue)) return '0.0 km';
+	return `${numValue.toFixed(1)} km`;
 }
 
 /**
@@ -48,17 +48,17 @@ export function formatDistance(distanceKm: string | number | null | undefined): 
  * @returns Formatted time string (e.g., "2h 30m", "25m")
  */
 export function formatTime(timeSeconds: string | number | null | undefined): string {
-    if (timeSeconds == null) return '0m';
-    const numValue = typeof timeSeconds === 'string' ? parseFloat(timeSeconds) : timeSeconds;
-    if (isNaN(numValue)) return '0m';
-    const hours = Math.floor(numValue / 3600);
-    const minutes = Math.floor((numValue % 3600) / 60);
-    
-    if (hours > 0) {
-        return `${hours}h ${minutes}m`;
-    } else {
-        return `${minutes}m`;
-    }
+	if (timeSeconds == null) return '0m';
+	const numValue = typeof timeSeconds === 'string' ? parseFloat(timeSeconds) : timeSeconds;
+	if (isNaN(numValue)) return '0m';
+	const hours = Math.floor(numValue / 3600);
+	const minutes = Math.floor((numValue % 3600) / 60);
+
+	if (hours > 0) {
+		return `${hours}h ${minutes}m`;
+	} else {
+		return `${minutes}m`;
+	}
 }
 
 /**
@@ -67,11 +67,11 @@ export function formatTime(timeSeconds: string | number | null | undefined): str
  * @returns Formatted address string
  */
 export function formatAddress(address: Address): string {
-    const parts = [];
-    if (address.street) parts.push(address.street);
-    if (address.house_number) parts.push(address.house_number);
-    if (address.city) parts.push(address.city);
-    return parts.join(' ') || `${address.lat.toFixed(4)}, ${address.lon.toFixed(4)}`;
+	const parts = [];
+	if (address.street) parts.push(address.street);
+	if (address.house_number) parts.push(address.house_number);
+	if (address.city) parts.push(address.city);
+	return parts.join(' ') || `${address.lat.toFixed(4)}, ${address.lon.toFixed(4)}`;
 }
 
 /**
@@ -80,18 +80,18 @@ export function formatAddress(address: Address): string {
  * @returns Formatted time string (e.g., "2h 30m 45s", "5m 30s", "45s")
  */
 export function formatTimeFromMs(milliseconds: number): string {
-    const totalSeconds = Math.round(milliseconds / 1000); // Round to nearest integer
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
+	const totalSeconds = Math.round(milliseconds / 1000); // Round to nearest integer
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	const seconds = totalSeconds % 60;
 
-    if (hours > 0) {
-        return `${hours}h ${minutes}m ${seconds}s`;
-    } else if (minutes > 0) {
-        return `${minutes}m ${seconds}s`;
-    } else {
-        return `${seconds}s`;
-    }
+	if (hours > 0) {
+		return `${hours}h ${minutes}m ${seconds}s`;
+	} else if (minutes > 0) {
+		return `${minutes}m ${seconds}s`;
+	} else {
+		return `${seconds}s`;
+	}
 }
 
 /**
@@ -100,21 +100,21 @@ export function formatTimeFromMs(milliseconds: number): string {
  * @returns Formatted time string (e.g., "2h 30m", "25m", "45s")
  */
 export function formatTimeFromSeconds(seconds: number): string {
-    const totalSeconds = Math.round(seconds); // Round to nearest integer
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const remainingSeconds = totalSeconds % 60;
+	const totalSeconds = Math.round(seconds); // Round to nearest integer
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	const remainingSeconds = totalSeconds % 60;
 
-    if (hours > 0) {
-        // For hours, only show minutes if there are any, no seconds
-        return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
-    } else if (minutes > 0) {
-        // For minutes, round to nearest minute unless it's less than 1 minute
-        return `${minutes}m`;
-    } else {
-        // Only show seconds for very short durations
-        return `${remainingSeconds}s`;
-    }
+	if (hours > 0) {
+		// For hours, only show minutes if there are any, no seconds
+		return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+	} else if (minutes > 0) {
+		// For minutes, round to nearest minute unless it's less than 1 minute
+		return `${minutes}m`;
+	} else {
+		// Only show seconds for very short durations
+		return `${remainingSeconds}s`;
+	}
 }
 
 /**
@@ -123,21 +123,21 @@ export function formatTimeFromSeconds(seconds: number): string {
  * @returns Formatted time string (e.g., "2h 30m", "25m 34s", "45s")
  */
 export function formatRouteDuration(seconds: number): string {
-    const totalSeconds = Math.floor(seconds); // Floor to remove decimals
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const remainingSeconds = totalSeconds % 60;
+	const totalSeconds = Math.floor(seconds); // Floor to remove decimals
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	const remainingSeconds = totalSeconds % 60;
 
-    if (hours > 0) {
-        // For hours, only show minutes (no seconds for readability)
-        return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
-    } else if (minutes > 0) {
-        // Show minutes and seconds
-        return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
-    } else {
-        // Show seconds only
-        return `${remainingSeconds}s`;
-    }
+	if (hours > 0) {
+		// For hours, only show minutes (no seconds for readability)
+		return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+	} else if (minutes > 0) {
+		// Show minutes and seconds
+		return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+	} else {
+		// Show seconds only
+		return `${remainingSeconds}s`;
+	}
 }
 
 /**
@@ -146,11 +146,11 @@ export function formatRouteDuration(seconds: number): string {
  * @returns Formatted weight string (e.g., "1.5t", "500kg")
  */
 export function formatWeight(weight: number | string): string {
-    const numericWeight = typeof weight === 'string' ? parseFloat(weight) : weight;
-    if (numericWeight >= 1000) {
-        return `${(numericWeight / 1000).toFixed(1)}t`;
-    }
-    return `${numericWeight}kg`;
+	const numericWeight = typeof weight === 'string' ? parseFloat(weight) : weight;
+	if (numericWeight >= 1000) {
+		return `${(numericWeight / 1000).toFixed(1)}t`;
+	}
+	return `${numericWeight}kg`;
 }
 
 /**
@@ -159,20 +159,20 @@ export function formatWeight(weight: number | string): string {
  * @returns Formatted time string (e.g., "2h 30m", "5m 30s", "45s", "Arriving")
  */
 export function formatTimeRemaining(seconds: number | string): string {
-    const numericSeconds = typeof seconds === 'string' ? parseFloat(seconds) : seconds;
-    if (numericSeconds <= 0) return 'Arriving';
-    
-    const hours = Math.floor(numericSeconds / 3600);
-    const minutes = Math.floor((numericSeconds % 3600) / 60);
-    const remainingSeconds = Math.floor(numericSeconds % 60);
+	const numericSeconds = typeof seconds === 'string' ? parseFloat(seconds) : seconds;
+	if (numericSeconds <= 0) return 'Arriving';
 
-    if (hours > 0) {
-        return `${hours}h ${minutes}m`;
-    } else if (minutes > 0) {
-        return `${minutes}m ${remainingSeconds}s`;
-    } else {
-        return `${remainingSeconds}s`;
-    }
+	const hours = Math.floor(numericSeconds / 3600);
+	const minutes = Math.floor((numericSeconds % 3600) / 60);
+	const remainingSeconds = Math.floor(numericSeconds % 60);
+
+	if (hours > 0) {
+		return `${hours}h ${minutes}m`;
+	} else if (minutes > 0) {
+		return `${minutes}m ${remainingSeconds}s`;
+	} else {
+		return `${remainingSeconds}s`;
+	}
 }
 
 /**
@@ -181,13 +181,13 @@ export function formatTimeRemaining(seconds: number | string): string {
  * @returns Compact formatted currency string (e.g., "€1.2k", "€500")
  */
 export function formatJobCurrency(value: string | number | undefined | null): string {
-    if (value === undefined || value === null) return '€0';
-    const numValue = typeof value === 'string' ? parseFloat(value) : value;
-    if (isNaN(numValue)) return '€0';
-    if (numValue >= 1000) {
-        return `€${(numValue / 1000).toFixed(1)}k`;
-    }
-    return `€${numValue.toFixed(0)}`;
+	if (value === undefined || value === null) return '€0';
+	const numValue = typeof value === 'string' ? parseFloat(value) : value;
+	if (isNaN(numValue)) return '€0';
+	if (numValue >= 1000) {
+		return `€${(numValue / 1000).toFixed(1)}k`;
+	}
+	return `€${numValue.toFixed(0)}`;
 }
 
 /**
@@ -196,7 +196,7 @@ export function formatJobCurrency(value: string | number | undefined | null): st
  * @returns Roman numeral string (e.g., "I", "II", "III", etc.)
  */
 export function toRomanNumeral(tier: number | undefined | null): string {
-    if (tier == null || isNaN(tier)) return '?';
-    const romanNumerals = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
-    return romanNumerals[tier] || tier.toString();
-} 
+	if (tier == null || isNaN(tier)) return '?';
+	const romanNumerals = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+	return romanNumerals[tier] || tier.toString();
+}
