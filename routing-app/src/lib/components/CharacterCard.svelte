@@ -1,6 +1,6 @@
 <script lang="ts">
     import { createEventDispatcher } from 'svelte';
-    import type { GameState } from '$lib/types';
+    import type { GameState } from '$lib/server/db/schema';
     
     export let character: GameState;
     
@@ -25,13 +25,13 @@
         dispatch('select', { id: character.id, name: character.name });
     }
     
-    function formatMoney(amount: number): string {
+    function formatMoney(amount: string | number): string {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
             currency: 'EUR',
             minimumFractionDigits: 0,
             maximumFractionDigits: 0
-        }).format(amount);
+        }).format(Number(amount));
     }
     
     function formatDate(date: string | Date): string {

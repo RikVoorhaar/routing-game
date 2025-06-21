@@ -3,7 +3,7 @@ import {
 	primaryKey,
 	pgTable,
 	text,
-	numeric,
+	doublePrecision,
 	timestamp,
 	boolean,
 	jsonb,
@@ -11,9 +11,41 @@ import {
 	serial,
 	varchar,
   } from 'drizzle-orm/pg-core';
-  import { sql } from 'drizzle-orm';
+  import { sql, type InferSelectModel } from 'drizzle-orm';
   import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-  
+  import type { RoutingResult } from '../../types';
+  import type { JobCategory } from '../../jobCategories';
+
+  // JSONB Type Interfaces
+  export interface LevelXP {
+    level: number;
+    xp: number;
+  }
+
+  export interface CategoryLevels {
+    [JobCategory.GROCERIES]: LevelXP;
+    [JobCategory.PACKAGES]: LevelXP;
+    [JobCategory.FOOD]: LevelXP;
+    [JobCategory.FURNITURE]: LevelXP;
+    [JobCategory.PEOPLE]: LevelXP;
+    [JobCategory.FRAGILE_GOODS]: LevelXP;
+    [JobCategory.CONSTRUCTION]: LevelXP;
+    [JobCategory.LIQUIDS]: LevelXP;
+    [JobCategory.TOXIC_GOODS]: LevelXP;
+  }
+
+  export interface UpgradeState {
+    [JobCategory.GROCERIES]: number;
+    [JobCategory.PACKAGES]: number;
+    [JobCategory.FOOD]: number;
+    [JobCategory.FURNITURE]: number;
+    [JobCategory.PEOPLE]: number;
+    [JobCategory.FRAGILE_GOODS]: number;
+    [JobCategory.CONSTRUCTION]: number;
+    [JobCategory.LIQUIDS]: number;
+    [JobCategory.TOXIC_GOODS]: number;
+  }
+
   // Users table - core user data
   export const users = pgTable('user', {
 	id: text('id').notNull().primaryKey(),
@@ -35,8 +67,8 @@ import {
 	city: varchar('city'),
 	// PostGIS geometry column for efficient spatial queries
 	location: text('location').notNull(), // POINT geometry as text (handled by PostGIS)
-	lat: numeric('lat').notNull(),
-	lon: numeric('lon').notNull(),
+	lat: doublePrecision('lat').notNull(),
+	lon: doublePrecision('lon').notNull(),
 	createdAt: timestamp('created_at', { withTimezone: false })
 	  .notNull()
 	  .default(sql`CURRENT_TIMESTAMP`),
@@ -57,7 +89,7 @@ import {
 	createdAt: timestamp('created_at', { withTimezone: true })
 	  .notNull()
 	  .default(sql`CURRENT_TIMESTAMP`),
-	money: numeric('money').notNull().default('0'),
+	money: doublePrecision('money').notNull().default(0),
 	routeLevel: integer('route_level').notNull().default(3),
   });
   
@@ -70,11 +102,11 @@ import {
 	endAddressId: varchar('end_address_id')
 	  .notNull()
 	  .references(() => addresses.id, { onDelete: 'cascade' }),
-	lengthTime: numeric('length_time').notNull(), // in seconds (can be floating point)
+	lengthTime: doublePrecision('length_time').notNull(), // in seconds (can be floating point)
 	goodsType: text('goods_type').notNull(),
-	weight: numeric('weight').notNull(),
-	reward: numeric('reward').notNull(),
-	routeData: jsonb('route_data').notNull(), // JSONB: Route data
+	weight: doublePrecision('weight').notNull(),
+	reward: doublePrecision('reward').notNull(),
+	routeData: jsonb('route_data').$type<RoutingResult>().notNull(), // JSONB: Route data
   }, (table) => [
 	index('routes_start_address_idx').on(table.startAddressId),
 	index('routes_end_address_idx').on(table.endAddressId),
@@ -94,12 +126,11 @@ import {
 	  .notNull()
 	  .references(() => routes.id, { onDelete: 'cascade' }),
 	startTime: timestamp('start_time', { withTimezone: true })
-	  .notNull()
 	  .default(sql`CURRENT_TIMESTAMP`),
 	endTime: timestamp('end_time', { withTimezone: true }), // null if not completed
 	// Modified route data with employee speed/modifiers applied
-	modifiedRouteToJobData: jsonb('modified_route_to_job_data'), // null if no route to job
-	modifiedJobRouteData: jsonb('modified_job_route_data').notNull(),
+	modifiedRouteToJobData: jsonb('modified_route_to_job_data').$type<RoutingResult | null>(), // null if no route to job
+	modifiedJobRouteData: jsonb('modified_job_route_data').$type<RoutingResult>().notNull(),
 	// Current phase: 'traveling_to_job' or 'on_job'
 	currentPhase: text('current_phase').notNull().default('traveling_to_job'), // 'traveling_to_job' | 'on_job'
 	// Time when the job phase started (for tracking progress within each phase)
@@ -120,13 +151,14 @@ import {
 	name: text('name').notNull(),
 	vehicleLevel: integer('vehicle_level').notNull().default(0), // VehicleType enum
 	licenseLevel: integer('license_level').notNull().default(0), // LicenseType enum
-	categoryLevel: jsonb('category_level').notNull(), // JSONB: Record<JobCategory, { level: number, xp: number }>
-	drivingLevel: jsonb('driving_level').notNull(), // JSONB: { level: number, xp: number }
-	upgradeState: jsonb('upgrade_state').notNull(), // JSONB: Record<JobCategory, number> (upgrade levels)
-	location: jsonb('location'), // JSONB: Address | null
+	categoryLevel: jsonb('category_level').$type<CategoryLevels>().notNull(), // JSONB: Record<JobCategory, { level: number, xp: number }>
+	drivingLevel: jsonb('driving_level').$type<LevelXP>().notNull(), // JSONB: { level: number, xp: number }
+	upgradeState: jsonb('upgrade_state').$type<UpgradeState>().notNull(), // JSONB: Record<JobCategory, number> (upgrade levels)
+	location: jsonb('location').$type<Address | null>(), // JSONB: Address | null
 	activeJobId: text('active_job_id')
 	  .references(() => activeJobs.id, { onDelete: 'set null' }), // null if no active job
   });
+
   
   // Jobs table - generated jobs for the job market with spatial indexing
   export const jobs = pgTable('job', {
@@ -144,12 +176,12 @@ import {
 	  .references(() => routes.id, { onDelete: 'cascade' }),
 	jobTier: integer('job_tier').notNull(),
 	jobCategory: integer('job_category').notNull(), // Refers to JobCategory enum
-	totalDistanceKm: numeric('total_distance_km').notNull(),
-	totalTimeSeconds: numeric('total_time_seconds').notNull(),
+	totalDistanceKm: doublePrecision('total_distance_km').notNull(),
+	totalTimeSeconds: doublePrecision('total_time_seconds').notNull(),
 	timeGenerated: timestamp('time_generated', { withTimezone: true })
 	  .notNull()
 	  .default(sql`CURRENT_TIMESTAMP`),
-	approximateValue: numeric('approximate_value').notNull(),
+	approximateValue: doublePrecision('approximate_value').notNull(),
   }, (table) => [
 	// Regular indexes
 	index('jobs_tier_idx').on(table.jobTier),
@@ -237,3 +269,28 @@ export async function createSpatialIndexes(db: PostgresJsDatabase<Record<string,
   
   console.log('Spatial indexes created successfully');
 } 
+export interface Coordinate {
+    lat: number;
+    lon: number;
+}
+
+export interface PathPoint {
+    coordinates: Coordinate;
+    cumulative_time_seconds: number;
+    cumulative_distance_meters: number;
+    max_speed_kmh: number;
+    is_walking_segment: boolean;
+}
+
+export interface RoutingResult {
+    path: PathPoint[];
+    travelTimeSeconds: number;
+    totalDistanceMeters: number;
+    destination: Address;
+}
+export type Employee = InferSelectModel<typeof employees>;
+export type Job = InferSelectModel<typeof jobs>;
+export type GameState = InferSelectModel<typeof gameStates>;
+export type Address = InferSelectModel<typeof addresses>;
+export type Route = InferSelectModel<typeof routes>;
+export type ActiveJob = InferSelectModel<typeof activeJobs>;

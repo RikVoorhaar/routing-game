@@ -3,7 +3,7 @@
     import { page } from '$app/stores';
     import CharacterCard from './CharacterCard.svelte';
     import { gameDataActions, gameDataAPI, cheatsEnabled, availableGameStates } from '$lib/stores/gameData';
-    import type { GameState } from '$lib/types';
+    import type { GameState } from '$lib/server/db/schema';
     import { onMount } from 'svelte';
     
     export let gameStates: GameState[];

@@ -7,9 +7,9 @@
     import { selectEmployee } from '$lib/stores/selectedEmployee';
     import { selectedEmployee } from '$lib/stores/selectedEmployee';
     import { selectedJob, selectJob } from '$lib/stores/selectedJob';
-    import { DEFAULT_EMPLOYEE_LOCATION } from '$lib/types';
+    import { DEFAULT_EMPLOYEE_LOCATION } from '$lib/employeeUtils';
     import { log } from '$lib/logger';
-    import type { Employee, Route, PathPoint, Address, Coordinate, Job } from '$lib/types';
+    import type { Employee, Route, PathPoint, Address, Coordinate, Job } from '$lib/server/db/schema';
 
     export let map: any;
     export let L: any;

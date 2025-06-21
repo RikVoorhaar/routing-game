@@ -1,6 +1,5 @@
 import { writable, derived, get } from 'svelte/store';
-import type { GameState, Route, Job } from '$lib/types';
-import type { Employee } from '$lib/employeeUtils';
+import type { GameState, Route, Job, Employee } from '$lib/server/db/schema';
 import { addError } from './errors';
 import { log } from '$lib/logger';
 
@@ -114,7 +113,7 @@ export const gameDataActions = {
     updateMoney(newAmount: number) {
         currentGameState.update(gameState => {
             if (!gameState) return null;
-            return { ...gameState, money: newAmount };
+            return { ...gameState, money: String(newAmount) };
         });
     },
 
@@ -122,7 +121,7 @@ export const gameDataActions = {
     addMoney(amount: number) {
         currentGameState.update(gameState => {
             if (!gameState) return null;
-            return { ...gameState, money: Math.max(0, gameState.money + amount) };
+            return { ...gameState, money: String(Math.max(0, Number(gameState.money) + amount)) };
         });
     },
 

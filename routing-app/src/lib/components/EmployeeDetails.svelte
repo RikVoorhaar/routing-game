@@ -5,7 +5,6 @@
     getEmployeeVehicleConfig, 
     getEmployeeCapacity,
     canEmployeeDoJobCategory,
-    type Employee
   } from '$lib/employeeUtils';
   import { 
     VehicleType, 
@@ -19,34 +18,28 @@
     getUpgradeInfo
   } from '$lib/upgrades';
   import { JobCategory, CATEGORY_NAMES, CATEGORY_ICONS } from '$lib/jobCategories';
-  import type { Route, Address } from '$lib/types';
+  import type { Address, Employee ,ActiveJob} from '$lib/server/db/schema';
 
   export let employee: Employee | null = null;
-  export let currentRoute: Route | null = null;
-  export let gameStateId: string;
+  export let activeJob: ActiveJob | null = null;
 
-  const dispatch = createEventDispatcher<{
-    purchaseLicense: { employeeId: string; licenseType: LicenseType };
-    purchaseVehicle: { employeeId: string; vehicleType: VehicleType };
-    purchaseUpgrade: { employeeId: string; category: JobCategory };
-  }>();
+
 
   let activeTab: 'route' | 'levels' | 'upgrades' = 'route';
 
   // Route progress calculation
-  $: routeProgress = currentRoute && currentRoute.startTime ? 
-    calculateRouteProgress(currentRoute) : null;
+  $: routeProgress = activeJob && activeJob.startTime ? 
+    calculateRouteProgress(activeJob) : null;
 
-  function calculateRouteProgress(route: Route) {
-    if (!route.startTime) return null;
+  function calculateRouteProgress(activeJob: ActiveJob) {
+    if (!activeJob.startTime || !activeJob.endTime) return null;
     
-    const startTime = new Date(route.startTime).getTime();
+    const startTime = new Date(activeJob.startTime).getTime();
+    const endTime = new Date(activeJob.endTime).getTime();
     const currentTime = Date.now();
-    
-    const routeLengthTime = typeof route.lengthTime === 'string' ? parseFloat(route.lengthTime) : route.lengthTime;
-    const totalDuration = routeLengthTime * 1000;
-    
+
     const elapsed = currentTime - startTime;
+    const totalDuration = new Date(endTime).getTime() - startTime;
     const progress = Math.min(100, (elapsed / totalDuration) * 100);
     const remainingTime = Math.max(0, totalDuration - elapsed);
     
@@ -57,19 +50,6 @@
     };
   }
 
-  function formatLocation(location: any): string {
-    try {
-      if (typeof location === 'string') {
-        return formatAddress(JSON.parse(location));
-      } else if (typeof location === 'object') {
-        return formatAddress(location as Address);
-      } else {
-        return 'Unknown location';
-      }
-    } catch (e) {
-      return 'Unknown location';
-    }
-  }
 
   function getNextLicense(currentLicense: LicenseType): LicenseType | null {
     const nextLevel = currentLicense + 1;
@@ -91,18 +71,15 @@
   }
 
   function handlePurchaseLicense(licenseType: LicenseType) {
-    if (!employee) return;
-    dispatch('purchaseLicense', { employeeId: employee.id, licenseType });
+    // TODO: Implement license purchase
   }
 
   function handlePurchaseVehicle(vehicleType: VehicleType) {
-    if (!employee) return;
-    dispatch('purchaseVehicle', { employeeId: employee.id, vehicleType });
+    // TODO: Implement vehicle purchase
   }
 
   function handlePurchaseUpgrade(category: JobCategory) {
-    if (!employee) return;
-    dispatch('purchaseUpgrade', { employeeId: employee.id, category });
+    // TODO: Implement upgrade purchase
   }
 </script>
 
@@ -142,7 +119,7 @@
       <!-- Tab Content -->
       {#if activeTab === 'route'}
         <div class="space-y-4">
-          {#if currentRoute}
+          {#if activeJob}
             <div>
               <div class="flex justify-between items-center mb-2">
                 <span class="font-medium">Route Progress</span>

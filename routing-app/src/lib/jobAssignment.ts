@@ -1,5 +1,4 @@
-import type { Employee } from '$lib/employeeUtils';
-import type { Job } from '$lib/types';
+import type { Employee, Job } from '$lib/server/db/schema';
 import { JobCategory } from '$lib/jobCategories';
 import { canEmployeeDoJobCategory, getEmployeeMaxSpeed } from '$lib/employeeUtils';
 

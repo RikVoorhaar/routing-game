@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
-    import { computeEmployeeCosts } from '$lib/types';
+    import { computeEmployeeCosts } from '$lib/employeeUtils';
     import { formatMoney } from '$lib/formatting';
     import EmployeeCard from './EmployeeCard.svelte';
     import EmployeeDetails from './EmployeeDetails.svelte';
@@ -20,7 +20,7 @@
         getEmployeeRoutes 
     } from '$lib/stores/gameData';
     import { selectedEmployee } from '$lib/stores/selectedEmployee';
-    import type { GameState, Employee } from '$lib/types';
+    import type { GameState, Employee } from '$lib/server/db/schema';
 
     // Props for initial data - we'll move this to stores
     export let gameState: GameState;

@@ -2,10 +2,9 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { gameStates, employees, routes, activeJobs, addresses, jobs } from '$lib/server/db/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
-import { DEFAULT_EMPLOYEE_LOCATION, computeEmployeeCosts } from '$lib/types';
-import { createDefaultEmployee } from '$lib/employeeUtils';
+import { createDefaultEmployee, computeEmployeeCosts, DEFAULT_EMPLOYEE_LOCATION } from '$lib/employeeUtils';
 
 // POST /api/employees - Hire a new employee
 export const POST: RequestHandler = async ({ request, locals }) => {

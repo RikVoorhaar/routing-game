@@ -1,16 +1,10 @@
 import { db } from '$lib/server/db';
-import { routes, addresses, employees, jobs, gameStates } from '$lib/server/db/schema';
+import { routes, addresses } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { modifyRoute } from '$lib/jobAssignment';
 import { getShortestPath } from '$lib/routing';
-import type { InferSelectModel } from 'drizzle-orm';
-
-// Database schema types
-type Employee = InferSelectModel<typeof employees>;
-type Job = InferSelectModel<typeof jobs>;
-type GameState = InferSelectModel<typeof gameStates>;
-type Address = InferSelectModel<typeof addresses>;
+import type { Employee, Job, GameState, Address, Route } from '$lib/server/db/schema';
 
 export interface ActiveJobComputation {
 	activeJob: {
@@ -143,7 +137,9 @@ export async function computeActiveJob(
 	const routeToJobId = await createRouteToJob(employee, jobRoute.startAddressId);
 
 	// Get the route we just created
-	const [routeToJob] = await db.select().from(routes).where(eq(routes.id, routeToJobId)).limit(1);
+	const routeToJob: Route | undefined = await db.query.routes.findFirst({
+		where: eq(routes.id, routeToJobId)
+	});
 
 	if (!routeToJob) {
 		throw new Error('Failed to create route to job');
@@ -153,8 +149,8 @@ export async function computeActiveJob(
 	const originalRouteToJobData = routeToJob.routeData;
 	const originalJobRouteData = jobRoute.routeData;
 
-	const modifiedRouteToJobData = modifyRoute(originalRouteToJobData, employee as unknown);
-	const modifiedJobRouteData = modifyRoute(originalJobRouteData, employee as unknown);
+	const modifiedRouteToJobData = modifyRoute(originalRouteToJobData, employee);
+	const modifiedJobRouteData = modifyRoute(originalJobRouteData, employee);
 
 	// Compute timing
 	const timing = computeJobTiming(modifiedRouteToJobData, modifiedJobRouteData);
