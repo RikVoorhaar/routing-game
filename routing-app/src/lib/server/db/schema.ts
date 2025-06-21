@@ -112,7 +112,7 @@ export const routes = pgTable(
 	},
 	(table) => [
 		index('routes_start_address_idx').on(table.startAddressId),
-		index('routes_end_address_idx').on(table.endAddressId),
+		index('routes_end_address_idx').on(table.endAddressId)
 	]
 );
 

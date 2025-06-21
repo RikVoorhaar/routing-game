@@ -54,7 +54,7 @@ describe('addresses', () => {
 			]);
 
 			// All should be valid addresses
-			addresses.forEach(address => {
+			addresses.forEach((address) => {
 				expect(address).toHaveProperty('id');
 				expect(typeof address.lat).toBe('number');
 				expect(typeof address.lon).toBe('number');
@@ -62,7 +62,7 @@ describe('addresses', () => {
 
 			// With high probability, at least one should be different
 			// (This test might occasionally fail due to randomness, but very unlikely)
-			const uniqueIds = new Set(addresses.map(addr => addr.id));
+			const uniqueIds = new Set(addresses.map((addr) => addr.id));
 			expect(uniqueIds.size).toBeGreaterThan(1);
 		});
 
@@ -90,19 +90,19 @@ describe('addresses', () => {
 
 		it('should throw error for invalid distance parameters', async () => {
 			// Negative minimum distance
-			await expect(
-				getRandomAddressInAnnulus(center, -1, 2)
-			).rejects.toThrow('Minimum distance cannot be negative');
+			await expect(getRandomAddressInAnnulus(center, -1, 2)).rejects.toThrow(
+				'Minimum distance cannot be negative'
+			);
 
 			// Maximum distance <= minimum distance
-			await expect(
-				getRandomAddressInAnnulus(center, 2, 1)
-			).rejects.toThrow('Maximum distance must be greater than minimum distance');
+			await expect(getRandomAddressInAnnulus(center, 2, 1)).rejects.toThrow(
+				'Maximum distance must be greater than minimum distance'
+			);
 
 			// Equal distances
-			await expect(
-				getRandomAddressInAnnulus(center, 1, 1)
-			).rejects.toThrow('Maximum distance must be greater than minimum distance');
+			await expect(getRandomAddressInAnnulus(center, 1, 1)).rejects.toThrow(
+				'Maximum distance must be greater than minimum distance'
+			);
 		});
 
 		it('should throw error when no addresses found in annulus', async () => {
@@ -112,9 +112,9 @@ describe('addresses', () => {
 				lon: 0
 			};
 
-			await expect(
-				getRandomAddressInAnnulus(remoteCenter, 0.1, 1.0)
-			).rejects.toThrow('No address found in square annulus');
+			await expect(getRandomAddressInAnnulus(remoteCenter, 0.1, 1.0)).rejects.toThrow(
+				'No address found in square annulus'
+			);
 		});
 
 		it('should handle zero minimum distance', async () => {
@@ -128,4 +128,4 @@ describe('addresses', () => {
 			expect(typeof address.lon).toBe('number');
 		});
 	});
-}); 
+});

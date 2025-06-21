@@ -26,7 +26,10 @@ const command = args[0] || 'help';
 
 // Set up error logging
 const LOG_DIR = 'logs';
-const ERROR_LOG_FILE = path.join(LOG_DIR, `job-generator-errors-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.log`);
+const ERROR_LOG_FILE = path.join(
+	LOG_DIR,
+	`job-generator-errors-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.log`
+);
 
 // Ensure logs directory exists
 if (!fs.existsSync(LOG_DIR)) {
@@ -41,16 +44,18 @@ function logError(message: string, error?: Error | unknown, address?: Address) {
 		message,
 		error: error instanceof Error ? error.message : String(error),
 		stack: error instanceof Error ? error.stack : undefined,
-		address: address ? {
-			id: address.id,
-			street: address.street,
-			houseNumber: address.houseNumber,
-			city: address.city,
-			lat: address.lat,
-			lon: address.lon
-		} : undefined
+		address: address
+			? {
+					id: address.id,
+					street: address.street,
+					houseNumber: address.houseNumber,
+					city: address.city,
+					lat: address.lat,
+					lon: address.lon
+				}
+			: undefined
 	};
-	
+
 	fs.appendFileSync(ERROR_LOG_FILE, JSON.stringify(logEntry, null, 2) + '\n\n');
 }
 

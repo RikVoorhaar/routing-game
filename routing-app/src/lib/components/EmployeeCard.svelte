@@ -36,7 +36,6 @@
 	$: selectedRouteIsForThisEmployee =
 		$selectedRoute && availableRoutes.some((route) => route.id === $selectedRoute);
 
-
 	// Route progress calculation
 	$: routeProgress = currentRoute ? calculateRouteProgress(currentRoute) : null;
 

@@ -193,7 +193,9 @@ export async function generateJobFromAddress(
 		return true;
 	} catch (error) {
 		// Re-throw the error so it can be logged by the caller
-		throw new Error(`Job generation failed: ${error instanceof Error ? error.message : String(error)}`);
+		throw new Error(
+			`Job generation failed: ${error instanceof Error ? error.message : String(error)}`
+		);
 	}
 }
 

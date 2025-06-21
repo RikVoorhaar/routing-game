@@ -13,5 +13,5 @@ export default defineConfig({
 	},
 	verbose: true,
 	strict: true,
-	tablesFilter: ["!spatial_ref_sys", "!geography_columns", "!geometry_columns"]
+	tablesFilter: ['!spatial_ref_sys', '!geography_columns', '!geometry_columns']
 });

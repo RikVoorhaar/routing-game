@@ -93,7 +93,9 @@ export async function getRandomAddressInAnnulus(
 		`);
 
 		if (fallbackResult.length === 0) {
-			throw new Error(`No address found in square annulus: center=(${center.lat}, ${center.lon}), min=${minDistanceKm}km, max=${maxDistanceKm}km`);
+			throw new Error(
+				`No address found in square annulus: center=(${center.lat}, ${center.lon}), min=${minDistanceKm}km, max=${maxDistanceKm}km`
+			);
 		}
 
 		const row = fallbackResult[0] as {
@@ -142,4 +144,4 @@ export async function getRandomAddressInAnnulus(
 		lon: Number(row.lon),
 		createdAt: row.created_at
 	};
-} 
+}
