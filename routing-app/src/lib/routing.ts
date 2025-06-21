@@ -29,7 +29,7 @@ interface ServerPathPoint {
     is_walking_segment: boolean;
 }
 
-async function getShortestPath(from: Coordinate, to: Coordinate, maxSpeed?: number): Promise<RoutingResult> {
+export async function getShortestPath(from: Coordinate, to: Coordinate, maxSpeed?: number): Promise<RoutingResult> {
     let url = `${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`;
     
     if (maxSpeed !== undefined && maxSpeed > 0) {

@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Never run the job generator script yourself, becuase it takes a while to run and nukes the table when you run it. You have fucked up several times by running this without asking first.

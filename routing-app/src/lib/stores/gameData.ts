@@ -1,5 +1,5 @@
 import { writable, derived, get } from 'svelte/store';
-import type { GameState, Route } from '$lib/types';
+import type { GameState, Route, Job } from '$lib/types';
 import type { Employee } from '$lib/employeeUtils';
 import { addError } from './errors';
 import { log } from '$lib/logger';
@@ -48,7 +48,7 @@ export const cheatsEnabled = derived(currentUser, ($currentUser) => {
 });
 
 // Current map jobs store  
-export const currentMapJobs = writable<any[]>([]);
+export const currentMapJobs = writable<Job[]>([]);
 
 // Store actions for updating data
 export const gameDataActions = {
@@ -230,7 +230,7 @@ export const gameDataAPI = {
                 
                 // In the new job system, available routes are fetched from jobs dynamically
                 // rather than being pre-generated and stored with the employee
-                let availableRoutes: Route[] = [];
+                const availableRoutes: Route[] = [];
                 
                 // Get current route if employee has an active job
                 let currentRoute: Route | null = null;

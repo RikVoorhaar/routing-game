@@ -130,6 +130,12 @@ export async function generateJobFromAddress(startAddress: InferSelectModel<type
         const totalDistanceKm = routeResult.totalDistanceMeters / 1000;
         const totalTimeSeconds = routeResult.travelTimeSeconds;
         
+        // Validate travel time - if it's 0 or invalid, skip this job
+        if (!totalTimeSeconds || totalTimeSeconds <= 0) {
+            console.warn(`Invalid travel time for route: ${totalTimeSeconds} seconds, skipping job`);
+            return false;
+        }
+        
         // Distance validation: check if route distance is suspiciously high
         // Calculate straight-line distance between start and end using Turf.js
         const startPoint = [Number(startAddress.lon), Number(startAddress.lat)]; // [longitude, latitude] for Turf

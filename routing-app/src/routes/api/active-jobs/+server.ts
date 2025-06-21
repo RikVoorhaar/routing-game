@@ -1,11 +1,10 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { gameStates, employees, routes, activeJobs, addresses, jobs } from '$lib/server/db/schema';
+import { gameStates, employees, activeJobs, jobs } from '$lib/server/db/schema';
 import { eq, and, lt, desc, ne } from 'drizzle-orm';
-import { nanoid } from 'nanoid';
-import { modifyRoute } from '$lib/jobAssignment';
-import { getEmployeeMaxSpeed } from '$lib/employeeUtils';
+import { computeActiveJob } from '$lib/activeJobComputation';
+import type { Job } from '$lib/types';
 
 // GET /api/active-jobs?jobId=123&gameStateId=abc - Get active jobs for a specific job
 export const GET: RequestHandler = async ({ url, locals }) => {
@@ -138,14 +137,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             return json({ activeJob: existingActiveJob, isExisting: true });
         }
 
-        // Get the job details with its route
+        // Get the job details
         const [job] = await db
-            .select({
-                job: jobs,
-                route: routes
-            })
+            .select()
             .from(jobs)
-            .innerJoin(routes, eq(jobs.routeId, routes.id))
             .where(eq(jobs.id, jobId))
             .limit(1);
 
@@ -153,82 +148,33 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             return error(404, 'Job not found');
         }
 
-        // Parse employee location
-        let employeeLocation;
-        try {
-            if (typeof employee.location === 'string') {
-                employeeLocation = JSON.parse(employee.location);
-            } else {
-                employeeLocation = employee.location;
-            }
-        } catch {
-            return error(400, 'Invalid employee location format');
-        }
-
-        // Get start address for the job
-        const [startAddress] = await db
-            .select()
-            .from(addresses)
-            .where(eq(addresses.id, job.route.startAddressId))
-            .limit(1);
-
-        if (!startAddress) {
-            return error(404, 'Job start address not found');
-        }
-
-        // Determine if employee needs to travel to job start
-        let routeToJobId = null;
-        let needsTravel = false;
-
-        // Check if employee is already at the job start location (within 100m)
-        if (employeeLocation) {
-            const empLat = employeeLocation.lat || 0;
-            const empLon = employeeLocation.lon || 0;
-            const startLat = parseFloat(startAddress.lat);
-            const startLon = parseFloat(startAddress.lon);
-            
-            // Simple distance check (rough approximation)
-            const latDiff = Math.abs(empLat - startLat);
-            const lonDiff = Math.abs(empLon - startLon);
-            const distance = Math.sqrt(latDiff * latDiff + lonDiff * lonDiff) * 111000; // Convert to meters
-            
-            if (distance > 100) {
-                needsTravel = true;
-                // TODO: Generate route from employee location to job start
-                // For now, we'll skip the travel phase
-            }
-        }
-
-        // Create modified route data based on employee modifiers
-        const originalRouteData = job.route.routeData as any;
-        const modifiedJobRouteData = modifyRoute(originalRouteData, employee);
-
-        // Calculate total travel time and payout
-        const basePayout = parseFloat(job.route.reward);
-        const totalTravelTime = modifiedJobRouteData.travelTimeSeconds || 0;
-
-        // Create the active job
-        const activeJobId = nanoid();
-        const newActiveJob = {
-            id: activeJobId,
-            employeeId: employeeId,
-            jobId: jobId,
-            routeToJobId: routeToJobId,
-            jobRouteId: job.route.id,
-            startTime: new Date(),
-            endTime: null,
-            modifiedRouteToJobData: null, // No travel needed for now
-            modifiedJobRouteData: modifiedJobRouteData,
-            currentPhase: needsTravel ? 'traveling_to_job' : 'on_job' as const,
-            jobPhaseStartTime: needsTravel ? null : new Date()
+        // Type-cast job to match our Job interface
+        const typedJob: Job = {
+            id: job.id,
+            location: job.location,
+            startAddressId: job.startAddressId,
+            endAddressId: job.endAddressId,
+            routeId: job.routeId,
+            jobTier: job.jobTier,
+            jobCategory: job.jobCategory,
+            totalDistanceKm: job.totalDistanceKm,
+            totalTimeSeconds: job.totalTimeSeconds,
+            timeGenerated: job.timeGenerated,
+            approximateValue: job.approximateValue
         };
 
-        await db.insert(activeJobs).values(newActiveJob);
+        // Compute the active job using our new logic
+        const computation = await computeActiveJob(employee, typedJob, gameState);
+
+        // Insert the computed active job into the database
+        await db.insert(activeJobs).values(computation.activeJob);
 
         return json({
-            activeJob: newActiveJob,
-            totalTravelTime,
-            computedPayout: basePayout,
+            activeJob: computation.activeJob,
+            totalTravelTime: computation.totalTravelTime,
+            computedPayout: computation.computedPayout,
+            routeToJobTime: computation.routeToJobTime,
+            jobRouteTime: computation.jobRouteTime,
             isExisting: false
         });
 
@@ -308,19 +254,12 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 
             // Drop all active jobs for this job from other employees of the same user
             if (activeJob.jobId) {
-                const otherEmployees = await tx
-                    .select({ id: employees.id })
-                    .from(employees)
-                    .where(eq(employees.gameId, gameStateId));
-                
-                const otherEmployeeIds = otherEmployees.map(emp => emp.id);
-                
-                                 await tx.delete(activeJobs).where(
-                     and(
-                         eq(activeJobs.jobId, activeJob.jobId),
-                         ne(activeJobs.id, activeJobId) // Don't delete this one
-                     )
-                 );
+                await tx.delete(activeJobs).where(
+                    and(
+                        eq(activeJobs.jobId, activeJob.jobId),
+                        ne(activeJobs.id, activeJobId) // Don't delete this one
+                    )
+                );
             }
 
             // Update the active job start time to now
