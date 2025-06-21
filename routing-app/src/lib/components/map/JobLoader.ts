@@ -1,6 +1,6 @@
 import { cheatSettings } from '$lib/stores/cheats';
 import { get } from 'svelte/store';
-import type { Job } from '$lib/types';
+import type { Job } from '$lib/server/db/schema';
 
 /**
  * Result of loading jobs for tiles

@@ -1,5 +1,5 @@
 import { writable, derived } from 'svelte/store';
-import type { Route } from '$lib/types';
+import type { Route } from '$lib/server/db/schema';
 
 /**
  * Route display styling options

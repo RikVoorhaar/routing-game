@@ -11,7 +11,7 @@
 	import { JobLoader } from './map/JobLoader';
 	import MarkerRenderer from './map/MarkerRenderer.svelte';
 	import RouteRenderer from './map/RouteRenderer.svelte';
-	import type { Employee, Route, Address } from '$lib/types';
+	import type { Employee, Route, Address } from '$lib/server/db/schema';
 	import { log } from '$lib/logger';
 
 	// Animation configuration

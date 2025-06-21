@@ -13,9 +13,8 @@
 	import { formatCurrency, formatDistance, formatTime } from '$lib/formatting';
 	import { employeeCanPerformJob, sortEmployeesByDistanceFromJob } from '$lib/jobAssignment';
 	import { addError } from '$lib/stores/errors';
-	import type { Employee } from '$lib/employeeUtils';
+	import type { Employee } from '$lib/server/db/schema';
 	import type { ActiveJob } from '$lib/stores/activeJobs';
-	import type { Job } from '$lib/types';
 
 	let selectedEmployeeId: string | null = null;
 	let isLoadingActiveJobs = false;

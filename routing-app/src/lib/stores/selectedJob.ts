@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import type { Job } from '$lib/types';
+import type { Job } from '$lib/server/db/schema';
 
 // Store for the currently selected job
 export const selectedJob = writable<Job | undefined>(undefined);

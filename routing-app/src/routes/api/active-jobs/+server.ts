@@ -4,7 +4,7 @@ import { db } from '$lib/server/db';
 import { gameStates, employees, activeJobs, jobs } from '$lib/server/db/schema';
 import { eq, and, lt, desc, ne } from 'drizzle-orm';
 import { computeActiveJob } from '$lib/activeJobComputation';
-import type { Job } from '$lib/types';
+import type { Job } from '$lib/server/db/schema';
 
 // GET /api/active-jobs?jobId=123&gameStateId=abc - Get active jobs for a specific job
 export const GET: RequestHandler = async ({ url, locals }) => {

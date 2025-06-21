@@ -2,11 +2,10 @@
 	import { createEventDispatcher } from 'svelte';
 	import { onDestroy } from 'svelte';
 	import { selectedEmployee, selectEmployee } from '$lib/stores/selectedEmployee';
-	import type { Employee, Route, Address } from '$lib/types';
+	import type { Employee, Route, Address } from '$lib/server/db/schema';
 	import { addError } from '$lib/stores/errors';
 	import { selectedRoute, clearSelection } from '$lib/stores/selectedRoute';
 	import { formatMoney, formatAddress, formatTimeFromMs } from '$lib/formatting';
-	import RouteCard from './RouteCard.svelte';
 
 	export let employee: Employee;
 	export let availableRoutes: Route[] = [];

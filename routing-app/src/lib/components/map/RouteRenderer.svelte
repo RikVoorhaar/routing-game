@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { formatMoney } from '$lib/formatting';
-	import type { Route, PathPoint, Address } from '$lib/types';
+	import type { Route, PathPoint, Address } from '$lib/server/db/schema';
 	import { log } from '$lib/logger';
 
 	export let map: any;
