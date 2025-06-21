@@ -2,3 +2,6 @@
 osm_files/*
 build
 .vscode
+
+# Log files
+logs/

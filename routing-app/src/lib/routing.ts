@@ -1,5 +1,6 @@
 import { getRandomAddressInAnnulus } from './addresses';
-import type { Coordinate, RoutingResult, PathPoint } from './types';
+import type { Address } from './server/db/schema';
+import type { Coordinate, RoutingResult, PathPoint } from './server/db/schema';
 import http from 'http';
 
 const ROUTING_SERVER_URL = 'http://localhost:8050';
@@ -65,11 +66,22 @@ export async function getShortestPath(
 		travelTimeSeconds: data.travel_time_seconds,
 		totalDistanceMeters: data.total_distance_meters,
 		destination: {
-			id: data.destination_id,
+			id: data.destination_id || 'unknown',
+			street: null,
+			houseNumber: null,
+			postcode: null,
+			city: null,
+			location: `POINT(${to.lon} ${to.lat})`,
 			lat: to.lat,
-			lon: to.lon
+			lon: to.lon,
+			createdAt: new Date()
 		}
 	};
+}
+
+export interface RouteInAnnulus {
+	route: RoutingResult;
+	destination: Address;
 }
 
 export async function getRandomRouteInAnnulus(
@@ -77,7 +89,7 @@ export async function getRandomRouteInAnnulus(
 	minDistance: number,
 	maxDistance: number,
 	maxSpeed?: number
-): Promise<RoutingResult> {
+): Promise<RouteInAnnulus> {
 	// Get a random destination address in the annulus
 	const destination = await getRandomAddressInAnnulus(from, minDistance, maxDistance);
 
@@ -86,7 +98,7 @@ export async function getRandomRouteInAnnulus(
 
 	// Preserve the full destination address information
 	return {
-		...routingResult,
+		route: routingResult,
 		destination
 	};
 }

@@ -2,7 +2,7 @@
 	import { createEventDispatcher } from 'svelte';
 	import { onDestroy } from 'svelte';
 	import { selectedEmployee, selectEmployee } from '$lib/stores/selectedEmployee';
-	import type { Employee, Route, Address } from '$lib/server/db/schema';
+	import type { Employee, Route, Address, UpgradeState } from '$lib/server/db/schema';
 	import { addError } from '$lib/stores/errors';
 	import { selectedRoute, clearSelection } from '$lib/stores/selectedRoute';
 	import { formatMoney, formatAddress, formatTimeFromMs } from '$lib/formatting';
@@ -36,47 +36,9 @@
 	$: selectedRouteIsForThisEmployee =
 		$selectedRoute && availableRoutes.some((route) => route.id === $selectedRoute);
 
-	// Parse employee location - handle both SQLite (string) and PostgreSQL (object) formats
-	$: location = employee.location
-		? (() => {
-				try {
-					if (typeof employee.location === 'string') {
-						// SQLite format - parse JSON string
-						return JSON.parse(employee.location) as Address;
-					} else if (typeof employee.location === 'object') {
-						// PostgreSQL format - already an object
-						return employee.location as Address;
-					} else {
-						console.warn('Invalid location format for employee:', employee.name);
-						return null;
-					}
-				} catch (e) {
-					console.warn('Error parsing employee location:', employee.name, e);
-					return null;
-				}
-			})()
-		: null;
-	$: upgradeState = (() => {
-		try {
-			if (typeof employee.upgradeState === 'string') {
-				// SQLite format - parse JSON string
-				return JSON.parse(employee.upgradeState) as { vehicleType: string; capacity: number };
-			} else if (typeof employee.upgradeState === 'object') {
-				// PostgreSQL format - already an object
-				return employee.upgradeState as { vehicleType: string; capacity: number };
-			} else {
-				console.warn('Invalid upgradeState format for employee:', employee.name);
-				return { vehicleType: 'bicycle', capacity: 10 };
-			}
-		} catch (e) {
-			console.warn('Error parsing employee upgradeState:', employee.name, e);
-			return { vehicleType: 'bicycle', capacity: 10 };
-		}
-	})();
 
 	// Route progress calculation
-	$: routeProgress =
-		currentRoute && currentRoute.startTime ? calculateRouteProgress(currentRoute) : null;
+	$: routeProgress = currentRoute ? calculateRouteProgress(currentRoute) : null;
 
 	// Handle route completion with debouncing and state machine
 	$: {

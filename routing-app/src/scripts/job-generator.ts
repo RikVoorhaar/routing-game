@@ -2,10 +2,12 @@
 
 import { generateJobFromAddress, getJobsByValue, clearAllJobs } from '../lib/generateJobs.js';
 import { db, client } from '../lib/server/db/standalone.js';
-import { addresses } from '../lib/server/db/schema.js';
+import { addresses, type Address } from '../lib/server/db/schema';
 import { sql } from 'drizzle-orm';
 import { performance } from 'perf_hooks';
 import * as cliProgress from 'cli-progress';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // ANSI escape codes for terminal formatting
 const COLORS = {
@@ -21,6 +23,46 @@ const COLORS = {
 
 const args = process.argv.slice(2);
 const command = args[0] || 'help';
+
+// Set up error logging
+const LOG_DIR = 'logs';
+const ERROR_LOG_FILE = path.join(LOG_DIR, `job-generator-errors-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.log`);
+
+// Ensure logs directory exists
+if (!fs.existsSync(LOG_DIR)) {
+	fs.mkdirSync(LOG_DIR, { recursive: true });
+}
+
+// Create error logging function
+function logError(message: string, error?: Error | unknown, address?: Address) {
+	const timestamp = new Date().toISOString();
+	const logEntry = {
+		timestamp,
+		message,
+		error: error instanceof Error ? error.message : String(error),
+		stack: error instanceof Error ? error.stack : undefined,
+		address: address ? {
+			id: address.id,
+			street: address.street,
+			houseNumber: address.houseNumber,
+			city: address.city,
+			lat: address.lat,
+			lon: address.lon
+		} : undefined
+	};
+	
+	fs.appendFileSync(ERROR_LOG_FILE, JSON.stringify(logEntry, null, 2) + '\n\n');
+}
+
+// Wrapper function for job generation with error logging
+async function generateJobWithErrorLogging(address: Address): Promise<boolean> {
+	try {
+		return await generateJobFromAddress(address);
+	} catch (error) {
+		logError('Job generation failed', error, address);
+		return false;
+	}
+}
 
 // Parse arguments for generate command
 function parseGenerateArgs() {
@@ -53,21 +95,25 @@ function parseGenerateArgs() {
 async function main() {
 	try {
 		switch (command) {
-			case 'test':
+			case 'test': {
 				await testJobGeneration();
 				break;
-			case 'generate':
+			}
+			case 'generate': {
 				const { fraction } = parseGenerateArgs();
 				await generateJobsWithProgress(fraction);
 				break;
-			case 'clear':
+			}
+			case 'clear': {
 				await clearAllJobs();
 				break;
-			case 'stats':
+			}
+			case 'stats': {
 				await showJobStats();
 				break;
+			}
 			case 'help':
-			default:
+			default: {
 				console.log(`
 Job Generation Script
 
@@ -91,6 +137,7 @@ Examples:
 Note: Use -- to pass arguments through npm to the script
                 `);
 				break;
+			}
 		}
 	} finally {
 		// Close database connection
@@ -109,14 +156,15 @@ async function testJobGeneration() {
 
 		// Test generating a few individual jobs
 		let successCount = 0;
+		console.log(`📄 Error log file: ${ERROR_LOG_FILE}\n`);
 		for (const address of sampleAddresses) {
 			console.log(`Generating job from: ${address.street} ${address.houseNumber}, ${address.city}`);
-			const success = await generateJobFromAddress(address);
+			const success = await generateJobWithErrorLogging(address);
 			if (success) {
 				successCount++;
 				console.log('✓ Job generated successfully');
 			} else {
-				console.log('✗ Job generation failed');
+				console.log('✗ Job generation failed (see error log for details)');
 			}
 		}
 
@@ -241,8 +289,9 @@ async function generateJobsWithProgress(fraction: number = 0.01) {
 		console.log(`  Target Jobs: ${COLORS.cyan}${TARGET_JOBS.toLocaleString()}${COLORS.reset}`);
 		console.log(`  Concurrency: ${COLORS.yellow}${CONCURRENCY}${COLORS.reset}`);
 		console.log(
-			`  Expected Time: ${COLORS.gray}~${Math.ceil((TARGET_JOBS * 30) / 1000 / CONCURRENCY)}s${COLORS.reset}\n`
+			`  Expected Time: ${COLORS.gray}~${Math.ceil((TARGET_JOBS * 30) / 1000 / CONCURRENCY)}s${COLORS.reset}`
 		);
+		console.log(`  Error Log: ${COLORS.gray}${ERROR_LOG_FILE}${COLORS.reset}\n`);
 
 		// Clear existing jobs
 		console.log(`${COLORS.gray}🧹 Clearing existing jobs...${COLORS.reset}`);
@@ -260,17 +309,7 @@ async function generateJobsWithProgress(fraction: number = 0.01) {
             SELECT * FROM address 
             ORDER BY RANDOM() 
             LIMIT ${TARGET_JOBS}
-        `)) as unknown as Array<{
-			id: string;
-			street: string | null;
-			houseNumber: string | null;
-			postcode: string | null;
-			city: string | null;
-			location: string;
-			lat: string;
-			lon: string;
-			createdAt: Date;
-		}>;
+        `)) as unknown as Array<Address>;
 		const selectTime = performance.now() - selectStart;
 		console.log(
 			`${COLORS.green}✅ Selected ${sampleAddresses.length.toLocaleString()} random addresses in ${selectTime.toFixed(0)}ms${COLORS.reset}\n`
@@ -303,12 +342,7 @@ async function generateJobsWithProgress(fraction: number = 0.01) {
 
 			// Process batch in parallel
 			const promises = batch.map(async (address) => {
-				try {
-					const success = await generateJobFromAddress(address);
-					return success;
-				} catch {
-					return false;
-				}
+				return await generateJobWithErrorLogging(address);
 			});
 
 			const results = await Promise.all(promises);
@@ -364,6 +398,7 @@ async function generateJobsWithProgress(fraction: number = 0.01) {
 		console.log(
 			`  Average Rate: ${COLORS.yellow}${(sampleAddresses.length / totalTime).toFixed(1)} jobs/second${COLORS.reset}`
 		);
+		console.log(`\n${COLORS.gray}📄 Error details logged to: ${ERROR_LOG_FILE}${COLORS.reset}`);
 	} catch (error) {
 		console.error(`\n${COLORS.red}❌ Error: ${error}${COLORS.reset}`);
 		process.exit(1);

@@ -13,7 +13,6 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql, type InferSelectModel } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import type { RoutingResult } from '../../types';
 import type { JobCategory } from '../../jobCategories';
 
 // JSONB Type Interfaces
@@ -109,15 +108,11 @@ export const routes = pgTable(
 			.notNull()
 			.references(() => addresses.id, { onDelete: 'cascade' }),
 		lengthTime: doublePrecision('length_time').notNull(), // in seconds (can be floating point)
-		goodsType: text('goods_type').notNull(),
-		weight: doublePrecision('weight').notNull(),
-		reward: doublePrecision('reward').notNull(),
 		routeData: jsonb('route_data').$type<RoutingResult>().notNull() // JSONB: Route data
 	},
 	(table) => [
 		index('routes_start_address_idx').on(table.startAddressId),
 		index('routes_end_address_idx').on(table.endAddressId),
-		index('routes_goods_type_idx').on(table.goodsType)
 	]
 );
 

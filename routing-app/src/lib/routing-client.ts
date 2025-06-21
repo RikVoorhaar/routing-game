@@ -1,4 +1,4 @@
-import type { PathPoint } from './types';
+import type { PathPoint } from '$lib/server/db/schema';
 import * as turf from '@turf/turf';
 
 /**

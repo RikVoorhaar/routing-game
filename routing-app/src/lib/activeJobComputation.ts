@@ -4,22 +4,10 @@ import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { modifyRoute } from '$lib/jobAssignment';
 import { getShortestPath } from '$lib/routing';
-import type { Employee, Job, GameState, Address, Route } from '$lib/server/db/schema';
+import type { Employee, Job, GameState, Address, Route, ActiveJob } from '$lib/server/db/schema';
 
 export interface ActiveJobComputation {
-	activeJob: {
-		id: string;
-		employeeId: string;
-		jobId: number;
-		routeToJobId: string | null;
-		jobRouteId: string;
-		startTime: Date;
-		endTime: Date | null;
-		modifiedRouteToJobData: unknown;
-		modifiedJobRouteData: unknown;
-		currentPhase: 'traveling_to_job' | 'on_job';
-		jobPhaseStartTime: Date | null;
-	};
+	activeJob: ActiveJob;
 	totalTravelTime: number;
 	computedPayout: number;
 	routeToJobTime: number;
@@ -31,7 +19,7 @@ export interface ActiveJobComputation {
  */
 export function computeJobValue(job: Job, _employee: Employee, _gameState: GameState): number {
 	// TODO: Implement job value computation
-	const baseReward = parseFloat(job.approximateValue);
+	const baseReward = job.approximateValue;
 
 	return baseReward;
 }
@@ -92,8 +80,8 @@ export async function createRouteToJob(
 	// Use the routing engine to compute the actual route
 	// For now, we'll use default max speed - could be enhanced later with employee vehicle data
 	const routingResult = await getShortestPath(
-		{ lat: parseFloat(employeeLocation.lat), lon: parseFloat(employeeLocation.lon) },
-		{ lat: parseFloat(jobStartAddress.lat), lon: parseFloat(jobStartAddress.lon) }
+		{ lat: employeeLocation.lat, lon: employeeLocation.lon },
+		{ lat: jobStartAddress.lat, lon: jobStartAddress.lon }
 	);
 
 	// Create the route entry in the database

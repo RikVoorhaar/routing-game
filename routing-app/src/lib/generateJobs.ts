@@ -1,13 +1,15 @@
 import { type InferSelectModel } from 'drizzle-orm';
 import { addresses, jobs, routes } from './server/db/schema';
-import { getRandomRouteInAnnulus } from './routing';
-import { type Coordinate } from './types';
+import { getRandomRouteInAnnulus, type RouteInAnnulus } from './routing';
+import { type Coordinate } from './server/db/schema';
+import type { InferInsertModel } from 'drizzle-orm';
 import { db, client } from './server/db/standalone';
 import { sql, desc, inArray } from 'drizzle-orm';
 import { distance } from '@turf/turf';
 import { getTileBounds } from './geo';
 import { JobCategory } from './jobCategories';
 
+type JobInsert = InferInsertModel<typeof jobs>;
 // Constants for job generation
 export const ROUTE_DISTANCES_KM = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
 
@@ -111,7 +113,13 @@ export async function generateJobFromAddress(
 			lon: Number(startAddress.lon)
 		};
 
-		const routeResult = await getRandomRouteInAnnulus(startLocation, minDistanceKm, maxDistanceKm);
+		const routeInAnnulus: RouteInAnnulus = await getRandomRouteInAnnulus(
+			startLocation,
+			minDistanceKm,
+			maxDistanceKm
+		);
+		const routeResult = routeInAnnulus.route;
+		const endAddress = routeInAnnulus.destination;
 
 		// Get available categories for this tier
 		const availableCategories = getAvailableCategories(jobTier);
@@ -136,7 +144,7 @@ export async function generateJobFromAddress(
 		// Distance validation: check if route distance is suspiciously high
 		// Calculate straight-line distance between start and end using Turf.js
 		const startPoint = [Number(startAddress.lon), Number(startAddress.lat)]; // [longitude, latitude] for Turf
-		const endPoint = [routeResult.destination.lon, routeResult.destination.lat];
+		const endPoint = [Number(endAddress.lon), Number(endAddress.lat)];
 		const straightLineDistanceKm = distance(startPoint, endPoint, { units: 'kilometers' });
 
 		// Reject if route distance is more than 10x the straight-line distance
@@ -152,75 +160,40 @@ export async function generateJobFromAddress(
 			totalTimeSeconds
 		);
 
-		// Find end address ID by coordinates (approximate match)
-		const endAddressResults = await db
-			.select()
-			.from(addresses)
-			.where(
-				sql`
-                abs(${addresses.lat} - ${routeResult.destination.lat}) < 0.0001 
-                AND abs(${addresses.lon} - ${routeResult.destination.lon}) < 0.0001
-            `
-			)
-			.limit(1);
-
-		let endAddressId = endAddressResults[0]?.id;
-
-		if (!endAddressId) {
-			// If no exact match, find closest address using PostGIS
-			const endAddressQuery = await db.execute(sql`
-                SELECT id FROM address 
-                ORDER BY ST_Distance(
-                    ST_Point(${routeResult.destination.lon}, ${routeResult.destination.lat}),
-                    ST_GeomFromText(location)
-                ) 
-                LIMIT 1
-            `);
-
-			if (endAddressQuery.length === 0) {
-				// Silently skip this job - no suitable end address found
-				return false;
-			}
-
-			endAddressId = (endAddressQuery[0] as { id: string }).id;
-		}
+		// Find end address ID by coordi
 
 		// Create route record with address IDs
 		const routeRecord = {
 			id: crypto.randomUUID(),
 			startAddressId: startAddress.id,
-			endAddressId: endAddressId,
-			lengthTime: totalTimeSeconds.toString(),
-			goodsType: JobCategory[jobCategory].toLowerCase(),
-			weight: '0', // Jobs don't have weight like employee routes
-			reward: approximateValue.toString(),
-			routeData: routeResult.path
+			endAddressId: endAddress.id,
+			lengthTime: totalTimeSeconds,
+			routeData: routeResult
 		};
 
 		// Insert route
 		await db.insert(routes).values(routeRecord);
 
 		// Create job record
-		const jobRecord = {
+		const jobRecord: JobInsert = {
 			location: `SRID=4326;POINT(${startAddress.lon} ${startAddress.lat})`, // PostGIS POINT geometry with SRID
 			startAddressId: startAddress.id,
-			endAddressId: endAddressId,
+			endAddressId: endAddress.id,
 			routeId: routeRecord.id,
 			jobTier,
 			jobCategory,
-			totalDistanceKm: totalDistanceKm.toString(),
-			totalTimeSeconds: totalTimeSeconds.toString(),
-			approximateValue: approximateValue.toString()
+			totalDistanceKm,
+			totalTimeSeconds,
+			approximateValue
 		};
 
 		// Insert job
 		await db.insert(jobs).values(jobRecord);
 
 		return true;
-	} catch {
-		// All errors are handled silently - return false to indicate failure
-		// This includes routing errors, database errors, and any other issues
-		return false;
+	} catch (error) {
+		// Re-throw the error so it can be logged by the caller
+		throw new Error(`Job generation failed: ${error instanceof Error ? error.message : String(error)}`);
 	}
 }
 

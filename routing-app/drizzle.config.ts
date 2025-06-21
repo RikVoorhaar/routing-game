@@ -12,5 +12,6 @@ export default defineConfig({
 			'postgresql://routing_user:routing_password@localhost:5432/routing_game'
 	},
 	verbose: true,
-	strict: true
+	strict: true,
+	tablesFilter: ["!spatial_ref_sys", "!geography_columns", "!geometry_columns"]
 });

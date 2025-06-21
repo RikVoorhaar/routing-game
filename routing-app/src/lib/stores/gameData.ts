@@ -118,7 +118,7 @@ export const gameDataActions = {
 	updateMoney(newAmount: number) {
 		currentGameState.update((gameState) => {
 			if (!gameState) return null;
-			return { ...gameState, money: String(newAmount) };
+			return { ...gameState, money: newAmount };
 		});
 	},
 
@@ -126,7 +126,7 @@ export const gameDataActions = {
 	addMoney(amount: number) {
 		currentGameState.update((gameState) => {
 			if (!gameState) return null;
-			return { ...gameState, money: String(Math.max(0, Number(gameState.money) + amount)) };
+			return { ...gameState, money: Math.max(0, gameState.money + amount) };
 		});
 	},
 
