@@ -16,8 +16,8 @@
 		currentGameState,
 		employees,
 		currentUser,
-		routesByEmployee,
-		getEmployeeRoutes
+		activeJobsByEmployee,
+		getEmployeeActiveJob
 	} from '$lib/stores/gameData';
 	import { selectedEmployee } from '$lib/stores/selectedEmployee';
 	import type { GameState, Employee } from '$lib/server/db/schema';
@@ -31,10 +31,9 @@
 	let newEmployeeName = '';
 	let isHiring = false;
 	let hireError = '';
-	let refreshInterval: any;
 
 	// Initialize stores with props data
-	onMount(() => {
+	onMount(async () => {
 		gameDataActions.init({
 			gameState,
 			employees: initialEmployees,
@@ -45,20 +44,18 @@
 			}
 		});
 
-		// Load routes for all employees
-		gameDataAPI.loadAllEmployeeRoutes();
-
-		// Set up periodic refresh for route progress
-		refreshInterval = setInterval(() => {
-			// Trigger route progress updates
-			gameDataAPI.loadAllEmployeeRoutes();
-		}, 1000);
+		// Load all employee and active job data once (this also processes any completed jobs)
+		try {
+			await gameDataAPI.loadAllEmployeeData();
+		} catch (error) {
+			console.error('Failed to load employee data:', error);
+			addError('Failed to load employee data', 'error');
+		}
 	});
 
 	onDestroy(() => {
-		if (refreshInterval) {
-			clearInterval(refreshInterval);
-		}
+		// Clean up any completion timers when component is destroyed
+		// This is handled automatically by the store when cleared
 	});
 
 	// Reactive calculations using stores
@@ -121,9 +118,8 @@
 		const { employeeId } = event.detail;
 
 		try {
-			// Refresh employee data and routes
+			// Refresh employee data only (active jobs are managed by timers)
 			await gameDataAPI.refreshEmployee(employeeId);
-			await gameDataAPI.loadAllEmployeeRoutes();
 		} catch (error) {
 			console.error('Error refreshing employee data:', error);
 			const errorMessage =
@@ -141,8 +137,8 @@
 			// Update game state money and refresh employee data
 			gameDataActions.updateMoney(newBalance);
 
-			// Clear the current route for this employee
-			gameDataActions.clearCurrentRoute(employeeId);
+			// Clear the active job for this employee
+			gameDataActions.clearEmployeeActiveJob(employeeId);
 
 			// Refresh employee data from server
 			await gameDataAPI.refreshEmployee(employeeId);
@@ -225,10 +221,7 @@
 				<!-- Employee Details -->
 				<EmployeeDetails
 					employee={$employees.find((emp) => emp.id === $selectedEmployee) || null}
-					currentRoute={$selectedEmployee
-						? $routesByEmployee[$selectedEmployee]?.current || null
-						: null}
-					gameStateId={$currentGameState?.id || ''}
+					activeJob={$selectedEmployee ? $activeJobsByEmployee[$selectedEmployee] || null : null}
 					on:purchaseLicense={handlePurchaseLicense}
 					on:purchaseVehicle={handlePurchaseVehicle}
 					on:purchaseUpgrade={handlePurchaseUpgrade}
@@ -292,13 +285,10 @@
 					{:else}
 						<div class="max-h-80 space-y-2 overflow-y-auto pr-2">
 							{#each $employees as employee (employee.id)}
-								{@const employeeRoutes = $routesByEmployee[employee.id] || {
-									available: [],
-									current: null
-								}}
+								{@const employeeActiveJob = $activeJobsByEmployee[employee.id] || null}
 								<EmployeeCard
 									{employee}
-									currentRoute={employeeRoutes.current}
+									activeJob={employeeActiveJob}
 									gameStateId={$currentGameState?.id || ''}
 								/>
 							{/each}

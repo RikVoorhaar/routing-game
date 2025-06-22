@@ -2,14 +2,14 @@
 	import { createEventDispatcher } from 'svelte';
 	import { onDestroy } from 'svelte';
 	import { selectedEmployee, selectEmployee } from '$lib/stores/selectedEmployee';
-	import type { Employee, Route, Address, UpgradeState } from '$lib/server/db/schema';
+	import type { Employee, ActiveJob, Address, UpgradeState } from '$lib/server/db/schema';
 	import { addError } from '$lib/stores/errors';
 	import { selectedRoute, clearSelection } from '$lib/stores/selectedRoute';
 	import { formatMoney, formatAddress, formatTimeFromMs } from '$lib/formatting';
 
 	export let employee: Employee;
-	export let availableRoutes: Route[] = [];
-	export let currentRoute: Route | null = null;
+	export let availableRoutes: any[] = [];
+	export let activeJob: ActiveJob | null = null;
 	export let gameStateId: string;
 
 	const dispatch = createEventDispatcher<{
@@ -21,8 +21,8 @@
 	let isAssigning = false;
 	let isCompletingRoute = false;
 	let previouslyCompleted = false; // Track if we've already processed completion
-	let lastCompletedRouteId = ''; // Track which route was last completed
-	let routeCompletionState: 'pending' | 'processing' | 'completed' | 'error' = 'pending';
+	let lastCompletedJobId = ''; // Track which job was last completed
+	let jobCompletionState: 'pending' | 'processing' | 'completed' | 'error' = 'pending';
 	let completionTimeout: any = null;
 
 	// Cleanup timeout on component destroy
@@ -36,19 +36,19 @@
 	$: selectedRouteIsForThisEmployee =
 		$selectedRoute && availableRoutes.some((route) => route.id === $selectedRoute);
 
-	// Route progress calculation
-	$: routeProgress = currentRoute ? calculateRouteProgress(currentRoute) : null;
+	// Job progress calculation
+	$: jobProgress = activeJob ? calculateJobProgress(activeJob) : null;
 
-	// Handle route completion with debouncing and state machine
+	// Handle job completion with debouncing and state machine
 	$: {
 		if (
-			currentRoute &&
-			routeProgress?.isComplete &&
-			routeCompletionState === 'pending' &&
-			lastCompletedRouteId !== currentRoute.id
+			activeJob &&
+			jobProgress?.isComplete &&
+			jobCompletionState === 'pending' &&
+			lastCompletedJobId !== activeJob.id
 		) {
 			// Set state to processing immediately to prevent multiple triggers
-			routeCompletionState = 'processing';
+			jobCompletionState = 'processing';
 
 			// Clear any existing timeout
 			if (completionTimeout) {
@@ -57,22 +57,22 @@
 
 			// Debounce the completion call
 			completionTimeout = setTimeout(() => {
-				handleRouteCompletion();
+				handleJobCompletion();
 			}, 100); // 100ms debounce
 		}
 	}
 
-	// Reset completion state when route changes or is cleared
-	$: if (!currentRoute) {
-		routeCompletionState = 'pending';
-		lastCompletedRouteId = '';
+	// Reset completion state when job changes or is cleared
+	$: if (!activeJob) {
+		jobCompletionState = 'pending';
+		lastCompletedJobId = '';
 		if (completionTimeout) {
 			clearTimeout(completionTimeout);
 			completionTimeout = null;
 		}
-	} else if (currentRoute && lastCompletedRouteId !== currentRoute.id) {
-		// New route started, reset completion state
-		routeCompletionState = 'pending';
+	} else if (activeJob && lastCompletedJobId !== activeJob.id) {
+		// New job started, reset completion state
+		jobCompletionState = 'pending';
 		if (completionTimeout) {
 			clearTimeout(completionTimeout);
 			completionTimeout = null;
@@ -82,8 +82,8 @@
 	// Clear route selection when this employee's context changes
 	$: {
 		if (selectedRouteIsForThisEmployee) {
-			// Clear selection if this employee goes on a route
-			if (currentRoute) {
+			// Clear selection if this employee goes on a job
+			if (activeJob) {
 				clearSelection();
 			}
 			// Clear selection if the selected route is no longer available for this employee
@@ -104,24 +104,78 @@
 		'w-full'
 	].join(' ');
 
-	function calculateRouteProgress(route: Route) {
-		if (!route.startTime) return null;
+	function calculateJobProgress(activeJob: ActiveJob) {
+		if (!activeJob.startTime) return null;
 
-		const startTime = new Date(route.startTime).getTime();
+		const startTime = new Date(activeJob.startTime).getTime();
 		const currentTime = Date.now();
 
-		const routeLengthTime =
-			typeof route.lengthTime === 'string' ? parseFloat(route.lengthTime) : route.lengthTime;
-		const totalDuration = routeLengthTime * 1000;
+		// If job is completed (has endTime), return 100%
+		if (activeJob.endTime) {
+			return {
+				progress: 100,
+				remainingTimeMs: 0,
+				isComplete: true,
+				currentPhase: activeJob.currentPhase
+			};
+		}
 
-		const elapsed = currentTime - startTime;
-		const progress = Math.min(100, (elapsed / totalDuration) * 100);
-		const remainingTime = Math.max(0, totalDuration - elapsed);
+		// Calculate progress based on current phase
+		let totalProgress = 0;
+		let remainingTimeMs = 0;
+		let phaseProgress = 0;
+
+		if (activeJob.currentPhase === 'traveling_to_job' && activeJob.modifiedRouteToJobData) {
+			// In travel phase
+			const travelData = activeJob.modifiedRouteToJobData;
+			const travelDuration = travelData.travelTimeSeconds * 1000; // Convert to ms
+			const travelElapsed = currentTime - startTime;
+			phaseProgress = Math.min(100, (travelElapsed / travelDuration) * 100);
+
+			// If travel is complete, we should be on job now
+			if (phaseProgress >= 100) {
+				// Transition to job phase (this would normally be handled by server)
+				totalProgress = 50; // Halfway through overall job
+				// Estimate remaining job time
+				const jobData = activeJob.modifiedJobRouteData;
+				remainingTimeMs = jobData.travelTimeSeconds * 1000;
+			} else {
+				// Still traveling
+				totalProgress = phaseProgress * 0.5; // Travel is first half
+				remainingTimeMs = travelDuration - travelElapsed;
+			}
+		} else {
+			// On job phase (or no travel needed)
+			const jobData = activeJob.modifiedJobRouteData;
+			const jobDuration = jobData.travelTimeSeconds * 1000;
+
+			let jobStartTime = startTime;
+			if (activeJob.jobPhaseStartTime) {
+				jobStartTime = new Date(activeJob.jobPhaseStartTime).getTime();
+			} else if (activeJob.modifiedRouteToJobData) {
+				// Estimate job start time
+				jobStartTime = startTime + (activeJob.modifiedRouteToJobData.travelTimeSeconds * 1000);
+			}
+
+			const jobElapsed = currentTime - jobStartTime;
+			phaseProgress = Math.min(100, (jobElapsed / jobDuration) * 100);
+
+			if (activeJob.modifiedRouteToJobData) {
+				// Had travel phase, so job is second half
+				totalProgress = 50 + (phaseProgress * 0.5);
+			} else {
+				// No travel, job is the whole thing
+				totalProgress = phaseProgress;
+			}
+
+			remainingTimeMs = Math.max(0, jobDuration - jobElapsed);
+		}
 
 		return {
-			progress,
-			remainingTimeMs: remainingTime,
-			isComplete: progress >= 100
+			progress: Math.min(100, totalProgress),
+			remainingTimeMs,
+			isComplete: totalProgress >= 100,
+			currentPhase: activeJob.currentPhase
 		};
 	}
 
@@ -186,49 +240,49 @@
 		}
 	}
 
-	async function handleRouteCompletion() {
-		if (!currentRoute || routeCompletionState !== 'processing') {
-			console.log('Route completion skipped:', {
-				hasRoute: !!currentRoute,
-				state: routeCompletionState
+	async function handleJobCompletion() {
+		if (!activeJob || jobCompletionState !== 'processing') {
+			console.log('Job completion skipped:', {
+				hasActiveJob: !!activeJob,
+				state: jobCompletionState
 			});
 			return;
 		}
 
 		// Additional safety check
-		if (lastCompletedRouteId === currentRoute.id) {
-			console.log('Route already completed:', currentRoute.id);
-			routeCompletionState = 'completed';
+		if (lastCompletedJobId === activeJob.id) {
+			console.log('Job already completed:', activeJob.id);
+			jobCompletionState = 'completed';
 			return;
 		}
 
 		try {
-			console.log('Starting route completion for:', currentRoute.id);
+			console.log('Starting job completion for:', activeJob.id);
 
 			const response = await fetch('/api/employees', {
 				method: 'PUT',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					action: 'completeRoute',
+					action: 'completeJob',
 					employeeId: employee.id,
 					gameStateId,
-					routeId: currentRoute.id
+					activeJobId: activeJob.id
 				})
 			});
 
 			if (!response.ok) {
 				const errorData = await response.json();
-				throw new Error(errorData.message || 'Failed to complete route');
+				throw new Error(errorData.message || 'Failed to complete job');
 			}
 
 			const result = await response.json();
 			console.log(
-				`Route completed successfully! Earned ${result.reward}. New balance: ${result.newBalance}`
+				`Job completed successfully! Earned ${result.reward}. New balance: ${result.newBalance}`
 			);
 
-			// Mark as completed and track the route ID
-			routeCompletionState = 'completed';
-			lastCompletedRouteId = currentRoute.id;
+			// Mark as completed and track the job ID
+			jobCompletionState = 'completed';
+			lastCompletedJobId = activeJob.id;
 
 			// Dispatch event to refresh employee data
 			dispatch('routeCompleted', {
@@ -237,14 +291,14 @@
 				newBalance: result.newBalance
 			});
 		} catch (err) {
-			console.error('Error completing route:', err);
-			const errorMessage = err instanceof Error ? err.message : 'Failed to complete route';
+			console.error('Error completing job:', err);
+			const errorMessage = err instanceof Error ? err.message : 'Failed to complete job';
 
 			// Use error store instead of local error state
-			addError(`Route completion failed: ${errorMessage}`, 'error');
+			addError(`Job completion failed: ${errorMessage}`, 'error');
 
 			// Set error state but don't reset to pending - let user handle manually
-			routeCompletionState = 'error';
+			jobCompletionState = 'error';
 		}
 	}
 
@@ -277,25 +331,31 @@
 		<!-- Employee Name -->
 		<h3 class="card-title mb-2 text-base font-semibold">{employee.name}</h3>
 
-		<!-- Current Route Progress -->
-		{#if currentRoute && routeProgress}
+		<!-- Current Job Progress -->
+		{#if activeJob && jobProgress}
 			<div class="mb-3">
 				<div class="mb-1 flex items-center justify-between">
-					<span class="text-xs text-base-content/70">Route Progress</span>
 					<span class="text-xs text-base-content/70">
-						{Math.round(routeProgress.progress)}%
+						{#if jobProgress.currentPhase === 'traveling_to_job'}
+							Traveling...
+						{:else}
+							On Job
+						{/if}
+					</span>
+					<span class="text-xs text-base-content/70">
+						{Math.round(jobProgress.progress)}%
 					</span>
 				</div>
 
 				<progress
 					class="progress progress-primary h-2 w-full"
-					value={routeProgress.progress}
+					value={jobProgress.progress}
 					max="100"
 				></progress>
 
-				{#if !routeProgress.isComplete}
+				{#if !jobProgress.isComplete}
 					<div class="mt-1 text-xs text-base-content/60">
-						ETA: {formatTimeFromMs(routeProgress.remainingTimeMs)}
+						ETA: {formatTimeFromMs(jobProgress.remainingTimeMs)}
 					</div>
 				{:else}
 					<div class="mt-1 text-xs font-medium text-success">✅ Completed!</div>

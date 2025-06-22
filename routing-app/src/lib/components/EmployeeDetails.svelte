@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
-	import { formatMoney, formatAddress, formatTimeFromMs } from '$lib/formatting';
+	import {
+		formatMoney,
+		formatAddress,
+		formatTimeFromMs,
+		formatTime,
+		formatDistance
+	} from '$lib/formatting';
 	import {
 		getEmployeeVehicleConfig,
 		getEmployeeCapacity,
@@ -22,25 +28,79 @@
 
 	let activeTab: 'route' | 'levels' | 'upgrades' = 'route';
 
-	// Route progress calculation
-	$: routeProgress = activeJob && activeJob.startTime ? calculateRouteProgress(activeJob) : null;
+	// Job progress calculation
+	$: jobProgress = activeJob && activeJob.startTime ? calculateJobProgress(activeJob) : null;
 
-	function calculateRouteProgress(activeJob: ActiveJob) {
-		if (!activeJob.startTime || !activeJob.endTime) return null;
-
-		const startTime = new Date(activeJob.startTime).getTime();
-		const endTime = new Date(activeJob.endTime).getTime();
+	function calculateJobProgress(activeJob: ActiveJob) {
+		const startTime = new Date(activeJob.startTime!).getTime();
 		const currentTime = Date.now();
 
-		const elapsed = currentTime - startTime;
-		const totalDuration = new Date(endTime).getTime() - startTime;
-		const progress = Math.min(100, (elapsed / totalDuration) * 100);
-		const remainingTime = Math.max(0, totalDuration - elapsed);
+		// If job is completed (has endTime), return 100%
+		if (activeJob.endTime) {
+			return {
+				progress: 100,
+				remainingTimeMs: 0,
+				isComplete: true,
+				currentPhase: activeJob.currentPhase
+			};
+		}
+
+		// Calculate progress based on current phase
+		let totalProgress = 0;
+		let remainingTimeMs = 0;
+		let phaseProgress = 0;
+
+		if (activeJob.currentPhase === 'traveling_to_job' && activeJob.modifiedRouteToJobData) {
+			// In travel phase
+			const travelData = activeJob.modifiedRouteToJobData;
+			const travelDuration = travelData.travelTimeSeconds * 1000; // Convert to ms
+			const travelElapsed = currentTime - startTime;
+			phaseProgress = Math.min(100, (travelElapsed / travelDuration) * 100);
+
+			// If travel is complete, we should be on job now
+			if (phaseProgress >= 100) {
+				// Transition to job phase (this would normally be handled by server)
+				totalProgress = 50; // Halfway through overall job
+				// Estimate remaining job time
+				const jobData = activeJob.modifiedJobRouteData;
+				remainingTimeMs = jobData.travelTimeSeconds * 1000;
+			} else {
+				// Still traveling
+				totalProgress = phaseProgress * 0.5; // Travel is first half
+				remainingTimeMs = travelDuration - travelElapsed;
+			}
+		} else {
+			// On job phase (or no travel needed)
+			const jobData = activeJob.modifiedJobRouteData;
+			const jobDuration = jobData.travelTimeSeconds * 1000;
+
+			let jobStartTime = startTime;
+			if (activeJob.jobPhaseStartTime) {
+				jobStartTime = new Date(activeJob.jobPhaseStartTime).getTime();
+			} else if (activeJob.modifiedRouteToJobData) {
+				// Estimate job start time
+				jobStartTime = startTime + activeJob.modifiedRouteToJobData.travelTimeSeconds * 1000;
+			}
+
+			const jobElapsed = currentTime - jobStartTime;
+			phaseProgress = Math.min(100, (jobElapsed / jobDuration) * 100);
+
+			if (activeJob.modifiedRouteToJobData) {
+				// Had travel phase, so job is second half
+				totalProgress = 50 + phaseProgress * 0.5;
+			} else {
+				// No travel, job is the whole thing
+				totalProgress = phaseProgress;
+			}
+
+			remainingTimeMs = Math.max(0, jobDuration - jobElapsed);
+		}
 
 		return {
-			progress,
-			remainingTimeMs: remainingTime,
-			isComplete: progress >= 100
+			progress: Math.min(100, totalProgress),
+			remainingTimeMs,
+			isComplete: totalProgress >= 100,
+			currentPhase: activeJob.currentPhase
 		};
 	}
 
@@ -81,6 +141,29 @@
 	function handlePurchaseUpgrade(category: JobCategory) {
 		// TODO: Implement upgrade purchase
 	}
+
+	// Helper function to format location from route data
+	function formatLocation(routeData: any): string {
+		if (routeData && routeData.destination) {
+			return formatAddress(routeData.destination);
+		}
+		return 'Unknown location';
+	}
+
+	// Helper function to get job details
+	function getJobDetails(activeJob: ActiveJob) {
+		const jobRouteData = activeJob.modifiedJobRouteData;
+		return {
+			startLocation: jobRouteData.path?.[0]?.coordinates || null,
+			endLocation: jobRouteData.destination || null,
+			distance: jobRouteData.totalDistanceMeters || 0,
+			duration: jobRouteData.travelTimeSeconds || 0,
+			// For now, we don't have goods type and weight in the new system
+			// These would come from the job category and tier
+			goodsType: 'General Freight',
+			weight: 1000 // Placeholder
+		};
+	}
 </script>
 
 {#if employee}
@@ -120,63 +203,69 @@
 			{#if activeTab === 'route'}
 				<div class="space-y-4">
 					{#if activeJob}
+						{@const jobDetails = getJobDetails(activeJob)}
 						<div>
 							<div class="mb-2 flex items-center justify-between">
-								<span class="font-medium">Route Progress</span>
-								<span class="text-sm text-base-content/70">
-									{routeProgress ? Math.round(routeProgress.progress) : 0}%
+								<span class="font-medium">Job Progress</span>
+								<span class="text-base-content/70 text-sm">
+									{jobProgress ? Math.round(jobProgress.progress) : 0}%
 								</span>
 							</div>
 
 							<progress
 								class="progress progress-primary mb-2 w-full"
-								value={routeProgress?.progress || 0}
+								value={jobProgress?.progress || 0}
 								max="100"
 							></progress>
 
-							{#if routeProgress && !routeProgress.isComplete}
-								<div class="text-sm text-base-content/70">
-									ETA: {formatTimeFromMs(routeProgress.remainingTimeMs)}
+							{#if jobProgress && !jobProgress.isComplete}
+								<div class="text-base-content/70 text-sm">
+									{#if jobProgress.currentPhase === 'traveling_to_job'}
+										Traveling to job location...
+									{:else}
+										On job...
+									{/if}
+									ETA: {formatTimeFromMs(jobProgress.remainingTimeMs)}
 								</div>
-							{:else if routeProgress && routeProgress.isComplete}
-								<div class="text-sm font-medium text-success">✅ Route Completed!</div>
+							{:else if jobProgress && jobProgress.isComplete}
+								<div class="text-success text-sm font-medium">✅ Job Completed!</div>
 							{/if}
 						</div>
 
-						<!-- Route Details -->
+						<!-- Job Details -->
 						<div class="space-y-3">
 							<div>
 								<strong>From:</strong>
-								{formatLocation(currentRoute.startLocation)}
+								{formatLocation(activeJob.modifiedJobRouteData)}
 							</div>
 							<div>
 								<strong>To:</strong>
-								{formatLocation(currentRoute.endLocation)}
+								{formatLocation(activeJob.modifiedJobRouteData)}
 							</div>
 							<div class="flex justify-between">
-								<span><strong>Goods:</strong> {currentRoute.goodsType}</span>
-								<span><strong>Weight:</strong> {currentRoute.weight} kg</span>
+								<span><strong>Goods:</strong> {jobDetails.goodsType}</span>
+								<span><strong>Weight:</strong> {jobDetails.weight} kg</span>
 							</div>
 							<div class="flex justify-between">
 								<span
 									><strong>Distance:</strong>
-									{Math.round(parseFloat(currentRoute.lengthTime) / 60)} min</span
+									{formatDistance(jobDetails.distance)}</span
 								>
-								<span><strong>Reward:</strong> {formatMoney(currentRoute.reward)}</span>
+								<span><strong>Duration:</strong> {formatTime(jobDetails.duration)}</span>
 							</div>
 						</div>
 					{:else}
 						<div class="py-8 text-center">
 							<div class="mb-2 text-4xl">🚗</div>
 							<p class="text-base-content/70">Employee is currently idle</p>
-							<p class="mt-1 text-sm text-base-content/50">Assign a job from the job market</p>
+							<p class="text-base-content/50 mt-1 text-sm">Assign a job from the job market</p>
 						</div>
 					{/if}
 				</div>
 			{:else if activeTab === 'levels'}
 				<div class="space-y-4">
 					<!-- Driving Level -->
-					<div class="rounded-lg bg-base-200 p-3">
+					<div class="bg-base-200 rounded-lg p-3">
 						<div class="mb-2 flex items-center justify-between">
 							<span class="flex items-center gap-2 font-medium"> 🚗 Driving </span>
 							<span class="text-sm">Level {employee.drivingLevel.level}</span>
@@ -186,25 +275,25 @@
 							value={employee.drivingLevel.xp}
 							max={getXPForNextLevel(employee.drivingLevel.level)}
 						></progress>
-						<div class="mt-1 text-xs text-base-content/70">
+						<div class="text-base-content/70 mt-1 text-xs">
 							{employee.drivingLevel.xp} / {getXPForNextLevel(employee.drivingLevel.level)} XP
 						</div>
 					</div>
 
 					<!-- Category Levels -->
-					{#each Object.entries(JobCategory).filter(([key, value]) => typeof value === 'number') as [key, category]}
+					{#each Object.values(JobCategory).filter((value) => typeof value === 'number') as category}
 						{@const categoryLevel = employee.categoryLevel[category]}
 						{@const canDoCategory = canEmployeeDoJobCategory(employee, category)}
 						{@const categoryName = CATEGORY_NAMES[category]}
 						{@const categoryIcon = CATEGORY_ICONS[category]}
 
-						<div class="rounded-lg bg-base-200 p-3" class:opacity-60={!canDoCategory}>
+						<div class="bg-base-200 rounded-lg p-3" class:opacity-60={!canDoCategory}>
 							<div class="mb-2 flex items-center justify-between">
 								<span class="flex items-center gap-2 font-medium">
 									{categoryIcon}
 									{categoryName}
 									{#if !canDoCategory}
-										<svg class="h-4 w-4 text-warning" fill="currentColor" viewBox="0 0 20 20">
+										<svg class="text-warning h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
 											<path
 												fill-rule="evenodd"
 												d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
@@ -222,10 +311,10 @@
 								value={categoryLevel.xp}
 								max={getXPForNextLevel(categoryLevel.level)}
 							></progress>
-							<div class="mt-1 text-xs text-base-content/70">
+							<div class="text-base-content/70 mt-1 text-xs">
 								{categoryLevel.xp} / {getXPForNextLevel(categoryLevel.level)} XP
 								{#if !canDoCategory}
-									<span class="ml-2 text-warning">Requires license upgrade</span>
+									<span class="text-warning ml-2">Requires license upgrade</span>
 								{/if}
 							</div>
 						</div>
@@ -237,14 +326,14 @@
 					<!-- License Upgrade -->
 					<div class="space-y-3">
 						<h3 class="text-lg font-semibold">License</h3>
-						<div class="rounded-lg bg-base-200 p-3">
+						<div class="bg-base-200 rounded-lg p-3">
 							<div class="mb-2 flex items-center justify-between">
 								<span>Current: {getLicenseConfig(employee.licenseLevel).name}</span>
 								<div class="badge badge-secondary">Level {employee.drivingLevel.level}</div>
 							</div>
 
 							{#if getNextLicense(employee.licenseLevel) !== null}
-								{@const nextLicense = getNextLicense(employee.licenseLevel)}
+								{@const nextLicense = getNextLicense(employee.licenseLevel)!}
 								{@const nextLicenseConfig = getLicenseConfig(nextLicense)}
 								{@const canUpgrade =
 									employee.drivingLevel.level >= nextLicenseConfig.minDrivingLevel}
@@ -261,7 +350,7 @@
 									{/if}
 								</button>
 							{:else}
-								<div class="text-center text-success">🏆 Max license achieved!</div>
+								<div class="text-success text-center">🏆 Max license achieved!</div>
 							{/if}
 						</div>
 					</div>
@@ -269,14 +358,14 @@
 					<!-- Vehicle Upgrade -->
 					<div class="space-y-3">
 						<h3 class="text-lg font-semibold">Vehicle</h3>
-						<div class="rounded-lg bg-base-200 p-3">
+						<div class="bg-base-200 rounded-lg p-3">
 							<div class="mb-2 flex items-center justify-between">
 								<span>Current: {currentVehicleConfig.name}</span>
 								<div class="badge badge-accent">{getEmployeeCapacity(employee)} capacity</div>
 							</div>
 
 							{#if getNextVehicle(employee.vehicleLevel, employee.licenseLevel) !== null}
-								{@const nextVehicle = getNextVehicle(employee.vehicleLevel, employee.licenseLevel)}
+								{@const nextVehicle = getNextVehicle(employee.vehicleLevel, employee.licenseLevel)!}
 								{@const nextVehicleConfig = getVehicleConfig(nextVehicle)}
 
 								<button
@@ -286,7 +375,7 @@
 									Upgrade to {nextVehicleConfig.name} ({formatMoney(nextVehicleConfig.baseCost)})
 								</button>
 							{:else}
-								<div class="text-center text-success">🏆 Best available vehicle!</div>
+								<div class="text-success text-center">🏆 Best available vehicle!</div>
 							{/if}
 						</div>
 					</div>
@@ -294,7 +383,7 @@
 					<!-- Category Upgrades -->
 					<div class="space-y-3">
 						<h3 class="text-lg font-semibold">Category Upgrades</h3>
-						{#each Object.entries(JobCategory).filter(([key, value]) => typeof value === 'number') as [key, category]}
+						{#each Object.values(JobCategory).filter((value) => typeof value === 'number') as category}
 							{@const upgradeInfo = getUpgradeInfo(category)}
 							{@const currentLevel = employee.upgradeState[category]}
 							{@const categoryLevel = employee.categoryLevel[category]}
@@ -329,7 +418,7 @@
 								}
 							})()}
 
-							<div class="rounded-lg bg-base-200 p-3">
+							<div class="bg-base-200 rounded-lg p-3">
 								<div class="mb-2 flex items-center justify-between">
 									<span class="flex items-center gap-2 font-medium">
 										{categoryIcon}
@@ -338,7 +427,7 @@
 									<div class="badge badge-ghost">Level {currentLevel}</div>
 								</div>
 
-								<p class="mb-2 text-sm text-base-content/70">
+								<p class="text-base-content/70 mb-2 text-sm">
 									{upgradeInfo.effectDescription} (current: {currentEffect})
 								</p>
 

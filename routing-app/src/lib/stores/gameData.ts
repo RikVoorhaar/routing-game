@@ -1,5 +1,5 @@
 import { writable, derived, get } from 'svelte/store';
-import type { GameState, Route, Job, Employee } from '$lib/server/db/schema';
+import type { GameState, Job, Employee, ActiveJob } from '$lib/server/db/schema';
 import { addError } from './errors';
 import { log } from '$lib/logger';
 
@@ -23,27 +23,76 @@ export const availableGameStates = writable<GameState[]>([]);
 // Employees store
 export const employees = writable<Employee[]>([]);
 
-// Routes store - organized by employee ID for efficient lookup
-export const routesByEmployee = writable<
-	Record<
-		string,
-		{
-			available: Route[];
-			current: Route | null;
-		}
-	>
->({});
+// Active jobs store - organized by employee ID for efficient lookup
+export const activeJobsByEmployee = writable<Record<string, ActiveJob | null>>({});
 
-// Derived store for all routes (flattened)
-export const allRoutes = derived(routesByEmployee, ($routesByEmployee) => {
-	const routes: Route[] = [];
-	Object.values($routesByEmployee).forEach((employeeRoutes) => {
-		routes.push(...employeeRoutes.available);
-		if (employeeRoutes.current) {
-			routes.push(employeeRoutes.current);
+// Client-side timers for job completion
+const jobCompletionTimers = new Map<string, NodeJS.Timeout>();
+
+// Function to schedule job completion
+function scheduleJobCompletion(employeeId: string, activeJob: ActiveJob) {
+	if (!activeJob.startTime || activeJob.endTime) return;
+
+	const startTime = new Date(activeJob.startTime).getTime();
+	const currentTime = Date.now();
+	
+	// Calculate total completion time
+	let totalDuration = 0;
+	if (activeJob.currentPhase === 'traveling_to_job' && activeJob.modifiedRouteToJobData) {
+		// Still traveling - set timer for travel completion, then job completion
+		totalDuration = activeJob.modifiedRouteToJobData.travelTimeSeconds * 1000;
+		if (activeJob.modifiedJobRouteData) {
+			totalDuration += activeJob.modifiedJobRouteData.travelTimeSeconds * 1000;
+		}
+	} else {
+		// On job or no travel needed
+		let travelTime = 0;
+		if (activeJob.modifiedRouteToJobData) {
+			travelTime = activeJob.modifiedRouteToJobData.travelTimeSeconds * 1000;
+		}
+		const jobTime = activeJob.modifiedJobRouteData.travelTimeSeconds * 1000;
+		totalDuration = travelTime + jobTime;
+	}
+
+	const elapsed = currentTime - startTime;
+	const remainingTime = Math.max(0, totalDuration - elapsed);
+
+	if (remainingTime > 0) {
+		log.debug('[GameData] Scheduling job completion for employee', employeeId, 'in', remainingTime, 'ms');
+		
+		const timer = setTimeout(async () => {
+			log.debug('[GameData] Auto-completing job for employee:', employeeId);
+			try {
+				await gameDataAPI.completeJob(employeeId, activeJob.id);
+			} catch (error) {
+				log.error('[GameData] Failed to auto-complete job:', error);
+				addError('Failed to complete job automatically', 'error');
+			}
+		}, remainingTime);
+
+		jobCompletionTimers.set(employeeId, timer);
+	} else {
+		// Job should already be completed, trigger completion immediately
+		log.debug('[GameData] Job already past completion time, completing immediately');
+		setTimeout(async () => {
+			try {
+				await gameDataAPI.completeJob(employeeId, activeJob.id);
+			} catch (error) {
+				log.error('[GameData] Failed to complete overdue job:', error);
+			}
+		}, 100);
+	}
+}
+
+// Derived store for all active jobs (flattened)
+export const allActiveJobs = derived(activeJobsByEmployee, ($activeJobsByEmployee) => {
+	const activeJobs: ActiveJob[] = [];
+	Object.values($activeJobsByEmployee).forEach((activeJob) => {
+		if (activeJob) {
+			activeJobs.push(activeJob);
 		}
 	});
-	return routes;
+	return activeJobs;
 });
 
 // Derived store to check if cheats are enabled
@@ -133,8 +182,8 @@ export const gameDataActions = {
 	// Update employees
 	setEmployees(newEmployees: Employee[]) {
 		employees.set(newEmployees);
-		// Clear routes when employees change
-		routesByEmployee.set({});
+		// Clear active jobs when employees change
+		activeJobsByEmployee.set({});
 	},
 
 	// Update a single employee
@@ -149,52 +198,59 @@ export const gameDataActions = {
 		employees.update((currentEmployees) => [...currentEmployees, employee]);
 	},
 
-	// Set routes for a specific employee
-	setEmployeeRoutes(
-		employeeId: string,
-		availableRoutes: Route[],
-		currentRoute: Route | null = null
-	) {
-		routesByEmployee.update((routes) => ({
-			...routes,
-			[employeeId]: {
-				available: availableRoutes,
-				current: currentRoute
-			}
+	// Set active job for a specific employee and set up completion timer
+	setEmployeeActiveJob(employeeId: string, activeJob: ActiveJob | null) {
+		activeJobsByEmployee.update((activeJobs) => ({
+			...activeJobs,
+			[employeeId]: activeJob
 		}));
+
+		// Clear any existing timer for this employee
+		const existingTimer = jobCompletionTimers.get(employeeId);
+		if (existingTimer) {
+			clearTimeout(existingTimer);
+			jobCompletionTimers.delete(employeeId);
+		}
+
+		// Set up completion timer if there's an active job
+		if (activeJob && activeJob.startTime && !activeJob.endTime) {
+			scheduleJobCompletion(employeeId, activeJob);
+		}
 	},
 
-	// Update available routes for an employee
-	setAvailableRoutes(employeeId: string, availableRoutes: Route[]) {
-		routesByEmployee.update((routes) => ({
-			...routes,
-			[employeeId]: {
-				...routes[employeeId],
-				available: availableRoutes
-			}
+	// Clear active job for an employee (when job is completed)
+	clearEmployeeActiveJob(employeeId: string) {
+		activeJobsByEmployee.update((activeJobs) => ({
+			...activeJobs,
+			[employeeId]: null
 		}));
+
+		// Clear any completion timer
+		const existingTimer = jobCompletionTimers.get(employeeId);
+		if (existingTimer) {
+			clearTimeout(existingTimer);
+			jobCompletionTimers.delete(employeeId);
+		}
 	},
 
-	// Update current route for an employee
-	setCurrentRoute(employeeId: string, currentRoute: Route | null) {
-		routesByEmployee.update((routes) => ({
-			...routes,
-			[employeeId]: {
-				...routes[employeeId],
-				current: currentRoute
-			}
-		}));
-	},
+	// Update multiple employees at once (for bulk loading)
+	setAllEmployeesActiveJobs(employeeActiveJobs: Array<{ employeeId: string; activeJob: ActiveJob | null }>) {
+		// Clear all existing timers
+		jobCompletionTimers.forEach((timer) => clearTimeout(timer));
+		jobCompletionTimers.clear();
 
-	// Clear current route for an employee (when route is completed)
-	clearCurrentRoute(employeeId: string) {
-		routesByEmployee.update((routes) => ({
-			...routes,
-			[employeeId]: {
-				...routes[employeeId],
-				current: null
+		// Update the store
+		const newActiveJobs: Record<string, ActiveJob | null> = {};
+		employeeActiveJobs.forEach(({ employeeId, activeJob }) => {
+			newActiveJobs[employeeId] = activeJob;
+			
+			// Set up completion timer if needed
+			if (activeJob && activeJob.startTime && !activeJob.endTime) {
+				scheduleJobCompletion(employeeId, activeJob);
 			}
-		}));
+		});
+		
+		activeJobsByEmployee.set(newActiveJobs);
 	},
 
 	// Clear all data (for logout or game switch)
@@ -202,7 +258,7 @@ export const gameDataActions = {
 		currentUser.set(null);
 		currentGameState.set(null);
 		employees.set([]);
-		routesByEmployee.set({});
+		activeJobsByEmployee.set({});
 	}
 };
 
@@ -226,38 +282,76 @@ export const gameDataAPI = {
 		}
 	},
 
-	// Load routes for all employees
-	async loadAllEmployeeRoutes() {
-		const currentEmployees = get(employees);
+	// Load all employee and active job data at once (with automatic completion processing)
+	async loadAllEmployeeData() {
+		const gameState = get(currentGameState);
+		if (!gameState) {
+			throw new Error('No game state available');
+		}
 
 		try {
-			for (const employee of currentEmployees) {
-				// In the new job system, available routes are fetched from jobs dynamically
-				// rather than being pre-generated and stored with the employee
-				const availableRoutes: Route[] = [];
-
-				// Get current route if employee has an active job
-				let currentRoute: Route | null = null;
-				if (employee.activeJobId) {
-					// Fetch active job details to get the current route
-					try {
-						const activeJobResponse = await fetch(`/api/employees/${employee.id}/active-job`);
-						if (activeJobResponse.ok) {
-							const activeJobData = await activeJobResponse.json();
-							if (activeJobData && activeJobData.route) {
-								currentRoute = activeJobData.route;
-							}
-						}
-					} catch (error) {
-						log.error('[ROUTES DEBUG] Failed to fetch active job route:', error);
-					}
-				}
-
-				gameDataActions.setEmployeeRoutes(employee.id, availableRoutes, currentRoute);
+			log.debug('[GameData] Loading all employee data for game state:', gameState.id);
+			
+			// This endpoint will process any completed jobs and return fresh data
+			const response = await fetch(`/api/game-states/${gameState.id}/employees-and-jobs`);
+			if (!response.ok) {
+				throw new Error('Failed to load employee data');
 			}
+
+			const data = await response.json();
+			
+			// Update employees store
+			if (data.employees) {
+				gameDataActions.setEmployees(data.employees);
+			}
+
+			// Update game state if it changed (money from completed jobs)
+			if (data.gameState && data.gameState.money !== gameState.money) {
+				gameDataActions.setGameState(data.gameState);
+			}
+
+			// Update active jobs with timer scheduling
+			if (data.employeeActiveJobs) {
+				gameDataActions.setAllEmployeesActiveJobs(data.employeeActiveJobs);
+			}
+
+			log.debug('[GameData] Employee data loaded successfully');
+			return data;
 		} catch (error) {
-			log.error('[ROUTES DEBUG] Error loading employee routes:', error);
-			addError('Failed to load employee routes', 'error');
+			log.error('[GameData] Error loading employee data:', error);
+			addError('Failed to load employee data', 'error');
+			throw error;
+		}
+	},
+
+	// Complete a specific job
+	async completeJob(employeeId: string, activeJobId: string) {
+		try {
+			log.debug('[GameData] Completing job for employee:', employeeId, 'job:', activeJobId);
+			
+			const response = await fetch(`/api/employees/${employeeId}/complete-job`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ activeJobId })
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.message || 'Failed to complete job');
+			}
+
+			const result = await response.json();
+
+			// Update stores with the completion results
+			gameDataActions.updateEmployee(employeeId, result.employee);
+			gameDataActions.setGameState(result.gameState);
+			gameDataActions.clearEmployeeActiveJob(employeeId);
+
+			log.debug('[GameData] Job completed successfully. Reward:', result.reward);
+			return result;
+		} catch (error) {
+			log.error('[GameData] Error completing job:', error);
+			addError('Failed to complete job', 'error');
 			throw error;
 		}
 	},
@@ -435,11 +529,9 @@ export const gameDataAPI = {
 				gameDataActions.updateMoney(result.newBalance);
 			}
 
-			// Refresh employee data and routes to reflect the changes
+			// Refresh employee data and active jobs to reflect the changes
 			log.debug('[CHEAT UI] Refreshing employee data...');
-			await this.refreshEmployees();
-			log.debug('[CHEAT UI] Loading employee routes...');
-			await this.loadAllEmployeeRoutes();
+			await this.loadAllEmployeeData();
 
 			log.debug('[CHEAT UI] Complete routes cheat finished successfully');
 			return result;
@@ -475,9 +567,9 @@ export const gameDataAPI = {
 	}
 };
 
-// Helper to get current employee routes
-export function getEmployeeRoutes(employeeId: string) {
-	return derived(routesByEmployee, ($routesByEmployee) => {
-		return $routesByEmployee[employeeId] || { available: [], current: null };
+// Helper to get current employee active job
+export function getEmployeeActiveJob(employeeId: string) {
+	return derived(activeJobsByEmployee, ($activeJobsByEmployee) => {
+		return $activeJobsByEmployee[employeeId] || null;
 	});
 }

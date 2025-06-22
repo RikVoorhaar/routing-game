@@ -1,4 +1,4 @@
-import type { Address } from './types';
+import type { Address } from '$lib/server/db/schema';
 
 /**
  * Formats a number as a currency string (EUR)
@@ -69,7 +69,7 @@ export function formatTime(timeSeconds: string | number | null | undefined): str
 export function formatAddress(address: Address): string {
 	const parts = [];
 	if (address.street) parts.push(address.street);
-	if (address.house_number) parts.push(address.house_number);
+	if (address.houseNumber) parts.push(address.houseNumber);
 	if (address.city) parts.push(address.city);
 	return parts.join(' ') || `${address.lat.toFixed(4)}, ${address.lon.toFixed(4)}`;
 }

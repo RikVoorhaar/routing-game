@@ -2,7 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 	import { get } from 'svelte/store';
-	import { employees, routesByEmployee } from '$lib/stores/gameData';
+	import { employees, activeJobsByEmployee } from '$lib/stores/gameData';
 	import { selectedEmployee } from '$lib/stores/selectedEmployee';
 	import { selectedRoute, selectRoute } from '$lib/stores/selectedRoute';
 	import { cheatSettings, activeTiles } from '$lib/stores/cheats';
@@ -87,35 +87,39 @@
 		// Clear existing routes
 		mapDisplayActions.clearRoutes();
 
-		// Draw all active routes for all employees
+		// Draw all active jobs for all employees
 		$employees.forEach((employee) => {
-			const employeeRoutes = $routesByEmployee[employee.id];
-			const currentRoute = employeeRoutes?.current;
-			if (currentRoute && currentRoute.startTime) {
-				const isSelected = currentRoute.id === $selectedRoute;
-				mapDisplayActions.addRoute(currentRoute, {
-					isSelected,
-					isActive: true,
-					onClick: () => {
-						selectRoute(currentRoute.id);
-						zoomToRoute(currentRoute);
-					}
-				});
+			const activeJob = $activeJobsByEmployee[employee.id];
+			if (activeJob) {
+				// For now, we'll need to create a route-like object from the active job
+				// This is a temporary solution until we fully refactor the map system
+				const routeData = activeJob.modifiedJobRouteData;
+				if (routeData) {
+					const routeForDisplay = {
+						id: activeJob.id,
+						path: routeData.path,
+						travelTimeSeconds: routeData.travelTimeSeconds,
+						totalDistanceMeters: routeData.totalDistanceMeters,
+						destination: routeData.destination,
+						startTime: activeJob.startTime
+					};
+					
+					const isSelected = activeJob.id === $selectedRoute;
+					mapDisplayActions.addRoute(routeForDisplay, {
+						isSelected,
+						isActive: true,
+						onClick: () => {
+							selectRoute(activeJob.id);
+							zoomToRoute(routeForDisplay);
+						}
+					});
+				}
 			}
 		});
 
-		// If a selected employee is idle, show their available routes
-		if ($selectedEmployee) {
-			const employee = $employees.find((emp) => emp.id === $selectedEmployee);
-			if (employee) {
-				const employeeRoutes = $routesByEmployee[employee.id];
-				const currentRoute = employeeRoutes?.current;
-				const availableRoutes = employeeRoutes?.available || [];
-				if (!currentRoute && availableRoutes.length > 0) {
-					showAvailableRoutes(availableRoutes);
-				}
-			}
-		}
+		// For now, we don't show available routes for idle employees
+		// This would require a different approach in the new job system
+		// Available jobs would be shown on the map as job markers instead
 	}
 
 	function showAvailableRoutes(routes: Route[]) {
@@ -178,10 +182,10 @@
 		}
 
 		animationInterval = setInterval(() => {
-			// Check if any employees are currently traveling
+			// Check if any employees are currently on active jobs
 			const hasAnimatedEmployees = $employees.some((employee) => {
-				const currentRoute = $routesByEmployee[employee.id]?.current;
-				return currentRoute && currentRoute.startTime;
+				const activeJob = $activeJobsByEmployee[employee.id];
+				return activeJob && activeJob.startTime;
 			});
 
 			if (hasAnimatedEmployees) {
@@ -195,18 +199,24 @@
 		const employee = $employees.find((emp) => emp.id === employeeId);
 		if (!employee || !leafletMap) return;
 
-		const employeeRoutes = $routesByEmployee[employeeId];
-		const currentRoute = employeeRoutes?.current;
-		const availableRoutes = employeeRoutes?.available || [];
+		const activeJob = $activeJobsByEmployee[employeeId];
 
-		if (currentRoute && currentRoute.startTime) {
-			// Employee is on a route - zoom to show entire route
-			zoomToRoute(currentRoute);
-		} else if (availableRoutes.length > 0) {
-			// Employee is idle but has available routes - show available routes and zoom to fit all
-			showAvailableRoutes(availableRoutes);
+		if (activeJob && activeJob.startTime) {
+			// Employee is on an active job - zoom to show the job route
+			const routeData = activeJob.modifiedJobRouteData;
+			if (routeData) {
+				const routeForDisplay = {
+					id: activeJob.id,
+					path: routeData.path,
+					travelTimeSeconds: routeData.travelTimeSeconds,
+					totalDistanceMeters: routeData.totalDistanceMeters,
+					destination: routeData.destination,
+					startTime: activeJob.startTime
+				};
+				zoomToRoute(routeForDisplay);
+			}
 		} else {
-			// Employee is idle with no routes - just pan to employee location
+			// Employee is idle - just pan to employee location
 			const position = getEmployeePosition(employee);
 			leafletMap.setView([position.lat, position.lon], leafletMap.getZoom());
 		}
@@ -338,13 +348,14 @@
 
 	<!-- Render markers and routes -->
 	{#if leafletMap && L}
-		<MarkerRenderer
+		<!-- MarkerRenderer temporarily disabled until fully updated for new job system -->
+		<!-- <MarkerRenderer
 			bind:this={markerRenderer}
 			map={leafletMap}
 			{L}
 			employees={$employees}
-			routesByEmployee={$routesByEmployee}
-		/>
+			activeJobsByEmployee={$activeJobsByEmployee}
+		/> -->
 
 		<RouteRenderer map={leafletMap} {L} routes={$displayedRoutes} />
 	{/if}
