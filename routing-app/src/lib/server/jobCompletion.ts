@@ -89,7 +89,12 @@ export async function completeActiveJob(
 		};
 	});
 
-	log.debug('[JobCompletion] Job completed successfully. Reward:', reward, 'New balance:', newBalance);
+	log.debug(
+		'[JobCompletion] Job completed successfully. Reward:',
+		reward,
+		'New balance:',
+		newBalance
+	);
 
 	// Return the result (TypeScript will infer this is returned from the transaction)
 	const [updatedEmployee] = await db
@@ -222,10 +227,10 @@ function isJobComplete(activeJob: ActiveJob, currentTime: number): boolean {
 function calculateJobReward(activeJob: ActiveJob, employee: Employee): number {
 	// Base reward calculation - this could be enhanced with employee bonuses, etc.
 	const baseReward = 1000; // TODO: Calculate based on job tier, distance, category, etc.
-	
+
 	// Apply any employee bonuses based on their upgrade levels
 	// TODO: Implement upgrade bonuses
-	
+
 	return baseReward;
 }
 
@@ -246,24 +251,26 @@ async function updateEmployeeAfterJobCompletion(
 	// Update category XP based on job category
 	const categoryXPGain = 5;
 	const updatedCategoryLevels = { ...employee.categoryLevel };
-	
+
 	// TODO: Get job category from activeJob and update appropriate category
 	// For now, just update a default category
-	
+
 	// Update employee
 	const [updatedEmployee] = await tx
 		.update(employees)
 		.set({
 			activeJobId: null, // Clear active job
-			location: endAddress ? {
-				id: endAddress.id,
-				lat: endAddress.lat,
-				lon: endAddress.lon,
-				street: endAddress.street,
-				houseNumber: endAddress.houseNumber,
-				city: endAddress.city,
-				postcode: endAddress.postcode
-			} : employee.location,
+			location: endAddress
+				? {
+						id: endAddress.id,
+						lat: endAddress.lat,
+						lon: endAddress.lon,
+						street: endAddress.street,
+						houseNumber: endAddress.houseNumber,
+						city: endAddress.city,
+						postcode: endAddress.postcode
+					}
+				: employee.location,
 			drivingLevel: {
 				level: newDrivingLevel,
 				xp: newDrivingXP
@@ -274,4 +281,4 @@ async function updateEmployeeAfterJobCompletion(
 		.returning();
 
 	return updatedEmployee;
-} 
+}

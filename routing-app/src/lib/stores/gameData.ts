@@ -35,7 +35,7 @@ function scheduleJobCompletion(employeeId: string, activeJob: ActiveJob) {
 
 	const startTime = new Date(activeJob.startTime).getTime();
 	const currentTime = Date.now();
-	
+
 	// Calculate total completion time
 	let totalDuration = 0;
 	if (activeJob.currentPhase === 'traveling_to_job' && activeJob.modifiedRouteToJobData) {
@@ -58,8 +58,14 @@ function scheduleJobCompletion(employeeId: string, activeJob: ActiveJob) {
 	const remainingTime = Math.max(0, totalDuration - elapsed);
 
 	if (remainingTime > 0) {
-		log.debug('[GameData] Scheduling job completion for employee', employeeId, 'in', remainingTime, 'ms');
-		
+		log.debug(
+			'[GameData] Scheduling job completion for employee',
+			employeeId,
+			'in',
+			remainingTime,
+			'ms'
+		);
+
 		const timer = setTimeout(async () => {
 			log.debug('[GameData] Auto-completing job for employee:', employeeId);
 			try {
@@ -234,7 +240,9 @@ export const gameDataActions = {
 	},
 
 	// Update multiple employees at once (for bulk loading)
-	setAllEmployeesActiveJobs(employeeActiveJobs: Array<{ employeeId: string; activeJob: ActiveJob | null }>) {
+	setAllEmployeesActiveJobs(
+		employeeActiveJobs: Array<{ employeeId: string; activeJob: ActiveJob | null }>
+	) {
 		// Clear all existing timers
 		jobCompletionTimers.forEach((timer) => clearTimeout(timer));
 		jobCompletionTimers.clear();
@@ -243,13 +251,13 @@ export const gameDataActions = {
 		const newActiveJobs: Record<string, ActiveJob | null> = {};
 		employeeActiveJobs.forEach(({ employeeId, activeJob }) => {
 			newActiveJobs[employeeId] = activeJob;
-			
+
 			// Set up completion timer if needed
 			if (activeJob && activeJob.startTime && !activeJob.endTime) {
 				scheduleJobCompletion(employeeId, activeJob);
 			}
 		});
-		
+
 		activeJobsByEmployee.set(newActiveJobs);
 	},
 
@@ -291,7 +299,7 @@ export const gameDataAPI = {
 
 		try {
 			log.debug('[GameData] Loading all employee data for game state:', gameState.id);
-			
+
 			// This endpoint will process any completed jobs and return fresh data
 			const response = await fetch(`/api/game-states/${gameState.id}/employees-and-jobs`);
 			if (!response.ok) {
@@ -299,7 +307,7 @@ export const gameDataAPI = {
 			}
 
 			const data = await response.json();
-			
+
 			// Update employees store
 			if (data.employees) {
 				gameDataActions.setEmployees(data.employees);
@@ -328,7 +336,7 @@ export const gameDataAPI = {
 	async completeJob(employeeId: string, activeJobId: string) {
 		try {
 			log.debug('[GameData] Completing job for employee:', employeeId, 'job:', activeJobId);
-			
+
 			const response = await fetch(`/api/employees/${employeeId}/complete-job`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },

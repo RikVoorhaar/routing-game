@@ -154,7 +154,7 @@
 				jobStartTime = new Date(activeJob.jobPhaseStartTime).getTime();
 			} else if (activeJob.modifiedRouteToJobData) {
 				// Estimate job start time
-				jobStartTime = startTime + (activeJob.modifiedRouteToJobData.travelTimeSeconds * 1000);
+				jobStartTime = startTime + activeJob.modifiedRouteToJobData.travelTimeSeconds * 1000;
 			}
 
 			const jobElapsed = currentTime - jobStartTime;
@@ -162,7 +162,7 @@
 
 			if (activeJob.modifiedRouteToJobData) {
 				// Had travel phase, so job is second half
-				totalProgress = 50 + (phaseProgress * 0.5);
+				totalProgress = 50 + phaseProgress * 0.5;
 			} else {
 				// No travel, job is the whole thing
 				totalProgress = phaseProgress;

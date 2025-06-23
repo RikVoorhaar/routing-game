@@ -103,7 +103,7 @@
 						destination: routeData.destination,
 						startTime: activeJob.startTime
 					};
-					
+
 					const isSelected = activeJob.id === $selectedRoute;
 					mapDisplayActions.addRoute(routeForDisplay, {
 						isSelected,
