@@ -13,7 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql, type InferSelectModel } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import type { JobCategory } from '../../jobs/jobCategories';
+import { JobCategory } from '../../jobs/jobCategories';
 
 // JSONB Type Interfaces
 export interface LevelXP {
@@ -94,7 +94,11 @@ export const gameStates = pgTable('game_state', {
 		.default(sql`CURRENT_TIMESTAMP`),
 	money: doublePrecision('money').notNull().default(0),
 	routeLevel: integer('route_level').notNull().default(3)
-});
+},
+	(table) => [
+		index('game_states_user_id_idx').on(table.userId)
+	]
+);
 
 // Routes table - pure route data without timing/employee associations
 export const routes = pgTable(
@@ -116,34 +120,55 @@ export const routes = pgTable(
 	]
 );
 
-// Active jobs table - declaration moved here to avoid circular reference
+// Active jobs table 
 export const activeJobs = pgTable(
 	'active_job',
 	{
 		id: text('id').notNull().primaryKey(),
-		employeeId: text('employee_id').notNull(), // Forward reference - will add constraint later
-		jobId: integer('job_id'), // Will reference jobs table - will add constraint later
-		// Route to get to the job start location (null if employee is already at job start)
-		routeToJobId: text('route_to_job_id').references(() => routes.id, { onDelete: 'cascade' }),
-		// The actual job route
-		jobRouteId: text('job_route_id')
+		employeeId: text('employee_id')
 			.notNull()
-			.references(() => routes.id, { onDelete: 'cascade' }),
-		startTime: timestamp('start_time', { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
-		endTime: timestamp('end_time', { withTimezone: true }), // null if not completed
-		// Modified route data with employee speed/modifiers applied
-		modifiedRouteToJobData: jsonb('modified_route_to_job_data').$type<RoutingResult | null>(), // null if no route to job
-		modifiedJobRouteData: jsonb('modified_job_route_data').$type<RoutingResult>().notNull(),
-		// Current phase: 'traveling_to_job' or 'on_job'
-		currentPhase: text('current_phase').notNull().default('traveling_to_job'), // 'traveling_to_job' | 'on_job'
-		// Time when the job phase started (for tracking progress within each phase)
-		jobPhaseStartTime: timestamp('job_phase_start_time', { withTimezone: true })
+			.references(() => employees.id, { onDelete: 'cascade' }),
+		jobId: integer('job_id')
+			.notNull()
+			.references(() => jobs.id, { onDelete: 'cascade' }),
+		activeJobRouteId: text('modified_job_route_id')
+			.notNull()
+			.references(() => activeRoutes.id, { onDelete: 'cascade' }),
+		startTime: timestamp('start_time', { withTimezone: true }), // computed when job is accepted
+		generatedTime: timestamp('generated_time', { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
+		durationSeconds: doublePrecision('duration_seconds').notNull(),
+		reward: doublePrecision('reward').notNull(),
+		drivingXp: integer('driving_xp').notNull(),
+		jobCategory: integer('job_category').notNull(),
+		categoryXp: integer('category_xp').notNull(),
+		employeeStartAddressId: varchar('employee_start_address_id')
+			.notNull()
+			.references(() => addresses.id, { onDelete: 'cascade' }),
+		jobAddressId: varchar('job_address_id')
+			.notNull()
+			.references(() => addresses.id, { onDelete: 'cascade' }),
+		employeeEndAddressId: varchar('employee_end_address_id')
+			.notNull()
+			.references(() => addresses.id, { onDelete: 'cascade' })
 	},
 	(table) => [
 		index('active_jobs_employee_idx').on(table.employeeId),
-		index('active_jobs_job_idx').on(table.jobId),
-		index('active_jobs_start_time_idx').on(table.startTime),
-		index('active_jobs_current_phase_idx').on(table.currentPhase)
+		index('active_jobs_generated_time').on(table.generatedTime)
+	]
+);
+
+// Modified route associated to an active job
+export const activeRoutes = pgTable(
+	'active_route',
+	{
+		id: text('id').notNull().primaryKey(),
+		activeJobId: text('active_job_id')
+			.notNull()
+			.references(() => activeJobs.id, { onDelete: 'cascade' }),
+		routeData: jsonb('route_data').$type<RoutingResult>().notNull() // JSONB: Route data
+	},
+	(table) => [
+		index('active_routes_active_job_idx').on(table.activeJobId)
 	]
 );
 
@@ -161,7 +186,11 @@ export const employees = pgTable('employee', {
 	upgradeState: jsonb('upgrade_state').$type<UpgradeState>().notNull(), // JSONB: Record<JobCategory, number> (upgrade levels)
 	location: jsonb('location').$type<Address | null>(), // JSONB: Address | null
 	activeJobId: text('active_job_id').references(() => activeJobs.id, { onDelete: 'set null' }) // null if no active job
-});
+	},
+	(table) => [
+		index('employees_game_id_idx').on(table.gameId)
+	]
+);
 
 // Jobs table - generated jobs for the job market with spatial indexing
 export const jobs = pgTable(
@@ -182,8 +211,8 @@ export const jobs = pgTable(
 		jobTier: integer('job_tier').notNull(),
 		jobCategory: integer('job_category').notNull(), // Refers to JobCategory enum
 		totalDistanceKm: doublePrecision('total_distance_km').notNull(),
-		totalTimeSeconds: doublePrecision('total_time_seconds').notNull(),
-		timeGenerated: timestamp('time_generated', { withTimezone: true })
+		approximateTimeSeconds: doublePrecision('approximate_time_seconds').notNull(),
+		generatedTime: timestamp('generated_time', { withTimezone: true })
 			.notNull()
 			.default(sql`CURRENT_TIMESTAMP`),
 		approximateValue: doublePrecision('approximate_value').notNull()
@@ -193,7 +222,7 @@ export const jobs = pgTable(
 		index('jobs_tier_idx').on(table.jobTier),
 		index('jobs_category_idx').on(table.jobCategory),
 		index('jobs_value_idx').on(table.approximateValue), // For sorting by value
-		index('jobs_time_generated_idx').on(table.timeGenerated),
+		index('jobs_generated_time_idx').on(table.generatedTime),
 		// Create a spatial index on the geometry column for efficient spatial queries
 		index('jobs_location_idx').on(sql`${table.location}`)
 	]
