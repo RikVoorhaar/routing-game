@@ -2,7 +2,7 @@ import { db } from '$lib/server/db';
 import { routes, addresses } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
-import { modifyRoute } from '$lib/jobAssignment';
+import { modifyRoute } from '$lib/jobs/jobAssignment';
 import { getShortestPath } from '$lib/routing';
 import type { Employee, Job, GameState, Address, Route, ActiveJob } from '$lib/server/db/schema';
 

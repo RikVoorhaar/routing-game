@@ -1,7 +1,7 @@
 // place files you want to import through the `$lib` alias in this folder.
 
 // Export job categories
-export * from './jobCategories';
+export * from './jobs/jobCategories';
 
 // Export vehicle system
 export * from './vehicles';

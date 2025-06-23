@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { employees, activeJobs } from '$lib/server/db/schema';
 import { eq, and, isNotNull, isNull } from 'drizzle-orm';
-import { processCompletedJobs } from '$lib/server/jobCompletion';
+import { processCompletedJobs } from '$lib/jobs/jobCompletion';
 import { log } from '$lib/logger';
 import type { RequestHandler } from './$types';
 

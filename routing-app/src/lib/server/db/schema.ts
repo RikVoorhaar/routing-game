@@ -13,7 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql, type InferSelectModel } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import type { JobCategory } from '../../jobCategories';
+import type { JobCategory } from '../../jobs/jobCategories';
 
 // JSONB Type Interfaces
 export interface LevelXP {

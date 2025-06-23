@@ -1,13 +1,13 @@
 import { type InferSelectModel } from 'drizzle-orm';
-import { addresses, jobs, routes } from './server/db/schema';
-import { getRandomRouteInAnnulus, type RouteInAnnulus } from './routing';
-import { type Coordinate } from './server/db/schema';
+import { addresses, jobs, routes } from '$lib/server/db/schema';
+import { getRandomRouteInAnnulus, type RouteInAnnulus } from '$lib/routing';
+import { type Coordinate } from '$lib/server/db/schema';
 import type { InferInsertModel } from 'drizzle-orm';
-import { db, client } from './server/db/standalone';
+import { db, client } from '$lib/server/db/standalone';
 import { sql, desc, inArray } from 'drizzle-orm';
 import { distance } from '@turf/turf';
-import { getTileBounds } from './geo';
-import { JobCategory } from './jobCategories';
+import { getTileBounds } from '$lib/geo';
+import { JobCategory } from '$lib/jobs/jobCategories';
 
 type JobInsert = InferInsertModel<typeof jobs>;
 // Constants for job generation

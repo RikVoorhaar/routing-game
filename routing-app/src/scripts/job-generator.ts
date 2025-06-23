@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import { generateJobFromAddress, getJobsByValue, clearAllJobs } from '../lib/generateJobs.js';
+import { generateJobFromAddress, getJobsByValue, clearAllJobs } from '../lib/jobs/generateJobs';
 import { db, client } from '../lib/server/db/standalone.js';
 import { addresses, type Address } from '../lib/server/db/schema';
 import { sql } from 'drizzle-orm';

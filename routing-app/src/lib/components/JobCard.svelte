@@ -4,14 +4,13 @@
 		selectedActiveJob,
 		selectActiveJob,
 		clearSelectedActiveJob,
-		cachedActiveJobs,
 		cacheActiveJobsForJob
 	} from '$lib/stores/activeJobs';
 	import { selectedEmployee } from '$lib/stores/selectedEmployee';
 	import { employees, currentGameState, gameDataAPI } from '$lib/stores/gameData';
-	import { getCategoryName, getTierColor } from '$lib/jobCategories';
+	import { getCategoryName, getTierColor } from '$lib/jobs/jobCategories';
 	import { formatCurrency, formatDistance, formatTime } from '$lib/formatting';
-	import { employeeCanPerformJob, sortEmployeesByDistanceFromJob } from '$lib/jobAssignment';
+	import { employeeCanPerformJob, sortEmployeesByDistanceFromJob } from '$lib/jobs/jobAssignment';
 	import { addError } from '$lib/stores/errors';
 	import type { Employee } from '$lib/server/db/schema';
 	import type { ActiveJob } from '$lib/stores/activeJobs';
@@ -202,7 +201,7 @@
 </script>
 
 {#if $selectedJob}
-	<div class="card border border-base-300 bg-base-100 shadow-lg">
+	<div class="card border-base-300 bg-base-100 border shadow-lg">
 		<div class="card-body p-4">
 			<!-- Header with tier badge and close button -->
 			<div class="mb-3 flex items-center justify-between">
@@ -213,7 +212,7 @@
 					>
 						Tier {$selectedJob.jobTier}
 					</span>
-					<span class="text-lg font-semibold text-base-content">
+					<span class="text-base-content text-lg font-semibold">
 						{getCategoryName($selectedJob.jobCategory)}
 					</span>
 				</div>
@@ -229,29 +228,29 @@
 			<!-- Job details grid -->
 			<div class="mb-4 grid grid-cols-2 gap-4 text-sm">
 				<div class="text-center">
-					<div class="text-xs font-medium text-base-content/60">Reward</div>
-					<div class="text-lg font-bold text-success">
+					<div class="text-base-content/60 text-xs font-medium">Reward</div>
+					<div class="text-success text-lg font-bold">
 						{formatCurrency($selectedJob.approximateValue)}
 					</div>
 				</div>
 
 				<div class="text-center">
-					<div class="text-xs font-medium text-base-content/60">Distance</div>
-					<div class="text-lg font-bold text-info">
+					<div class="text-base-content/60 text-xs font-medium">Distance</div>
+					<div class="text-info text-lg font-bold">
 						{formatDistance($selectedJob.totalDistanceKm)}
 					</div>
 				</div>
 
 				<div class="text-center">
-					<div class="text-xs font-medium text-base-content/60">Duration</div>
-					<div class="text-lg font-bold text-warning">
+					<div class="text-base-content/60 text-xs font-medium">Duration</div>
+					<div class="text-warning text-lg font-bold">
 						{formatTime($selectedJob.totalTimeSeconds)}
 					</div>
 				</div>
 
 				<div class="text-center">
-					<div class="text-xs font-medium text-base-content/60">Job ID</div>
-					<div class="text-base font-bold text-base-content">
+					<div class="text-base-content/60 text-xs font-medium">Job ID</div>
+					<div class="text-base-content text-base font-bold">
 						#{$selectedJob.id}
 					</div>
 				</div>
@@ -354,7 +353,7 @@
 			</div>
 
 			<!-- Additional info -->
-			<div class="mt-3 text-xs text-base-content/70">
+			<div class="text-base-content/70 mt-3 text-xs">
 				Posted: {new Date($selectedJob.timeGenerated).toLocaleDateString()}
 
 				{#if activeJobsForJob.length > 0}

@@ -2,7 +2,7 @@
  * Employee utilities for the new employee system
  */
 
-import { JobCategory } from './jobCategories';
+import { JobCategory } from './jobs/jobCategories';
 import type { Employee } from '$lib/server/db/schema';
 import { VehicleType, LicenseType, VehicleClass, getVehicleConfig } from './vehicles';
 import {

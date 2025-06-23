@@ -1,8 +1,8 @@
-import { db } from './db';
-import { employees, activeJobs, gameStates, addresses } from './db/schema';
+import { db } from '../server/db';
+import { employees, activeJobs, gameStates, addresses } from '../server/db/schema';
 import { eq, and, isNotNull, isNull } from 'drizzle-orm';
 import { log } from '$lib/logger';
-import type { Employee, ActiveJob, GameState } from './db/schema';
+import type { Employee, ActiveJob, GameState } from '../server/db/schema';
 
 export interface JobCompletionResult {
 	employee: Employee;
@@ -224,7 +224,7 @@ function isJobComplete(activeJob: ActiveJob, currentTime: number): boolean {
 /**
  * Calculate reward for completing a job
  */
-function calculateJobReward(activeJob: ActiveJob, employee: Employee): number {
+function calculateJobReward(_activeJob: ActiveJob, _employee: Employee): number {
 	// Base reward calculation - this could be enhanced with employee bonuses, etc.
 	const baseReward = 1000; // TODO: Calculate based on job tier, distance, category, etc.
 

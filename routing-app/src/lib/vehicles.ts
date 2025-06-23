@@ -2,7 +2,7 @@
  * Vehicle system configuration
  */
 
-import { JobCategory } from './jobCategories';
+import { JobCategory } from './jobs/jobCategories';
 
 export enum VehicleType {
 	BIKE = 0,

@@ -2,7 +2,7 @@
 	import { onDestroy } from 'svelte';
 	import { interpolateLocationAtTime } from '$lib/routing-client';
 	import { formatTimeRemaining, toRomanNumeral } from '$lib/formatting';
-	import { getCategoryIcon } from '$lib/jobCategories';
+	import { getCategoryIcon } from '$lib/jobs/jobCategories';
 	import { getTierColor } from '$lib/stores/mapDisplay';
 	import { selectEmployee } from '$lib/stores/selectedEmployee';
 	import { selectedEmployee } from '$lib/stores/selectedEmployee';

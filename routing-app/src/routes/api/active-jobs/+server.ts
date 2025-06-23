@@ -3,7 +3,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { gameStates, employees, activeJobs, jobs } from '$lib/server/db/schema';
 import { eq, and, lt, desc, ne } from 'drizzle-orm';
-import { computeActiveJob } from '$lib/activeJobComputation';
+import { computeActiveJob } from '$lib/jobs/activeJobComputation';
 import type { Job } from '$lib/server/db/schema';
 
 // GET /api/active-jobs?jobId=123&gameStateId=abc - Get active jobs for a specific job

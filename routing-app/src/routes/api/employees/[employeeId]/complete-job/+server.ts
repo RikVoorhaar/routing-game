@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { completeActiveJob } from '$lib/server/jobCompletion';
+import { completeActiveJob } from '$lib/jobs/jobCompletion';
 import { log } from '$lib/logger';
 import type { RequestHandler } from './$types';
 
