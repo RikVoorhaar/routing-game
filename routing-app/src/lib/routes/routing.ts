@@ -1,6 +1,6 @@
-import { getRandomAddressInAnnulus } from './addresses';
-import type { Address } from './server/db/schema';
-import type { Coordinate, RoutingResult, PathPoint } from './server/db/schema';
+import { getRandomAddressInAnnulus } from '../addresses';
+import type { Address } from '../server/db/schema';
+import type { Coordinate, RoutingResult, PathPoint } from '../server/db/schema';
 import http from 'http';
 
 const ROUTING_SERVER_URL = 'http://localhost:8050';

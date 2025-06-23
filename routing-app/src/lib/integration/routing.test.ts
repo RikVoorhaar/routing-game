@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { getRandomRouteInAnnulus } from '../routing';
+import { getRandomRouteInAnnulus } from '../routes/routing';
 import { getServerHealth } from '../server';
-import { interpolateLocationAtTime } from '../routing-client';
+import { interpolateLocationAtTime } from '../routes/routing-client';
 import type { Coordinate, PathPoint } from '../types';
 
 describe('routing functions (integration)', () => {

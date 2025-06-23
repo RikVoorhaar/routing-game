@@ -3,7 +3,6 @@ import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db';
 import { gameStates, employees, users } from '$lib/server/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { processCompletedRoutes } from '$lib/server/routeCompletion';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const session = await locals.auth();
@@ -15,9 +14,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const { gameStateId } = params;
 
 	try {
-		// Process any completed routes first
-		await processCompletedRoutes(gameStateId);
-
 		// Get the game state and verify ownership
 		const [gameState] = await db
 			.select()

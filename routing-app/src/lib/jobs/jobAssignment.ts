@@ -40,35 +40,6 @@ export function employeeCanPerformJob(employee: Employee, job: Job): boolean {
 	return drivingLevel.level >= requiredDrivingLevel;
 }
 
-/**
- * Modify route data based on employee's upgrades and max speed
- * For now this only applies max speed, but in the future will apply other modifiers
- */
-export function modifyRoute(routeData: any, employee: Employee): any {
-	// Get employee's max speed including upgrades
-	const maxSpeedKmh = getEmployeeMaxSpeed(employee);
-
-	// Apply speed modifications to the route data
-	const modifiedRouteData = {
-		...routeData,
-		// Store the original travel time for reference
-		originalTravelTimeSeconds: routeData.travelTimeSeconds,
-		// Apply max speed limit - this would need to be calculated based on the route
-		// For now, we'll use a simple approximation
-		maxSpeedApplied: maxSpeedKmh
-	};
-
-	// If the route has segment data, we could apply speed limits per segment
-	// For now, we'll apply a global speed modifier based on the employee's max speed
-	if (routeData.travelTimeSeconds) {
-		// This is a simplified calculation - in a real implementation,
-		// you'd need to recalculate based on actual route segments and speed limits
-		const speedRatio = Math.min(1.0, maxSpeedKmh / 130); // Assume 130 km/h as baseline
-		modifiedRouteData.travelTimeSeconds = routeData.travelTimeSeconds / speedRatio;
-	}
-
-	return modifiedRouteData;
-}
 
 /**
  * Calculate geodesic distance between two points (rough approximation)

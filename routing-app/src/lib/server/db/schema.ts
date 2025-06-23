@@ -83,21 +83,21 @@ export const addresses = pgTable(
 );
 
 // Game state table - tracks user's game progress
-export const gameStates = pgTable('game_state', {
-	id: text('id').notNull().primaryKey(),
-	name: text('name').notNull(),
-	userId: text('user_id')
-		.notNull()
-		.references(() => users.id, { onDelete: 'cascade' }),
-	createdAt: timestamp('created_at', { withTimezone: true })
-		.notNull()
-		.default(sql`CURRENT_TIMESTAMP`),
-	money: doublePrecision('money').notNull().default(0),
-	routeLevel: integer('route_level').notNull().default(3)
-},
-	(table) => [
-		index('game_states_user_id_idx').on(table.userId)
-	]
+export const gameStates = pgTable(
+	'game_state',
+	{
+		id: text('id').notNull().primaryKey(),
+		name: text('name').notNull(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		createdAt: timestamp('created_at', { withTimezone: true })
+			.notNull()
+			.default(sql`CURRENT_TIMESTAMP`),
+		money: doublePrecision('money').notNull().default(0),
+		routeLevel: integer('route_level').notNull().default(3)
+	},
+	(table) => [index('game_states_user_id_idx').on(table.userId)]
 );
 
 // Routes table - pure route data without timing/employee associations
@@ -120,7 +120,7 @@ export const routes = pgTable(
 	]
 );
 
-// Active jobs table 
+// Active jobs table
 export const activeJobs = pgTable(
 	'active_job',
 	{
@@ -135,7 +135,9 @@ export const activeJobs = pgTable(
 			.notNull()
 			.references(() => activeRoutes.id, { onDelete: 'cascade' }),
 		startTime: timestamp('start_time', { withTimezone: true }), // computed when job is accepted
-		generatedTime: timestamp('generated_time', { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
+		generatedTime: timestamp('generated_time', { withTimezone: true }).default(
+			sql`CURRENT_TIMESTAMP`
+		),
 		durationSeconds: doublePrecision('duration_seconds').notNull(),
 		reward: doublePrecision('reward').notNull(),
 		drivingXp: integer('driving_xp').notNull(),
@@ -167,29 +169,27 @@ export const activeRoutes = pgTable(
 			.references(() => activeJobs.id, { onDelete: 'cascade' }),
 		routeData: jsonb('route_data').$type<RoutingResult>().notNull() // JSONB: Route data
 	},
-	(table) => [
-		index('active_routes_active_job_idx').on(table.activeJobId)
-	]
+	(table) => [index('active_routes_active_job_idx').on(table.activeJobId)]
 );
 
 // Employees table - tracks user's employees and their states
-export const employees = pgTable('employee', {
-	id: text('id').notNull().primaryKey(),
-	gameId: text('game_id')
-		.notNull()
-		.references(() => gameStates.id, { onDelete: 'cascade' }),
-	name: text('name').notNull(),
-	vehicleLevel: integer('vehicle_level').notNull().default(0), // VehicleType enum
-	licenseLevel: integer('license_level').notNull().default(0), // LicenseType enum
-	categoryLevel: jsonb('category_level').$type<CategoryLevels>().notNull(), // JSONB: Record<JobCategory, { level: number, xp: number }>
-	drivingLevel: jsonb('driving_level').$type<LevelXP>().notNull(), // JSONB: { level: number, xp: number }
-	upgradeState: jsonb('upgrade_state').$type<UpgradeState>().notNull(), // JSONB: Record<JobCategory, number> (upgrade levels)
-	location: jsonb('location').$type<Address | null>(), // JSONB: Address | null
-	activeJobId: text('active_job_id').references(() => activeJobs.id, { onDelete: 'set null' }) // null if no active job
+export const employees = pgTable(
+	'employee',
+	{
+		id: text('id').notNull().primaryKey(),
+		gameId: text('game_id')
+			.notNull()
+			.references(() => gameStates.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		vehicleLevel: integer('vehicle_level').notNull().default(0), // VehicleType enum
+		licenseLevel: integer('license_level').notNull().default(0), // LicenseType enum
+		categoryLevel: jsonb('category_level').$type<CategoryLevels>().notNull(), // JSONB: Record<JobCategory, { level: number, xp: number }>
+		drivingLevel: jsonb('driving_level').$type<LevelXP>().notNull(), // JSONB: { level: number, xp: number }
+		upgradeState: jsonb('upgrade_state').$type<UpgradeState>().notNull(), // JSONB: Record<JobCategory, number> (upgrade levels)
+		location: jsonb('location').$type<Address>().notNull(), // JSONB: Address
+		activeJobId: text('active_job_id').references(() => activeJobs.id, { onDelete: 'set null' }) // null if no active job
 	},
-	(table) => [
-		index('employees_game_id_idx').on(table.gameId)
-	]
+	(table) => [index('employees_game_id_idx').on(table.gameId)]
 );
 
 // Jobs table - generated jobs for the job market with spatial indexing
@@ -324,3 +324,4 @@ export type GameState = InferSelectModel<typeof gameStates>;
 export type Address = InferSelectModel<typeof addresses>;
 export type Route = InferSelectModel<typeof routes>;
 export type ActiveJob = InferSelectModel<typeof activeJobs>;
+export type ActiveRoute = InferSelectModel<typeof activeRoutes>;
