@@ -40,7 +40,6 @@ export function employeeCanPerformJob(employee: Employee, job: Job): boolean {
 	return drivingLevel.level >= requiredDrivingLevel;
 }
 
-
 /**
  * Calculate geodesic distance between two points (rough approximation)
  */

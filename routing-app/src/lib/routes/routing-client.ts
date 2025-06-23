@@ -91,4 +91,3 @@ export function interpolateLocationAtTime(
 		lon: interpolatedPoint.geometry.coordinates[0]
 	};
 }
-
