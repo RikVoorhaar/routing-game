@@ -202,7 +202,7 @@
 						<div>
 							<div class="mb-2 flex items-center justify-between">
 								<span class="font-medium">Job Progress</span>
-								<span class="text-base-content/70 text-sm">
+								<span class="text-sm text-base-content/70">
 									{jobProgress ? Math.round(jobProgress.progress) : 0}%
 								</span>
 							</div>
@@ -214,7 +214,7 @@
 							></progress>
 
 							{#if jobProgress && !jobProgress.isComplete}
-								<div class="text-base-content/70 text-sm">
+								<div class="text-sm text-base-content/70">
 									{#if jobProgress.currentPhase === 'traveling_to_job'}
 										Traveling to job location...
 									{:else}
@@ -223,7 +223,7 @@
 									ETA: {formatTimeFromMs(jobProgress.remainingTimeMs)}
 								</div>
 							{:else if jobProgress && jobProgress.isComplete}
-								<div class="text-success text-sm font-medium">✅ Job Completed!</div>
+								<div class="text-sm font-medium text-success">✅ Job Completed!</div>
 							{/if}
 						</div>
 
@@ -253,14 +253,14 @@
 						<div class="py-8 text-center">
 							<div class="mb-2 text-4xl">🚗</div>
 							<p class="text-base-content/70">Employee is currently idle</p>
-							<p class="text-base-content/50 mt-1 text-sm">Assign a job from the job market</p>
+							<p class="mt-1 text-sm text-base-content/50">Assign a job from the job market</p>
 						</div>
 					{/if}
 				</div>
 			{:else if activeTab === 'levels'}
 				<div class="space-y-4">
 					<!-- Driving Level -->
-					<div class="bg-base-200 rounded-lg p-3">
+					<div class="rounded-lg bg-base-200 p-3">
 						<div class="mb-2 flex items-center justify-between">
 							<span class="flex items-center gap-2 font-medium"> 🚗 Driving </span>
 							<span class="text-sm">Level {employee.drivingLevel.level}</span>
@@ -270,7 +270,7 @@
 							value={employee.drivingLevel.xp}
 							max={getXPForNextLevel(employee.drivingLevel.level)}
 						></progress>
-						<div class="text-base-content/70 mt-1 text-xs">
+						<div class="mt-1 text-xs text-base-content/70">
 							{employee.drivingLevel.xp} / {getXPForNextLevel(employee.drivingLevel.level)} XP
 						</div>
 					</div>
@@ -282,13 +282,13 @@
 						{@const categoryName = CATEGORY_NAMES[category]}
 						{@const categoryIcon = CATEGORY_ICONS[category]}
 
-						<div class="bg-base-200 rounded-lg p-3" class:opacity-60={!canDoCategory}>
+						<div class="rounded-lg bg-base-200 p-3" class:opacity-60={!canDoCategory}>
 							<div class="mb-2 flex items-center justify-between">
 								<span class="flex items-center gap-2 font-medium">
 									{categoryIcon}
 									{categoryName}
 									{#if !canDoCategory}
-										<svg class="text-warning h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+										<svg class="h-4 w-4 text-warning" fill="currentColor" viewBox="0 0 20 20">
 											<path
 												fill-rule="evenodd"
 												d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
@@ -306,10 +306,10 @@
 								value={categoryLevel.xp}
 								max={getXPForNextLevel(categoryLevel.level)}
 							></progress>
-							<div class="text-base-content/70 mt-1 text-xs">
+							<div class="mt-1 text-xs text-base-content/70">
 								{categoryLevel.xp} / {getXPForNextLevel(categoryLevel.level)} XP
 								{#if !canDoCategory}
-									<span class="text-warning ml-2">Requires license upgrade</span>
+									<span class="ml-2 text-warning">Requires license upgrade</span>
 								{/if}
 							</div>
 						</div>
@@ -321,7 +321,7 @@
 					<!-- License Upgrade -->
 					<div class="space-y-3">
 						<h3 class="text-lg font-semibold">License</h3>
-						<div class="bg-base-200 rounded-lg p-3">
+						<div class="rounded-lg bg-base-200 p-3">
 							<div class="mb-2 flex items-center justify-between">
 								<span>Current: {getLicenseConfig(employee.licenseLevel).name}</span>
 								<div class="badge badge-secondary">Level {employee.drivingLevel.level}</div>
@@ -345,7 +345,7 @@
 									{/if}
 								</button>
 							{:else}
-								<div class="text-success text-center">🏆 Max license achieved!</div>
+								<div class="text-center text-success">🏆 Max license achieved!</div>
 							{/if}
 						</div>
 					</div>
@@ -353,7 +353,7 @@
 					<!-- Vehicle Upgrade -->
 					<div class="space-y-3">
 						<h3 class="text-lg font-semibold">Vehicle</h3>
-						<div class="bg-base-200 rounded-lg p-3">
+						<div class="rounded-lg bg-base-200 p-3">
 							<div class="mb-2 flex items-center justify-between">
 								<span>Current: {currentVehicleConfig.name}</span>
 								<div class="badge badge-accent">{getEmployeeCapacity(employee)} capacity</div>
@@ -370,7 +370,7 @@
 									Upgrade to {nextVehicleConfig.name} ({formatMoney(nextVehicleConfig.baseCost)})
 								</button>
 							{:else}
-								<div class="text-success text-center">🏆 Best available vehicle!</div>
+								<div class="text-center text-success">🏆 Best available vehicle!</div>
 							{/if}
 						</div>
 					</div>
@@ -413,7 +413,7 @@
 								}
 							})()}
 
-							<div class="bg-base-200 rounded-lg p-3">
+							<div class="rounded-lg bg-base-200 p-3">
 								<div class="mb-2 flex items-center justify-between">
 									<span class="flex items-center gap-2 font-medium">
 										{categoryIcon}
@@ -422,7 +422,7 @@
 									<div class="badge badge-ghost">Level {currentLevel}</div>
 								</div>
 
-								<p class="text-base-content/70 mb-2 text-sm">
+								<p class="mb-2 text-sm text-base-content/70">
 									{upgradeInfo.effectDescription} (current: {currentEffect})
 								</p>
 
