@@ -21,10 +21,12 @@
 	let isCreatingActiveJob = false;
 	let isAcceptingJob = false;
 	let eligibleEmployees: Employee[] = [];
-	
+
 	// Store for active jobs associated with the current job, keyed by employee ID
-	const activeJobsByEmployee = writable<Record<string, { activeJob: ActiveJob; activeRoute?: any }>>({});
-	
+	const activeJobsByEmployee = writable<
+		Record<string, { activeJob: ActiveJob; activeRoute?: any }>
+	>({});
+
 	// Derived store for the currently selected employee's active job data
 	const selectedEmployeeActiveJobData = derived(
 		[activeJobsByEmployee, writable(selectedEmployeeId)],
@@ -60,7 +62,7 @@
 		// Set default selected employee if it's eligible
 		const isEligible = eligibleEmployees.some((emp) => emp.id === $selectedEmployee);
 		selectedEmployeeId = isEligible ? $selectedEmployee : eligibleEmployees[0]?.id || null;
-		
+
 		// When employee changes, check if we need to compute their active job
 		if (selectedEmployeeId) {
 			handleEmployeeSelection();
@@ -109,16 +111,16 @@
 			);
 			if (response.ok) {
 				const allActiveJobs = await response.json();
-				
+
 				// Group active jobs by employee ID for this job
 				const jobActiveJobs: Record<string, { activeJob: ActiveJob; activeRoute?: any }> = {};
-				
+
 				for (const activeJob of allActiveJobs) {
 					if (activeJob.jobId === $selectedJob.id) {
 						jobActiveJobs[activeJob.employeeId] = { activeJob };
 					}
 				}
-				
+
 				activeJobsByEmployee.set(jobActiveJobs);
 			} else {
 				addError('Failed to load active jobs', 'error');
@@ -157,10 +159,10 @@
 
 			if (response.ok) {
 				const result = await response.json();
-				
+
 				// Update our cache with the new active job data
 				if (selectedEmployeeId) {
-					activeJobsByEmployee.update(cache => ({
+					activeJobsByEmployee.update((cache) => ({
 						...cache,
 						[selectedEmployeeId!]: {
 							activeJob: result.activeJob,
@@ -168,7 +170,7 @@
 						}
 					}));
 				}
-				
+
 				// Select this active job
 				selectActiveJob(result.activeJob);
 			} else {
@@ -205,7 +207,7 @@
 
 				// Update the active job in our cache to reflect it's been started
 				if (selectedEmployeeId) {
-					activeJobsByEmployee.update(cache => ({
+					activeJobsByEmployee.update((cache) => ({
 						...cache,
 						[selectedEmployeeId!]: {
 							...cache[selectedEmployeeId!],
@@ -358,7 +360,9 @@
 						<div class="font-medium">Route Ready</div>
 						<div class="text-sm opacity-90">
 							{#if $selectedEmployeeActiveJobData.activeJob.startTime}
-								Job started: {new Date($selectedEmployeeActiveJobData.activeJob.startTime).toLocaleString()}
+								Job started: {new Date(
+									$selectedEmployeeActiveJobData.activeJob.startTime
+								).toLocaleString()}
 							{:else}
 								Route computed and ready to accept
 							{/if}
@@ -405,7 +409,11 @@
 				{#if Object.keys($activeJobsByEmployee).length > 0}
 					<br />
 					<span class="badge badge-outline badge-sm">
-						{Object.keys($activeJobsByEmployee).length} active assignment{Object.keys($activeJobsByEmployee).length === 1 ? '' : 's'}
+						{Object.keys($activeJobsByEmployee).length} active assignment{Object.keys(
+							$activeJobsByEmployee
+						).length === 1
+							? ''
+							: 's'}
 					</span>
 				{/if}
 			</div>
