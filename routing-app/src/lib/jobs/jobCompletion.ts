@@ -2,7 +2,15 @@ import { db } from '../server/db';
 import { employees, activeJobs, gameStates, addresses } from '../server/db/schema';
 import { eq, and, isNotNull, isNull } from 'drizzle-orm';
 import { log } from '$lib/logger';
-import type { Employee, ActiveJob, GameState } from '../server/db/schema';
+import type {
+	Employee,
+	ActiveJob,
+	GameState,
+	LevelXP,
+	CategoryLevels,
+	Address
+} from '../server/db/schema';
+import { JobCategory } from '../jobs/jobCategories';
 
 export interface JobCompletionResult {
 	employee: Employee;
@@ -17,11 +25,9 @@ export interface JobCompletionResult {
  * This logic is shared between the job completion endpoint and bulk state loading
  */
 export async function completeActiveJob(
-	employeeId: string,
-	activeJobId: string
+	activeJobId: string,
 ): Promise<JobCompletionResult> {
-	log.debug('[JobCompletion] Starting completion for employee:', employeeId, 'job:', activeJobId);
-
+	log.debug('[JobCompletion] Starting completion for job:', activeJobId);
 	// Get the active job with employee and game state
 	const [activeJobData] = await db
 		.select({
@@ -31,61 +37,46 @@ export async function completeActiveJob(
 		})
 		.from(activeJobs)
 		.innerJoin(employees, eq(activeJobs.employeeId, employees.id))
-		.innerJoin(gameStates, eq(employees.gameId, gameStates.id))
-		.where(and(eq(activeJobs.id, activeJobId), eq(employees.id, employeeId)))
+		.innerJoin(gameStates, eq(activeJobs.gameStateId, gameStates.id))
+		.where(eq(activeJobs.id, activeJobId))
 		.limit(1);
 
 	if (!activeJobData) {
-		throw new Error('Active job not found or employee mismatch');
+		throw new Error('Active job not found');
 	}
 
 	const { activeJob, employee, gameState } = activeJobData;
 
 	// Calculate reward based on job data
-	const reward = calculateJobReward(activeJob, employee);
+	const reward = activeJob.reward;
 	const newBalance = gameState.money + reward;
 
 	// Get the job end location for updating employee position
-	const [endAddress] = await db
-		.select()
-		.from(addresses)
-		.where(eq(addresses.id, activeJob.modifiedJobRouteData.destination.id))
-		.limit(1);
+	const endAddress = await db.query.addresses.findFirst({
+		where: eq(addresses.id, activeJob.employeeEndAddressId)
+	});
 
-	await db.transaction(async (tx) => {
-		// Mark active job as completed
-		await tx
-			.update(activeJobs)
-			.set({
-				endTime: new Date(),
-				currentPhase: 'completed'
-			})
-			.where(eq(activeJobs.id, activeJobId));
+	if (!endAddress) {
+		throw new Error('End address not found');
+	}
+
+	const result = await db.transaction(async (tx) => {
+		// Delete the completed active job
+		await tx.delete(activeJobs).where(eq(activeJobs.id, activeJobId));
 
 		// Update employee - clear active job and update location/XP
-		const updatedEmployee = await updateEmployeeAfterJobCompletion(
-			tx,
-			employee,
-			activeJob,
-			endAddress
-		);
+		const updatedEmployee = updateEmployeeAfterJobCompletion(employee, activeJob, endAddress);
+		await tx.update(employees).set(updatedEmployee).where(eq(employees.id, employee.id));
 
 		// Update game state money
 		await tx.update(gameStates).set({ money: newBalance }).where(eq(gameStates.id, gameState.id));
-
-		// Get the completed active job
-		const [completedJob] = await tx
-			.select()
-			.from(activeJobs)
-			.where(eq(activeJobs.id, activeJobId))
-			.limit(1);
 
 		return {
 			employee: updatedEmployee,
 			gameState: { ...gameState, money: newBalance },
 			reward,
 			newBalance,
-			completedActiveJob: completedJob
+			completedActiveJob: activeJob // Return the original active job before deletion
 		};
 	});
 
@@ -96,32 +87,7 @@ export async function completeActiveJob(
 		newBalance
 	);
 
-	// Return the result (TypeScript will infer this is returned from the transaction)
-	const [updatedEmployee] = await db
-		.select()
-		.from(employees)
-		.where(eq(employees.id, employeeId))
-		.limit(1);
-
-	const [updatedGameState] = await db
-		.select()
-		.from(gameStates)
-		.where(eq(gameStates.id, gameState.id))
-		.limit(1);
-
-	const [completedActiveJob] = await db
-		.select()
-		.from(activeJobs)
-		.where(eq(activeJobs.id, activeJobId))
-		.limit(1);
-
-	return {
-		employee: updatedEmployee,
-		gameState: updatedGameState,
-		reward,
-		newBalance,
-		completedActiveJob
-	};
+	return result;
 }
 
 /**
@@ -220,65 +186,35 @@ function isJobComplete(activeJob: ActiveJob, currentTime: number): boolean {
 	const elapsed = currentTime - startTime;
 	return elapsed >= totalDuration;
 }
-
-/**
- * Calculate reward for completing a job
- */
-function calculateJobReward(_activeJob: ActiveJob, _employee: Employee): number {
-	// Base reward calculation - this could be enhanced with employee bonuses, etc.
-	const baseReward = 1000; // TODO: Calculate based on job tier, distance, category, etc.
-
-	// Apply any employee bonuses based on their upgrade levels
-	// TODO: Implement upgrade bonuses
-
-	return baseReward;
-}
-
 /**
  * Update employee after job completion - XP, location, clear active job
  */
-async function updateEmployeeAfterJobCompletion(
-	tx: any,
+function updateEmployeeAfterJobCompletion(
 	employee: Employee,
 	activeJob: ActiveJob,
-	endAddress: any
-): Promise<Employee> {
-	// Calculate XP gains
-	const drivingXPGain = 10; // Base XP for completing a job
-	const newDrivingXP = employee.drivingLevel.xp + drivingXPGain;
-	const newDrivingLevel = Math.floor(newDrivingXP / 100) + 1; // Level up every 100 XP
+	endAddress: Address
+): Employee {
+	//TODO: Handle logic for leveleing up
+	const newDrivingLevel: LevelXP = {
+		level: employee.drivingLevel.level,
+		xp: employee.drivingLevel.xp + activeJob.drivingXp
+	};
+	const jobCategory = activeJob.jobCategory as JobCategory;
+	const newCategoryLevelRecord: LevelXP = {
+		level: employee.categoryLevel[jobCategory].level,
+		xp: employee.categoryLevel[jobCategory].xp + activeJob.categoryXp
+	};
+	const newCategoryLevel: CategoryLevels = {
+		...employee.categoryLevel,
+		[activeJob.jobCategory as JobCategory]: newCategoryLevelRecord
+	};
 
-	// Update category XP based on job category
-	const categoryXPGain = 5;
-	const updatedCategoryLevels = { ...employee.categoryLevel };
+	const newEmployee: Employee = {
+		...employee,
+		drivingLevel: newDrivingLevel,
+		categoryLevel: newCategoryLevel,
+		location: endAddress
+	};
 
-	// TODO: Get job category from activeJob and update appropriate category
-	// For now, just update a default category
-
-	// Update employee
-	const [updatedEmployee] = await tx
-		.update(employees)
-		.set({
-			activeJobId: null, // Clear active job
-			location: endAddress
-				? {
-						id: endAddress.id,
-						lat: endAddress.lat,
-						lon: endAddress.lon,
-						street: endAddress.street,
-						houseNumber: endAddress.houseNumber,
-						city: endAddress.city,
-						postcode: endAddress.postcode
-					}
-				: employee.location,
-			drivingLevel: {
-				level: newDrivingLevel,
-				xp: newDrivingXP
-			},
-			categoryLevel: updatedCategoryLevels
-		})
-		.where(eq(employees.id, employee.id))
-		.returning();
-
-	return updatedEmployee;
+	return newEmployee;
 }
