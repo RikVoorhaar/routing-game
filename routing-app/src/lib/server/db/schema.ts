@@ -183,7 +183,7 @@ export const employees = pgTable(
 		categoryLevel: jsonb('category_level').$type<CategoryLevels>().notNull(), // JSONB: Record<JobCategory, { level: number, xp: number }>
 		drivingLevel: jsonb('driving_level').$type<LevelXP>().notNull(), // JSONB: { level: number, xp: number }
 		upgradeState: jsonb('upgrade_state').$type<UpgradeState>().notNull(), // JSONB: Record<JobCategory, number> (upgrade levels)
-		location: jsonb('location').$type<Address>().notNull(), // JSONB: Address
+		location: jsonb('location').$type<Address>().notNull() // JSONB: Address
 	},
 	(table) => [index('employees_game_id_idx').on(table.gameId)]
 );
