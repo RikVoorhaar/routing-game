@@ -1,10 +1,9 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { gameStates, employees, activeJobs, jobs } from '$lib/server/db/schema';
-import { eq, and, lt, desc, ne } from 'drizzle-orm';
+import { gameStates, employees, activeJobs, jobs, activeRoutes } from '$lib/server/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { computeActiveJob } from '$lib/jobs/activeJobComputation';
-import type { Job } from '$lib/server/db/schema';
 
 // GET /api/active-jobs?jobId=123&gameStateId=abc - Get active jobs for a specific job
 export const GET: RequestHandler = async ({ url, locals }) => {
@@ -23,45 +22,21 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 	try {
 		// Verify the game state belongs to the current user
-		const [gameState] = await db
-			.select()
-			.from(gameStates)
-			.where(and(eq(gameStates.id, gameStateId), eq(gameStates.userId, session.user.id)))
-			.limit(1);
+		const gameState = await db.query.gameStates.findFirst({
+			where: and(eq(gameStates.id, gameStateId), eq(gameStates.userId, session.user.id))
+		});
 
 		if (!gameState) {
 			return error(404, 'Game state not found or access denied');
 		}
 
-		// Clean up old active jobs (older than 1 hour)
-		const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-		await db.delete(activeJobs).where(lt(activeJobs.startTime, oneHourAgo));
-
-		// Clean up excess active jobs (keep only 20 most recent)
-		const allActiveJobs = await db
-			.select({ id: activeJobs.id })
+		// Get active jobs for this game state
+		const activeJobsForGame = await db
+			.select()
 			.from(activeJobs)
-			.orderBy(desc(activeJobs.startTime));
+			.where(eq(activeJobs.gameStateId, gameStateId));
 
-		if (allActiveJobs.length > 20) {
-			const jobsToDelete = allActiveJobs.slice(20);
-			for (const job of jobsToDelete) {
-				await db.delete(activeJobs).where(eq(activeJobs.id, job.id));
-			}
-		}
-
-		// Get active jobs for this specific job
-		const activeJobsForJob = await db
-			.select({
-				activeJob: activeJobs,
-				employee: employees
-			})
-			.from(activeJobs)
-			.innerJoin(employees, eq(activeJobs.employeeId, employees.id))
-			.where(eq(activeJobs.jobId, parseInt(jobId)))
-			.orderBy(desc(activeJobs.startTime));
-
-		return json(activeJobsForJob);
+		return json(activeJobsForGame);
 	} catch (err) {
 		console.error('Error fetching active jobs:', err);
 		return error(500, 'Failed to fetch active jobs');
@@ -84,33 +59,27 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		// Verify the game state belongs to the current user
-		const [gameState] = await db
-			.select()
-			.from(gameStates)
-			.where(and(eq(gameStates.id, gameStateId), eq(gameStates.userId, session.user.id)))
-			.limit(1);
+		const gameState = await db.query.gameStates.findFirst({
+			where: eq(gameStates.id, gameStateId)
+		});
 
 		if (!gameState) {
 			return error(404, 'Game state not found or access denied');
 		}
 
 		// Get the employee and verify ownership
-		const [employee] = await db
-			.select()
-			.from(employees)
-			.where(and(eq(employees.id, employeeId), eq(employees.gameId, gameStateId)))
-			.limit(1);
+		const employee = await db.query.employees.findFirst({
+			where: eq(employees.id, employeeId)
+		});
 
 		if (!employee) {
 			return error(404, 'Employee not found');
 		}
 
 		// Check if active job already exists for this job and employee
-		const [existingActiveJob] = await db
-			.select()
-			.from(activeJobs)
-			.where(and(eq(activeJobs.employeeId, employeeId), eq(activeJobs.jobId, jobId)))
-			.limit(1);
+		const existingActiveJob = await db.query.activeJobs.findFirst({
+			where: and(eq(activeJobs.employeeId, employeeId), eq(activeJobs.jobId, jobId))
+		});
 
 		if (existingActiveJob) {
 			// Return existing active job
@@ -118,40 +87,26 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		// Get the job details
-		const [job] = await db.select().from(jobs).where(eq(jobs.id, jobId)).limit(1);
+		const job = await db.query.jobs.findFirst({
+			where: eq(jobs.id, jobId)
+		});
 
 		if (!job) {
 			return error(404, 'Job not found');
 		}
 
-		// Type-cast job to match our Job interface
-		const typedJob: Job = {
-			id: job.id,
-			location: job.location,
-			startAddressId: job.startAddressId,
-			endAddressId: job.endAddressId,
-			routeId: job.routeId,
-			jobTier: job.jobTier,
-			jobCategory: job.jobCategory,
-			totalDistanceKm: job.totalDistanceKm,
-			totalTimeSeconds: job.totalTimeSeconds,
-			timeGenerated: job.timeGenerated,
-			approximateValue: job.approximateValue
-		};
-
 		// Compute the active job using our new logic
-		const computation = await computeActiveJob(employee, typedJob, gameState);
+		const { activeJob, activeRoute } = await computeActiveJob(employee, job, gameState);
 
-		// Insert the computed active job into the database
-		await db.insert(activeJobs).values(computation.activeJob);
+		// Insert the computed active job and active route into the database
+		await db.transaction(async (tx) => {
+			await tx.insert(activeJobs).values(activeJob);
+			await tx.insert(activeRoutes).values(activeRoute);
+		});
 
 		return json({
-			activeJob: computation.activeJob,
-			totalTravelTime: computation.totalTravelTime,
-			computedPayout: computation.computedPayout,
-			routeToJobTime: computation.routeToJobTime,
-			jobRouteTime: computation.jobRouteTime,
-			isExisting: false
+			activeJob: activeJob,
+			activeRoute: activeRoute
 		});
 	} catch (err) {
 		console.error('Error creating active job:', err);
@@ -168,87 +123,57 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 	}
 
 	try {
-		const { activeJobId, gameStateId } = await request.json();
+		const { activeJobId, gameStateId, employeeId } = await request.json();
 
 		if (!activeJobId || !gameStateId) {
 			return error(400, 'Active job ID and game state ID are required');
 		}
 
 		// Verify the game state belongs to the current user
-		const [gameState] = await db
-			.select()
-			.from(gameStates)
-			.where(and(eq(gameStates.id, gameStateId), eq(gameStates.userId, session.user.id)))
-			.limit(1);
+		const gameState = await db.query.gameStates.findFirst({
+			where: and(eq(gameStates.id, gameStateId), eq(gameStates.userId, session.user.id))
+		});
 
 		if (!gameState) {
 			return error(404, 'Game state not found or access denied');
 		}
 
-		// Get the active job
-		const [activeJob] = await db
-			.select()
-			.from(activeJobs)
-			.where(eq(activeJobs.id, activeJobId))
-			.limit(1);
+		const [activeJob, employee] = await Promise.all([
+			db.query.activeJobs.findFirst({
+				where: eq(activeJobs.id, activeJobId)
+			}),
+			db.query.employees.findFirst({
+				where: and(eq(employees.id, employeeId), eq(employees.gameId, gameStateId))
+			})
+		]);
 
 		if (!activeJob) {
 			return error(404, 'Active job not found');
 		}
 
-		// Get the employee
-		const [employee] = await db
-			.select()
-			.from(employees)
-			.where(and(eq(employees.id, activeJob.employeeId), eq(employees.gameId, gameStateId)))
-			.limit(1);
-
 		if (!employee) {
 			return error(404, 'Employee not found');
 		}
 
-		// Use a transaction to ensure consistency
+		const modifiedActiveJob = {
+			...activeJob,
+			startTime: new Date()
+		};
+
 		await db.transaction(async (tx) => {
-			// Drop all other active jobs for this employee
-			await tx.delete(activeJobs).where(
-				and(
-					eq(activeJobs.employeeId, activeJob.employeeId),
-					ne(activeJobs.id, activeJobId) // Don't delete this one
-				)
-			);
+			// Delete all active jobs for this employee
+			await tx.delete(activeJobs).where(eq(activeJobs.employeeId, activeJob.employeeId));
 
-			// Drop all active jobs for this job from other employees of the same user
+			// Delete all active jobs for this job from other employees of the same user
 			if (activeJob.jobId) {
-				await tx.delete(activeJobs).where(
-					and(
-						eq(activeJobs.jobId, activeJob.jobId),
-						ne(activeJobs.id, activeJobId) // Don't delete this one
-					)
-				);
+				await tx.delete(activeJobs).where(eq(activeJobs.jobId, activeJob.jobId));
 			}
 
-			// Update the active job start time to now
-			await tx
-				.update(activeJobs)
-				.set({
-					startTime: new Date(),
-					jobPhaseStartTime: new Date()
-				})
-				.where(eq(activeJobs.id, activeJobId));
-
-			// Update the employee to indicate which job they're completing
-			await tx
-				.update(employees)
-				.set({ activeJobId: activeJobId })
-				.where(eq(employees.id, activeJob.employeeId));
-
-			// Remove the job from the job market (it's now taken)
-			if (activeJob.jobId) {
-				await tx.delete(jobs).where(eq(jobs.id, activeJob.jobId));
-			}
+			// Insert the modified active job with start time
+			await tx.insert(activeJobs).values(modifiedActiveJob);
 		});
 
-		return json({ success: true, message: 'Job accepted successfully' });
+		return json(modifiedActiveJob);
 	} catch (err) {
 		console.error('Error accepting active job:', err);
 		return error(500, 'Failed to accept active job');

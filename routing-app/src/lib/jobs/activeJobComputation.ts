@@ -130,6 +130,7 @@ export async function computeActiveJob(
 		id: activeJobId,
 		employeeId: employee.id,
 		jobId: job.id,
+		gameStateId: gameState.id,
 		activeJobRouteId: activeRouteId,
 		durationSeconds: modifiedRoute.travelTimeSeconds,
 		reward: computedPayout,

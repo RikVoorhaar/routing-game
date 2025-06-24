@@ -131,6 +131,9 @@ export const activeJobs = pgTable(
 		jobId: integer('job_id')
 			.notNull()
 			.references(() => jobs.id, { onDelete: 'cascade' }),
+		gameStateId: text('game_state_id')
+			.notNull()
+			.references(() => gameStates.id, { onDelete: 'cascade' }),
 		startTime: timestamp('start_time', { withTimezone: true }), // computed when job is accepted
 		generatedTime: timestamp('generated_time', { withTimezone: true }).default(
 			sql`CURRENT_TIMESTAMP`
@@ -151,8 +154,11 @@ export const activeJobs = pgTable(
 			.references(() => addresses.id, { onDelete: 'cascade' })
 	},
 	(table) => [
+		index('active_jobs_game_state_idx').on(table.gameStateId),
 		index('active_jobs_employee_idx').on(table.employeeId),
-		index('active_jobs_generated_time').on(table.generatedTime)
+		index('active_jobs_job_idx').on(table.jobId),
+		index('active_jobs_generated_time').on(table.generatedTime),
+		index('active_jobs_employee_job_idx').on(table.employeeId, table.jobId)
 	]
 );
 
