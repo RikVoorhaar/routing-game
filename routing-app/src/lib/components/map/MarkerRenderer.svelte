@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import { interpolateLocationAtTime } from '$lib/routing-client';
+	import { interpolateLocationAtTime } from '$lib/routes/routing-client';
 	import { formatTimeRemaining, toRomanNumeral } from '$lib/formatting';
 	import { getCategoryIcon } from '$lib/jobs/jobCategories';
 	import { getTierColor } from '$lib/stores/mapDisplay';

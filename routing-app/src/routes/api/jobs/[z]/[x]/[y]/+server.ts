@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { getJobsInTile } from '$lib/jobs/generateJobs';
+import { getJobsInTile } from '$lib/jobs/queryJobs';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params }) => {

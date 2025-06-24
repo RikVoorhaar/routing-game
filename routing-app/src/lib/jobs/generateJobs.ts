@@ -3,10 +3,9 @@ import { addresses, jobs, routes } from '$lib/server/db/schema';
 import { getRandomRouteInAnnulus, type RouteInAnnulus } from '$lib/routes/routing';
 import { type Coordinate } from '$lib/server/db/schema';
 import type { InferInsertModel } from 'drizzle-orm';
-import { db, client } from '$lib/server/db/standalone';
-import { sql, desc, inArray } from 'drizzle-orm';
+import { db } from '$lib/server/db/standalone';
+import { inArray } from 'drizzle-orm';
 import { distance } from '@turf/turf';
-import { getTileBounds } from '$lib/geo';
 import { JobCategory } from '$lib/jobs/jobCategories';
 
 type JobInsert = InferInsertModel<typeof jobs>;
@@ -63,7 +62,7 @@ export function getAvailableCategories(jobTier: number): JobCategory[] {
 /**
  * Computes job tier using probability formula: tier = min(MAX_TIER, ceil(-log2(p)))
  */
-export function computeJobTier(): number {
+export function generateJobTier(): number {
 	const p = Math.random();
 	const tier = Math.ceil(-Math.log2(p));
 	return Math.min(MAX_TIER, tier);
@@ -72,7 +71,7 @@ export function computeJobTier(): number {
 /**
  * Computes job value based on tier, category, distance, and time
  */
-export function computeJobValue(
+export function computeApproximateJobValue(
 	jobTier: number,
 	jobCategory: JobCategory,
 	totalDistanceKm: number,
@@ -100,7 +99,7 @@ export async function generateJobFromAddress(
 ): Promise<boolean> {
 	try {
 		// Compute job tier
-		const jobTier = computeJobTier();
+		const jobTier = generateJobTier();
 
 		// Get distance range for this tier
 		const minDistanceKm = ROUTE_DISTANCES_KM[jobTier - 1] || 0.1;
@@ -133,11 +132,11 @@ export async function generateJobFromAddress(
 
 		// Calculate total distance and time
 		const totalDistanceKm = routeResult.totalDistanceMeters / 1000;
-		const totalTimeSeconds = routeResult.travelTimeSeconds;
+		const approximateTimeSeconds = routeResult.travelTimeSeconds;
 
 		// Validate travel time - if it's 0 or invalid, skip this job
-		if (!totalTimeSeconds || totalTimeSeconds <= 0) {
-			console.warn(`Invalid travel time for route: ${totalTimeSeconds} seconds, skipping job`);
+		if (!approximateTimeSeconds || approximateTimeSeconds <= 0) {
+			console.warn(`Invalid travel time for route: ${approximateTimeSeconds} seconds, skipping job`);
 			return false;
 		}
 
@@ -153,11 +152,11 @@ export async function generateJobFromAddress(
 		}
 
 		// Compute job value
-		const approximateValue = computeJobValue(
+		const approximateValue = computeApproximateJobValue(
 			jobTier,
 			jobCategory,
 			totalDistanceKm,
-			totalTimeSeconds
+			approximateTimeSeconds
 		);
 
 		// Find end address ID by coordi
@@ -167,7 +166,7 @@ export async function generateJobFromAddress(
 			id: crypto.randomUUID(),
 			startAddressId: startAddress.id,
 			endAddressId: endAddress.id,
-			lengthTime: totalTimeSeconds,
+			lengthTime: approximateTimeSeconds,
 			routeData: routeResult
 		};
 
@@ -183,7 +182,7 @@ export async function generateJobFromAddress(
 			jobTier,
 			jobCategory,
 			totalDistanceKm,
-			totalTimeSeconds,
+			approximateTimeSeconds,
 			approximateValue
 		};
 
@@ -197,73 +196,6 @@ export async function generateJobFromAddress(
 			`Job generation failed: ${error instanceof Error ? error.message : String(error)}`
 		);
 	}
-}
-
-/**
- * Generates jobs for 1% of all addresses, sorted by value (importance sampling)
- */
-export async function generateAllJobs(): Promise<void> {
-	console.log('Starting job generation...');
-
-	// Clear existing jobs and their routes
-	await clearAllJobs();
-
-	// Get total address count first
-	const totalAddressCountResult = await db.execute(sql`SELECT COUNT(*) as count FROM address`);
-	const totalAddresses = Number(totalAddressCountResult[0]?.count || 0);
-
-	console.log(`Found ${totalAddresses} total addresses`);
-
-	// Sample 1% of addresses using SQL random
-	const sampleSize = Math.ceil(totalAddresses * 0.01);
-	const sampledAddresses = (await db.execute(sql`
-        SELECT * FROM address 
-        ORDER BY RANDOM() 
-        LIMIT ${sampleSize}
-    `)) as unknown as Array<InferSelectModel<typeof addresses>>;
-
-	console.log(`Generating jobs for ${sampledAddresses.length} addresses (1% random sample)`);
-
-	let successCount = 0;
-	let totalAttempts = 0;
-	const startTime = Date.now();
-
-	for (const address of sampledAddresses) {
-		totalAttempts++;
-		const success = await generateJobFromAddress(address);
-		if (success) {
-			successCount++;
-		}
-
-		// Log progress every 100 jobs
-		if (totalAttempts % 100 === 0) {
-			const elapsed = (Date.now() - startTime) / 1000;
-			const rate = totalAttempts / elapsed;
-			const eta = (sampledAddresses.length - totalAttempts) / rate;
-			console.log(
-				`Generated ${successCount} jobs... (${totalAttempts}/${sampledAddresses.length}, ${rate.toFixed(1)}/s, ETA: ${eta.toFixed(0)}s)`
-			);
-		}
-	}
-
-	console.log(
-		`Job generation complete! Created ${successCount} jobs out of ${sampledAddresses.length} attempts`
-	);
-	console.log(`Success rate: ${((successCount / sampledAddresses.length) * 100).toFixed(1)}%`);
-
-	// Log some statistics
-	const jobStats = await db.execute(sql`
-        SELECT 
-            job_tier,
-            job_category,
-            COUNT(*) as count,
-            AVG(approximate_value) as avg_value
-        FROM job 
-        GROUP BY job_tier, job_category 
-        ORDER BY job_tier, job_category
-    `);
-
-	console.log('Job statistics:', jobStats);
 }
 
 /**
@@ -284,43 +216,3 @@ export async function clearAllJobs(): Promise<void> {
 
 	console.log(`Cleared ${jobRoutes.length} jobs and their routes`);
 }
-
-/**
- * Gets jobs ordered by value (for importance sampling)
- */
-export async function getJobsByValue(
-	limit: number = 50
-): Promise<Array<InferSelectModel<typeof jobs>>> {
-	return await db.select().from(jobs).orderBy(desc(jobs.approximateValue)).limit(limit);
-}
-
-/**
- * Gets jobs within a tile using x,y,z tile coordinates
- */
-export async function getJobsInTile(
-	x: number,
-	y: number,
-	z: number,
-	limit: number = 100
-): Promise<Array<InferSelectModel<typeof jobs>>> {
-	// Convert tile coordinates to geographic bounds
-	const bounds = getTileBounds(x, y, z);
-
-	// Use Drizzle query builder to get proper field name conversion
-	const result = await db
-		.select()
-		.from(jobs)
-		.where(
-			sql`ST_Within(
-            ST_GeomFromEWKT(${jobs.location}),
-            ST_MakeEnvelope(${bounds.west}, ${bounds.south}, ${bounds.east}, ${bounds.north}, 4326)
-        )`
-		)
-		.orderBy(desc(jobs.approximateValue))
-		.limit(limit);
-
-	return result;
-}
-
-// Export client for connection management
-export { client };

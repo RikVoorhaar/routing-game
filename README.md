@@ -56,11 +56,11 @@ uv run scripts/extract_addresses.py ../osm_files/trimmed-region.osm.pbf
 Populate the database with delivery jobs:
 ```bash
 cd routing-app
-npm run job-generator generate
+npm run job-generator  # Generates jobs for 1% of addresses by default
 
 # Or generate jobs for a specific fraction of addresses (use -- to pass arguments through npm)
-npm run job-generator generate -- -f 0.002  # 0.2% of addresses
-npm run job-generator generate -- --fraction=0.005  # 0.5% of addresses
+npm run job-generator -- -f 0.002  # 0.2% of addresses
+npm run job-generator -- --fraction=0.005  # 0.5% of addresses
 ```
 
 ### 7. Start Development Server

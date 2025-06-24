@@ -1,8 +1,8 @@
 #!/usr/bin/env tsx
 
-import { generateJobFromAddress, getJobsByValue, clearAllJobs } from '../lib/jobs/generateJobs';
+import { generateJobFromAddress, clearAllJobs } from '../lib/jobs/generateJobs';
 import { db, client } from '../lib/server/db/standalone.js';
-import { addresses, type Address } from '../lib/server/db/schema';
+import type { Address } from '../lib/server/db/schema';
 import { sql } from 'drizzle-orm';
 import { performance } from 'perf_hooks';
 import * as cliProgress from 'cli-progress';
@@ -22,7 +22,6 @@ const COLORS = {
 };
 
 const args = process.argv.slice(2);
-const command = args[0] || 'help';
 
 // Set up error logging
 const LOG_DIR = 'logs';
@@ -69,14 +68,12 @@ async function generateJobWithErrorLogging(address: Address): Promise<boolean> {
 	}
 }
 
-// Parse arguments for generate command
-function parseGenerateArgs() {
-	if (command !== 'generate') return { fraction: 0.01 }; // Default 1%
-
+// Parse arguments
+function parseArgs() {
 	let fraction = 0.01; // Default 1%
 
 	// Look for fraction argument: --fraction=0.02 or -f 0.02
-	for (let i = 1; i < args.length; i++) {
+	for (let i = 0; i < args.length; i++) {
 		const arg = args[i];
 		if (arg.startsWith('--fraction=')) {
 			fraction = parseFloat(arg.split('=')[1]);
@@ -95,178 +92,6 @@ function parseGenerateArgs() {
 	}
 
 	return { fraction };
-}
-
-async function main() {
-	try {
-		switch (command) {
-			case 'test': {
-				await testJobGeneration();
-				break;
-			}
-			case 'generate': {
-				const { fraction } = parseGenerateArgs();
-				await generateJobsWithProgress(fraction);
-				break;
-			}
-			case 'clear': {
-				await clearAllJobs();
-				break;
-			}
-			case 'stats': {
-				await showJobStats();
-				break;
-			}
-			case 'help':
-			default: {
-				console.log(`
-Job Generation Script
-
-Commands:
-  test      - Generate a few test jobs to validate the system
-  generate  - Generate jobs for a fraction of all addresses with progress bar
-  clear     - Clear all existing jobs
-  stats     - Show job statistics
-  help      - Show this help message
-
-Generate Options:
-  -f, --fraction  Fraction of addresses to sample (0-1, default: 0.01 = 1%)
-
-Examples:
-  npm run job-generator test
-  npm run job-generator generate                          # Generate jobs for 1% of addresses
-  npm run job-generator generate -- --fraction=0.02      # Generate jobs for 2% of addresses
-  npm run job-generator generate -- -f 0.005             # Generate jobs for 0.5% of addresses
-  npm run job-generator stats
-
-Note: Use -- to pass arguments through npm to the script
-                `);
-				break;
-			}
-		}
-	} finally {
-		// Close database connection
-		await client.end();
-		process.exit(0);
-	}
-}
-
-async function testJobGeneration() {
-	console.log('Testing job generation system...\n');
-
-	try {
-		// Get a few sample addresses to test with
-		const sampleAddresses = await db.select().from(addresses).limit(5);
-		console.log(`Found ${sampleAddresses.length} sample addresses`);
-
-		// Test generating a few individual jobs
-		let successCount = 0;
-		console.log(`📄 Error log file: ${ERROR_LOG_FILE}\n`);
-		for (const address of sampleAddresses) {
-			console.log(`Generating job from: ${address.street} ${address.houseNumber}, ${address.city}`);
-			const success = await generateJobWithErrorLogging(address);
-			if (success) {
-				successCount++;
-				console.log('✓ Job generated successfully');
-			} else {
-				console.log('✗ Job generation failed (see error log for details)');
-			}
-		}
-
-		console.log(`\nGenerated ${successCount} jobs out of ${sampleAddresses.length} attempts`);
-
-		if (successCount > 0) {
-			// Get the generated jobs
-			const jobs = await getJobsByValue(10);
-			console.log(`\nTop ${jobs.length} jobs by value:`);
-			jobs.forEach((job, i) => {
-				console.log(
-					`${i + 1}. Tier ${job.jobTier}, Category ${job.jobCategory}, Value: €${Number(job.approximateValue).toFixed(2)}, Distance: ${Number(job.totalDistanceKm).toFixed(2)}km`
-				);
-			});
-		}
-
-		console.log('\nJob generation test completed successfully!');
-	} catch (error) {
-		console.error('Error testing job generation:', error);
-		process.exit(1);
-	}
-}
-
-async function showJobStats() {
-	console.log('Job Statistics\n');
-
-	try {
-		// Get total job count
-		const totalJobs = await db.execute(sql`SELECT COUNT(*) as count FROM job`);
-		const jobCount = totalJobs[0]?.count || 0;
-		console.log(`Total jobs: ${jobCount}`);
-
-		if (jobCount === 0) {
-			console.log('No jobs found in database.');
-			return;
-		}
-
-		// Get job statistics by tier and category
-		const jobStats = await db.execute(sql`
-            SELECT 
-                job_tier,
-                job_category,
-                COUNT(*) as count,
-                AVG(approximate_value) as avg_value,
-                MAX(approximate_value) as max_value,
-                AVG(total_distance_km) as avg_distance
-            FROM job 
-            GROUP BY job_tier, job_category 
-            ORDER BY job_tier, job_category
-        `);
-
-		console.log('\nJobs by tier and category:');
-		console.log('Tier | Category | Count | Avg Value | Max Value | Avg Distance');
-		console.log('-----|----------|-------|-----------|-----------|-------------');
-
-		const categoryNames = [
-			'Groceries',
-			'Packages',
-			'Food',
-			'Furniture',
-			'People',
-			'Fragile',
-			'Construction',
-			'Liquids',
-			'Toxic'
-		];
-
-		for (const row of jobStats) {
-			const stats = row as {
-				job_tier: number;
-				job_category: number;
-				count: string | number;
-				avg_value: string | number;
-				max_value: string | number;
-				avg_distance: string | number;
-			};
-			const categoryName = categoryNames[stats.job_category] || `Cat${stats.job_category}`;
-			console.log(
-				`  ${stats.job_tier}  | ${categoryName.padEnd(9)} | ${String(stats.count).padStart(5)} | €${Number(stats.avg_value).toFixed(2).padStart(7)} | €${Number(stats.max_value).toFixed(2).padStart(7)} | ${Number(stats.avg_distance).toFixed(1).padStart(8)}km`
-			);
-		}
-
-		// Get top 10 highest value jobs
-		const topJobs = await getJobsByValue(10);
-		if (topJobs.length > 0) {
-			console.log('\nTop 10 highest value jobs:');
-			topJobs.forEach((job, i) => {
-				const categoryName = categoryNames[job.jobCategory] || `Cat${job.jobCategory}`;
-				console.log(
-					`${i + 1}. Tier ${job.jobTier} ${categoryName}: €${Number(job.approximateValue).toFixed(2)} (${Number(job.totalDistanceKm).toFixed(1)}km)`
-				);
-			});
-		}
-	} catch (error) {
-		console.error('Error showing job statistics:', error);
-		process.exit(1);
-	}
 }
 
 async function generateJobsWithProgress(fraction: number = 0.01) {
@@ -407,6 +232,17 @@ async function generateJobsWithProgress(fraction: number = 0.01) {
 	} catch (error) {
 		console.error(`\n${COLORS.red}❌ Error: ${error}${COLORS.reset}`);
 		process.exit(1);
+	}
+}
+
+async function main() {
+	try {
+		const { fraction } = parseArgs();
+		await generateJobsWithProgress(fraction);
+	} finally {
+		// Close database connection
+		await client.end();
+		process.exit(0);
 	}
 }
 
