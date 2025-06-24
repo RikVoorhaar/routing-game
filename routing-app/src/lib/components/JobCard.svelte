@@ -14,19 +14,25 @@
 	import { addError } from '$lib/stores/errors';
 	import type { Employee } from '$lib/server/db/schema';
 	import type { ActiveJob } from '$lib/stores/activeJobs';
+	import { writable, derived } from 'svelte/store';
 
 	let selectedEmployeeId: string | null = null;
 	let isLoadingActiveJobs = false;
 	let isCreatingActiveJob = false;
 	let isAcceptingJob = false;
 	let eligibleEmployees: Employee[] = [];
-	let activeJobsForJob: Array<{ activeJob: ActiveJob; employee: Employee }> = [];
-	let computedActiveJob: {
-		activeJob: ActiveJob;
-		totalTravelTime: number;
-		computedPayout: number;
-		isExisting: boolean;
-	} | null = null;
+	
+	// Store for active jobs associated with the current job, keyed by employee ID
+	const activeJobsByEmployee = writable<Record<string, { activeJob: ActiveJob; activeRoute?: any }>>({});
+	
+	// Derived store for the currently selected employee's active job data
+	const selectedEmployeeActiveJobData = derived(
+		[activeJobsByEmployee, writable(selectedEmployeeId)],
+		([$activeJobsByEmployee, $selectedEmployeeId]) => {
+			if (!$selectedEmployeeId) return null;
+			return $activeJobsByEmployee[$selectedEmployeeId] || null;
+		}
+	);
 
 	// Track the previous job to detect changes
 	let previousJobId: number | null = null;
@@ -43,7 +49,7 @@
 	}
 
 	function clearPreviousState() {
-		computedActiveJob = null;
+		activeJobsByEmployee.set({});
 		clearSelectedActiveJob();
 		selectedEmployeeId = null;
 		isCreatingActiveJob = false;
@@ -54,6 +60,11 @@
 		// Set default selected employee if it's eligible
 		const isEligible = eligibleEmployees.some((emp) => emp.id === $selectedEmployee);
 		selectedEmployeeId = isEligible ? $selectedEmployee : eligibleEmployees[0]?.id || null;
+		
+		// When employee changes, check if we need to compute their active job
+		if (selectedEmployeeId) {
+			handleEmployeeSelection();
+		}
 	}
 
 	function updateEligibleEmployees() {
@@ -97,14 +108,18 @@
 				`/api/active-jobs?jobId=${$selectedJob.id}&gameStateId=${$currentGameState.id}`
 			);
 			if (response.ok) {
-				activeJobsForJob = await response.json();
-				// Defensive check in case selectedJob becomes null during async operation
-				if ($selectedJob && Array.isArray(activeJobsForJob)) {
-					cacheActiveJobsForJob(
-						$selectedJob.id,
-						activeJobsForJob.map((item) => item?.activeJob).filter(Boolean)
-					);
+				const allActiveJobs = await response.json();
+				
+				// Group active jobs by employee ID for this job
+				const jobActiveJobs: Record<string, { activeJob: ActiveJob; activeRoute?: any }> = {};
+				
+				for (const activeJob of allActiveJobs) {
+					if (activeJob.jobId === $selectedJob.id) {
+						jobActiveJobs[activeJob.employeeId] = { activeJob };
+					}
 				}
+				
+				activeJobsByEmployee.set(jobActiveJobs);
 			} else {
 				addError('Failed to load active jobs', 'error');
 			}
@@ -119,8 +134,15 @@
 	async function handleEmployeeSelection() {
 		if (!selectedEmployeeId || !$selectedJob || !$currentGameState) return;
 
+		// Check if we already have this employee's active job data
+		const currentData = $activeJobsByEmployee;
+		if (currentData[selectedEmployeeId]) {
+			// We already have data for this employee, just select their active job
+			selectActiveJob(currentData[selectedEmployeeId].activeJob);
+			return;
+		}
+
 		isCreatingActiveJob = true;
-		computedActiveJob = null;
 
 		try {
 			const response = await fetch('/api/active-jobs', {
@@ -134,10 +156,21 @@
 			});
 
 			if (response.ok) {
-				computedActiveJob = await response.json();
-				if (computedActiveJob) {
-					selectActiveJob(computedActiveJob.activeJob);
+				const result = await response.json();
+				
+				// Update our cache with the new active job data
+				if (selectedEmployeeId) {
+					activeJobsByEmployee.update(cache => ({
+						...cache,
+						[selectedEmployeeId!]: {
+							activeJob: result.activeJob,
+							activeRoute: result.activeRoute
+						}
+					}));
 				}
+				
+				// Select this active job
+				selectActiveJob(result.activeJob);
 			} else {
 				const errorData = await response.json();
 				addError(errorData.message || 'Failed to compute job route', 'error');
@@ -151,7 +184,7 @@
 	}
 
 	async function handleAcceptJob() {
-		if (!$selectedActiveJob || !$currentGameState) return;
+		if (!$selectedActiveJob || !$currentGameState || !selectedEmployeeId) return;
 
 		isAcceptingJob = true;
 
@@ -161,21 +194,32 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					activeJobId: $selectedActiveJob.id,
-					gameStateId: $currentGameState.id
+					gameStateId: $currentGameState.id,
+					employeeId: selectedEmployeeId
 				})
 			});
 
 			if (response.ok) {
+				const acceptedActiveJob = await response.json();
 				addError('Job accepted successfully!', 'info');
 
+				// Update the active job in our cache to reflect it's been started
+				if (selectedEmployeeId) {
+					activeJobsByEmployee.update(cache => ({
+						...cache,
+						[selectedEmployeeId!]: {
+							...cache[selectedEmployeeId!],
+							activeJob: acceptedActiveJob
+						}
+					}));
+				}
+
 				// Refresh the employee data to show the new active job
-				if ($selectedActiveJob.employeeId) {
-					try {
-						await gameDataAPI.refreshEmployee($selectedActiveJob.employeeId);
-					} catch (error) {
-						console.error('Error refreshing employee data:', error);
-						// Don't fail the whole operation if employee refresh fails
-					}
+				try {
+					await gameDataAPI.refreshEmployee(selectedEmployeeId);
+				} catch (error) {
+					console.error('Error refreshing employee data:', error);
+					// Don't fail the whole operation if employee refresh fails
 				}
 
 				clearSelectedJob();
@@ -195,8 +239,15 @@
 	function handleCancel() {
 		clearSelectedJob();
 		clearSelectedActiveJob();
-		computedActiveJob = null;
+		activeJobsByEmployee.set({});
 		selectedEmployeeId = null;
+	}
+
+	// Handle employee selection change
+	function onEmployeeChange() {
+		if (selectedEmployeeId) {
+			handleEmployeeSelection();
+		}
 	}
 </script>
 
@@ -244,7 +295,7 @@
 				<div class="text-center">
 					<div class="text-xs font-medium text-base-content/60">Duration</div>
 					<div class="text-lg font-bold text-warning">
-						{formatTime($selectedJob.totalTimeSeconds)}
+						{formatTime($selectedJob.approximateTimeSeconds)}
 					</div>
 				</div>
 
@@ -259,6 +310,7 @@
 			<!-- Employee Selection -->
 			{#if eligibleEmployees.length > 0}
 				<div class="mb-4">
+					<!-- svelte-ignore a11y_label_has_associated_control -->
 					<label class="label">
 						<span class="label-text font-medium">Select Employee</span>
 						{#if isLoadingActiveJobs}
@@ -268,7 +320,7 @@
 					<select
 						class="select select-bordered w-full"
 						bind:value={selectedEmployeeId}
-						on:change={handleEmployeeSelection}
+						on:change={onEmployeeChange}
 						disabled={isCreatingActiveJob}
 					>
 						{#each eligibleEmployees as employee}
@@ -293,7 +345,7 @@
 			{/if}
 
 			<!-- Computed Route Info -->
-			{#if computedActiveJob && !computedActiveJob.isExisting}
+			{#if $selectedEmployeeActiveJobData}
 				<div class="alert alert-info mb-4">
 					<svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
 						<path
@@ -303,23 +355,15 @@
 						/>
 					</svg>
 					<div>
-						<div class="font-medium">Route Computed</div>
+						<div class="font-medium">Route Ready</div>
 						<div class="text-sm opacity-90">
-							Travel Time: {formatTime(computedActiveJob.totalTravelTime)}<br />
-							Payout: {formatCurrency(computedActiveJob.computedPayout)}
+							{#if $selectedEmployeeActiveJobData.activeJob.startTime}
+								Job started: {new Date($selectedEmployeeActiveJobData.activeJob.startTime).toLocaleString()}
+							{:else}
+								Route computed and ready to accept
+							{/if}
 						</div>
 					</div>
-				</div>
-			{:else if computedActiveJob && computedActiveJob.isExisting}
-				<div class="alert alert-warning mb-4">
-					<svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-						<path
-							fill-rule="evenodd"
-							d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-							clip-rule="evenodd"
-						/>
-					</svg>
-					<span>This job assignment already exists and is ready to accept.</span>
 				</div>
 			{/if}
 
@@ -327,7 +371,7 @@
 			<div class="flex justify-end gap-2">
 				<button class="btn btn-ghost" on:click={handleCancel}> Cancel </button>
 
-				{#if selectedEmployeeId && !computedActiveJob}
+				{#if selectedEmployeeId && !$selectedEmployeeActiveJobData}
 					<button
 						class="btn btn-primary"
 						on:click={handleEmployeeSelection}
@@ -340,7 +384,7 @@
 							Compute Route
 						{/if}
 					</button>
-				{:else if computedActiveJob && $selectedActiveJob}
+				{:else if $selectedEmployeeActiveJobData && $selectedActiveJob && !$selectedActiveJob.startTime}
 					<button class="btn btn-success" on:click={handleAcceptJob} disabled={isAcceptingJob}>
 						{#if isAcceptingJob}
 							<span class="loading loading-spinner loading-sm"></span>
@@ -349,17 +393,19 @@
 							Accept Job
 						{/if}
 					</button>
+				{:else if $selectedEmployeeActiveJobData && $selectedActiveJob && $selectedActiveJob.startTime}
+					<div class="badge badge-success">Job In Progress</div>
 				{/if}
 			</div>
 
 			<!-- Additional info -->
 			<div class="mt-3 text-xs text-base-content/70">
-				Posted: {new Date($selectedJob.timeGenerated).toLocaleDateString()}
+				Posted: {new Date($selectedJob.generatedTime).toLocaleDateString()}
 
-				{#if activeJobsForJob.length > 0}
+				{#if Object.keys($activeJobsByEmployee).length > 0}
 					<br />
 					<span class="badge badge-outline badge-sm">
-						{activeJobsForJob.length} active assignment{activeJobsForJob.length === 1 ? '' : 's'}
+						{Object.keys($activeJobsByEmployee).length} active assignment{Object.keys($activeJobsByEmployee).length === 1 ? '' : 's'}
 					</span>
 				{/if}
 			</div>
