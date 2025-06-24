@@ -136,7 +136,9 @@ export async function generateJobFromAddress(
 
 		// Validate travel time - if it's 0 or invalid, skip this job
 		if (!approximateTimeSeconds || approximateTimeSeconds <= 0) {
-			console.warn(`Invalid travel time for route: ${approximateTimeSeconds} seconds, skipping job`);
+			console.warn(
+				`Invalid travel time for route: ${approximateTimeSeconds} seconds, skipping job`
+			);
 			return false;
 		}
 
