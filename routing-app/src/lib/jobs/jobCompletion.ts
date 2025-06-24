@@ -1,6 +1,6 @@
 import { db } from '../server/db';
 import { employees, activeJobs, gameStates, addresses } from '../server/db/schema';
-import { eq, and, isNotNull, isNull } from 'drizzle-orm';
+import { eq, and, isNotNull, sql } from 'drizzle-orm';
 import { log } from '$lib/logger';
 import type {
 	Employee,
@@ -24,9 +24,7 @@ export interface JobCompletionResult {
  * Complete an active job and update employee/game state
  * This logic is shared between the job completion endpoint and bulk state loading
  */
-export async function completeActiveJob(
-	activeJobId: string,
-): Promise<JobCompletionResult> {
+export async function completeActiveJob(activeJobId: string, updateGameState: boolean = true): Promise<JobCompletionResult> {
 	log.debug('[JobCompletion] Starting completion for job:', activeJobId);
 	// Get the active job with employee and game state
 	const [activeJobData] = await db
@@ -68,14 +66,16 @@ export async function completeActiveJob(
 		const updatedEmployee = updateEmployeeAfterJobCompletion(employee, activeJob, endAddress);
 		await tx.update(employees).set(updatedEmployee).where(eq(employees.id, employee.id));
 
-		// Update game state money
-		await tx.update(gameStates).set({ money: newBalance }).where(eq(gameStates.id, gameState.id));
+		// Update game state money only if requested
+		if (updateGameState) {
+			await tx.update(gameStates).set({ money: newBalance }).where(eq(gameStates.id, gameState.id));
+		}
 
 		return {
 			employee: updatedEmployee,
-			gameState: { ...gameState, money: newBalance },
+			gameState: { ...gameState, money: updateGameState ? newBalance : gameState.money },
 			reward,
-			newBalance,
+			newBalance: updateGameState ? newBalance : gameState.money,
 			completedActiveJob: activeJob // Return the original active job before deletion
 		};
 	});
@@ -84,7 +84,7 @@ export async function completeActiveJob(
 		'[JobCompletion] Job completed successfully. Reward:',
 		reward,
 		'New balance:',
-		newBalance
+		updateGameState ? newBalance : 'not updated'
 	);
 
 	return result;
@@ -102,21 +102,20 @@ export async function processCompletedJobs(gameStateId: string): Promise<{
 }> {
 	log.debug('[JobCompletion] Processing completed jobs for game state:', gameStateId);
 
-	// Get all active jobs for this game state that haven't been marked as completed
-	const activeJobsData = await db
-		.select({
-			activeJob: activeJobs,
-			employee: employees
-		})
-		.from(activeJobs)
-		.innerJoin(employees, eq(activeJobs.employeeId, employees.id))
-		.where(
-			and(
-				eq(employees.gameId, gameStateId),
-				isNotNull(activeJobs.startTime),
-				isNull(activeJobs.endTime) // Not yet completed
-			)
-		);
+			// Get all active jobs for this game state that have been started
+		const activeJobsData = await db
+			.select({
+				activeJob: activeJobs,
+				employee: employees
+			})
+			.from(activeJobs)
+			.innerJoin(employees, eq(activeJobs.employeeId, employees.id))
+			.where(
+				and(
+					eq(employees.gameId, gameStateId),
+					isNotNull(activeJobs.startTime) // Only jobs that have been started
+				)
+			);
 
 	const currentTime = Date.now();
 	const jobsToComplete: Array<{ activeJob: ActiveJob; employee: Employee }> = [];
@@ -130,29 +129,31 @@ export async function processCompletedJobs(gameStateId: string): Promise<{
 
 	log.debug('[JobCompletion] Found', jobsToComplete.length, 'jobs to complete');
 
-	let totalReward = 0;
-	const updatedEmployees: Employee[] = [];
-
-	// Process each completed job
-	for (const { activeJob, employee } of jobsToComplete) {
-		try {
-			const result = await completeActiveJob(employee.id, activeJob.id);
-			totalReward += result.reward;
-			updatedEmployees.push(result.employee);
-		} catch (error) {
+	// Process all jobs in parallel (without updating game state)
+	const jobCompletionPromises = jobsToComplete.map(({ activeJob }) => 
+		completeActiveJob(activeJob.id, false).catch(error => {
 			log.error('[JobCompletion] Failed to complete job:', activeJob.id, error);
-		}
-	}
+			return null;
+		})
+	);
 
-	// Get updated game state
+	const results = await Promise.all(jobCompletionPromises);
+	const successfulResults = results.filter(result => result !== null);
+
+	const totalReward = successfulResults.reduce((sum, result) => sum + result.reward, 0);
+	const updatedEmployees = successfulResults.map(result => result.employee);
+
+	// Single atomic update to game state with total reward
 	const [updatedGameState] = await db
-		.select()
-		.from(gameStates)
+		.update(gameStates)
+		.set({ 
+			money: sql`${gameStates.money} + ${totalReward}` 
+		})
 		.where(eq(gameStates.id, gameStateId))
-		.limit(1);
+		.returning();
 
 	return {
-		processedJobs: jobsToComplete.length,
+		processedJobs: successfulResults.length,
 		totalReward,
 		updatedEmployees,
 		updatedGameState
@@ -163,28 +164,15 @@ export async function processCompletedJobs(gameStateId: string): Promise<{
  * Check if a job should be completed based on elapsed time
  */
 function isJobComplete(activeJob: ActiveJob, currentTime: number): boolean {
-	if (!activeJob.startTime || activeJob.endTime) {
+	if (!activeJob.startTime) {
 		return false;
 	}
 
 	const startTime = new Date(activeJob.startTime).getTime();
-	let totalDuration = 0;
-
-	if (activeJob.currentPhase === 'traveling_to_job' && activeJob.modifiedRouteToJobData) {
-		// Still traveling - check if travel time is complete
-		totalDuration = activeJob.modifiedRouteToJobData.travelTimeSeconds * 1000;
-	} else {
-		// On job or no travel needed - calculate total time
-		let travelTime = 0;
-		if (activeJob.modifiedRouteToJobData) {
-			travelTime = activeJob.modifiedRouteToJobData.travelTimeSeconds * 1000;
-		}
-		const jobTime = activeJob.modifiedJobRouteData.travelTimeSeconds * 1000;
-		totalDuration = travelTime + jobTime;
-	}
-
+	const totalDurationMs = activeJob.durationSeconds * 1000;
 	const elapsed = currentTime - startTime;
-	return elapsed >= totalDuration;
+	
+	return elapsed >= totalDurationMs;
 }
 /**
  * Update employee after job completion - XP, location, clear active job
