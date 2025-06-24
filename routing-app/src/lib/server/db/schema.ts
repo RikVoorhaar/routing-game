@@ -131,9 +131,6 @@ export const activeJobs = pgTable(
 		jobId: integer('job_id')
 			.notNull()
 			.references(() => jobs.id, { onDelete: 'cascade' }),
-		activeJobRouteId: text('modified_job_route_id')
-			.notNull()
-			.references(() => activeRoutes.id, { onDelete: 'cascade' }),
 		startTime: timestamp('start_time', { withTimezone: true }), // computed when job is accepted
 		generatedTime: timestamp('generated_time', { withTimezone: true }).default(
 			sql`CURRENT_TIMESTAMP`
@@ -187,7 +184,6 @@ export const employees = pgTable(
 		drivingLevel: jsonb('driving_level').$type<LevelXP>().notNull(), // JSONB: { level: number, xp: number }
 		upgradeState: jsonb('upgrade_state').$type<UpgradeState>().notNull(), // JSONB: Record<JobCategory, number> (upgrade levels)
 		location: jsonb('location').$type<Address>().notNull(), // JSONB: Address
-		activeJobId: text('active_job_id').references(() => activeJobs.id, { onDelete: 'set null' }) // null if no active job
 	},
 	(table) => [index('employees_game_id_idx').on(table.gameId)]
 );
