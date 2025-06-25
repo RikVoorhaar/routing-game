@@ -20,8 +20,10 @@
 	$: jobProgress = activeJob ? getJobProgress(activeJob) : null;
 
 	// Helper function to get job details with route data
-	function getJobDetails(activeJob: ActiveJob, activeRoute: ActiveRoute | null):
-	{
+	function getJobDetails(
+		activeJob: ActiveJob,
+		activeRoute: ActiveRoute | null
+	): {
 		distance: number;
 		duration: number;
 		jobCategory: JobCategory;
@@ -30,7 +32,7 @@
 		return {
 			distance: routeData ? routeData.totalDistanceMeters / 1000 : 0, // Convert to km
 			duration: activeJob.durationSeconds,
-			jobCategory: activeJob.jobCategory as JobCategory,
+			jobCategory: activeJob.jobCategory as JobCategory
 		};
 	}
 </script>
@@ -78,7 +80,9 @@
 			</div>
 			{#if jobDetails.distance > 0}
 				<div>
-					<strong>Distance:</strong> {formatDistance(jobDetails.distance * 1000)} <!-- Convert back to meters for formatting -->
+					<strong>Distance:</strong>
+					{formatDistance(jobDetails.distance * 1000)}
+					<!-- Convert back to meters for formatting -->
 				</div>
 			{/if}
 			{#if activeJob.startTime}

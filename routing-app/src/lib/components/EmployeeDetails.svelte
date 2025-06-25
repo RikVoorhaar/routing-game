@@ -51,8 +51,8 @@
 
 			<!-- Tab Content -->
 			{#if activeTab === 'route'}
-				<EmployeeJobDetailsTab 
-					{activeJob} 
+				<EmployeeJobDetailsTab
+					{activeJob}
 					{employeeStartAddress}
 					{jobAddress}
 					{employeeEndAddress}
