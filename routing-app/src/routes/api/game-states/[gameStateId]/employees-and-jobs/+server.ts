@@ -26,12 +26,7 @@ export const GET: RequestHandler = async ({ params }) => {
 		const activeJobsData = await db
 			.select()
 			.from(activeJobs)
-			.where(
-				and(
-					eq(activeJobs.gameStateId, gameStateId),
-					isNotNull(activeJobs.startTime),
-				)
-			);
+			.where(and(eq(activeJobs.gameStateId, gameStateId), isNotNull(activeJobs.startTime)));
 
 		// Format active jobs by employee ID
 		const employeeActiveJobs = allEmployees.map((employee) => ({
