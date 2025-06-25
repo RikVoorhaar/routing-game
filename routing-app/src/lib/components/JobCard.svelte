@@ -73,7 +73,7 @@
 		// Set default selected employee if it's eligible
 		const isEligible = eligibleEmployees.some((emp) => emp.id === $selectedEmployee);
 		const newSelectedEmployeeId = isEligible ? $selectedEmployee : eligibleEmployees[0]?.id || null;
-		
+
 		// Only update if it's actually different to avoid infinite loops
 		if (selectedEmployeeId !== newSelectedEmployeeId) {
 			selectedEmployeeId = newSelectedEmployeeId;
@@ -133,12 +133,12 @@
 				const defaultEmployee =
 					eligibleEmployees.find((emp) => emp.id === $selectedEmployee) || eligibleEmployees[0];
 				const newSelectedEmployeeId = defaultEmployee.id;
-				
+
 				// Only update if it's actually different
 				if (selectedEmployeeId !== newSelectedEmployeeId) {
 					selectedEmployeeId = newSelectedEmployeeId;
 					selectedEmployeeIdStore.set(selectedEmployeeId);
-					
+
 					// Automatically compute route for the new employee
 					if (selectedEmployeeId) {
 						handleEmployeeSelection();
@@ -417,9 +417,7 @@
 					</svg>
 					<div>
 						<div class="font-medium">Computing Route...</div>
-						<div class="text-sm opacity-90">
-							Calculating optimal route for selected employee
-						</div>
+						<div class="text-sm opacity-90">Calculating optimal route for selected employee</div>
 					</div>
 				</div>
 			{:else if $selectedEmployeeActiveJobData}
