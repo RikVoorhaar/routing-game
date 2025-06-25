@@ -6,30 +6,38 @@
 		formatTime,
 		formatDistance
 	} from '$lib/formatting';
+	import { JobCategory } from '$lib/jobs/jobCategories';
 	import { getJobProgress } from '$lib/jobs/jobUtils';
-	import type { Employee, ActiveJob } from '$lib/server/db/schema';
+	import type { ActiveJob, Address, ActiveRoute } from '$lib/server/db/schema';
 
 	export let activeJob: ActiveJob | null = null;
+	export let employeeStartAddress: Address | null = null;
+	export let jobAddress: Address | null = null;
+	export let employeeEndAddress: Address | null = null;
+	export let activeRoute: ActiveRoute | null = null;
 
 	// Job progress calculation
 	$: jobProgress = activeJob ? getJobProgress(activeJob) : null;
 
-	// Helper function to get job details
-	function getJobDetails(activeJob: ActiveJob) {
+	// Helper function to get job details with route data
+	function getJobDetails(activeJob: ActiveJob, activeRoute: ActiveRoute | null):
+	{
+		distance: number;
+		duration: number;
+		jobCategory: JobCategory;
+	} {
+		const routeData = activeRoute?.routeData;
 		return {
-			startLocation: null, // Will be populated from addresses if needed
-			endLocation: null, // Will be populated from addresses if needed
-			distance: 0, // Would need to be calculated from route data
+			distance: routeData ? routeData.totalDistanceMeters / 1000 : 0, // Convert to km
 			duration: activeJob.durationSeconds,
-			goodsType: 'General Freight', // Placeholder
-			weight: 1000 // Placeholder
+			jobCategory: activeJob.jobCategory as JobCategory,
 		};
 	}
 </script>
 
 <div class="space-y-4">
 	{#if activeJob}
-		{@const jobDetails = getJobDetails(activeJob)}
+		{@const jobDetails = getJobDetails(activeJob, activeRoute)}
 		<div>
 			<div class="mb-2 flex items-center justify-between">
 				<span class="font-medium">Job Progress</span>
@@ -68,6 +76,11 @@
 					><strong>XP:</strong> {activeJob.drivingXp} driving, {activeJob.categoryXp} category</span
 				>
 			</div>
+			{#if jobDetails.distance > 0}
+				<div>
+					<strong>Distance:</strong> {formatDistance(jobDetails.distance * 1000)} <!-- Convert back to meters for formatting -->
+				</div>
+			{/if}
 			{#if activeJob.startTime}
 				<div>
 					<strong>Started:</strong>
@@ -75,6 +88,59 @@
 				</div>
 			{/if}
 		</div>
+
+		<!-- Address Information -->
+		{#if employeeStartAddress || jobAddress || employeeEndAddress}
+			<div class="divider">Route Details</div>
+			<div class="space-y-2">
+				{#if employeeStartAddress}
+					<div class="flex items-start gap-2">
+						<div class="badge badge-outline badge-sm mt-1">START</div>
+						<div class="text-sm">
+							<div class="font-medium">Employee Start Location</div>
+							<div class="text-base-content/70">{formatAddress(employeeStartAddress)}</div>
+						</div>
+					</div>
+				{/if}
+				{#if jobAddress}
+					<div class="flex items-start gap-2">
+						<div class="badge badge-primary badge-sm mt-1">JOB</div>
+						<div class="text-sm">
+							<div class="font-medium">Job Location</div>
+							<div class="text-base-content/70">{formatAddress(jobAddress)}</div>
+						</div>
+					</div>
+				{/if}
+				{#if employeeEndAddress}
+					<div class="flex items-start gap-2">
+						<div class="badge badge-success badge-sm mt-1">END</div>
+						<div class="text-sm">
+							<div class="font-medium">Employee End Location</div>
+							<div class="text-base-content/70">{formatAddress(employeeEndAddress)}</div>
+						</div>
+					</div>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- Route Information -->
+		{#if activeRoute}
+			<div class="divider">Route Information</div>
+			<div class="space-y-2">
+				<div class="flex justify-between text-sm">
+					<span><strong>Total Distance:</strong></span>
+					<span>{formatDistance(activeRoute.routeData.totalDistanceMeters)}</span>
+				</div>
+				<div class="flex justify-between text-sm">
+					<span><strong>Travel Time:</strong></span>
+					<span>{formatTime(activeRoute.routeData.travelTimeSeconds)}</span>
+				</div>
+				<div class="flex justify-between text-sm">
+					<span><strong>Route Points:</strong></span>
+					<span>{activeRoute.routeData.path.length} waypoints</span>
+				</div>
+			</div>
+		{/if}
 	{:else}
 		<div class="py-8 text-center">
 			<div class="mb-2 text-4xl">🚗</div>

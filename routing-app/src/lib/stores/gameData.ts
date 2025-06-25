@@ -24,13 +24,13 @@ export const availableGameStates = writable<GameState[]>([]);
 export const fullEmployeeData = writable<FullEmployeeData[]>([]);
 
 // Derived stores for backward compatibility and convenience
-export const employees = derived(fullEmployeeData, ($fullEmployeeData) => 
-	$fullEmployeeData.map(fed => fed.employee)
+export const employees = derived(fullEmployeeData, ($fullEmployeeData) =>
+	$fullEmployeeData.map((fed) => fed.employee)
 );
 
 export const activeJobsByEmployee = derived(fullEmployeeData, ($fullEmployeeData) => {
 	const activeJobs: Record<string, ActiveJob | null> = {};
-	$fullEmployeeData.forEach(fed => {
+	$fullEmployeeData.forEach((fed) => {
 		activeJobs[fed.employee.id] = fed.activeJob;
 	});
 	return activeJobs;
@@ -133,7 +133,7 @@ export const gameDataActions = {
 			fullEmployeeData.set(data.fullEmployeeData);
 		} else if (data.employees) {
 			// Backward compatibility: convert employees to FullEmployeeData format
-			const fedData: FullEmployeeData[] = data.employees.map(employee => ({
+			const fedData: FullEmployeeData[] = data.employees.map((employee) => ({
 				employee,
 				activeJob: null,
 				employeeStartAddress: null,
@@ -197,9 +197,9 @@ export const gameDataActions = {
 		// Clear any existing timers
 		jobCompletionTimers.forEach((timer) => clearTimeout(timer));
 		jobCompletionTimers.clear();
-		
+
 		// Set up completion timers for any active jobs
-		newFullEmployeeData.forEach(fed => {
+		newFullEmployeeData.forEach((fed) => {
 			if (fed.activeJob && fed.activeJob.startTime) {
 				scheduleJobCompletion(fed.employee.id, fed.activeJob);
 			}
@@ -208,7 +208,7 @@ export const gameDataActions = {
 
 	// Update employees (backward compatibility)
 	setEmployees(newEmployees: Employee[]) {
-		const fedData: FullEmployeeData[] = newEmployees.map(employee => ({
+		const fedData: FullEmployeeData[] = newEmployees.map((employee) => ({
 			employee,
 			activeJob: null,
 			employeeStartAddress: null,
@@ -222,10 +222,8 @@ export const gameDataActions = {
 	// Update a single employee
 	updateEmployee(employeeId: string, updates: Partial<Employee>) {
 		fullEmployeeData.update((currentFullData) => {
-			return currentFullData.map((fed) => 
-				fed.employee.id === employeeId 
-					? { ...fed, employee: { ...fed.employee, ...updates } }
-					: fed
+			return currentFullData.map((fed) =>
+				fed.employee.id === employeeId ? { ...fed, employee: { ...fed.employee, ...updates } } : fed
 			);
 		});
 	},
@@ -246,10 +244,8 @@ export const gameDataActions = {
 	// Set active job for a specific employee and set up completion timer
 	setEmployeeActiveJob(employeeId: string, activeJob: ActiveJob | null) {
 		fullEmployeeData.update((currentFullData) => {
-			return currentFullData.map((fed) => 
-				fed.employee.id === employeeId 
-					? { ...fed, activeJob }
-					: fed
+			return currentFullData.map((fed) =>
+				fed.employee.id === employeeId ? { ...fed, activeJob } : fed
 			);
 		});
 
@@ -269,16 +265,16 @@ export const gameDataActions = {
 	// Clear active job for an employee (when job is completed)
 	clearEmployeeActiveJob(employeeId: string) {
 		fullEmployeeData.update((currentFullData) => {
-			return currentFullData.map((fed) => 
-				fed.employee.id === employeeId 
-					? { 
-						...fed, 
-						activeJob: null, 
-						employeeStartAddress: null, 
-						jobAddress: null, 
-						employeeEndAddress: null,
-						activeRoute: null
-					}
+			return currentFullData.map((fed) =>
+				fed.employee.id === employeeId
+					? {
+							...fed,
+							activeJob: null,
+							employeeStartAddress: null,
+							jobAddress: null,
+							employeeEndAddress: null,
+							activeRoute: null
+						}
 					: fed
 			);
 		});
@@ -302,15 +298,17 @@ export const gameDataActions = {
 		// Update the store
 		fullEmployeeData.update((currentFullData) => {
 			return currentFullData.map((fed) => {
-				const employeeActiveJob = employeeActiveJobs.find(eaj => eaj.employeeId === fed.employee.id);
+				const employeeActiveJob = employeeActiveJobs.find(
+					(eaj) => eaj.employeeId === fed.employee.id
+				);
 				if (employeeActiveJob) {
 					const updatedFed = { ...fed, activeJob: employeeActiveJob.activeJob };
-					
+
 					// Set up completion timer if needed
 					if (employeeActiveJob.activeJob && employeeActiveJob.activeJob.startTime) {
 						scheduleJobCompletion(fed.employee.id, employeeActiveJob.activeJob);
 					}
-					
+
 					return updatedFed;
 				}
 				return fed;
@@ -639,14 +637,14 @@ export function getEmployeeActiveJob(employeeId: string) {
 // Helper to get full employee data for a specific employee
 export function getFullEmployeeData(employeeId: string) {
 	return derived(fullEmployeeData, ($fullEmployeeData) => {
-		return $fullEmployeeData.find(fed => fed.employee.id === employeeId) || null;
+		return $fullEmployeeData.find((fed) => fed.employee.id === employeeId) || null;
 	});
 }
 
 // Helper to get active route for a specific employee
 export function getEmployeeActiveRoute(employeeId: string) {
 	return derived(fullEmployeeData, ($fullEmployeeData) => {
-		const employeeData = $fullEmployeeData.find(fed => fed.employee.id === employeeId);
+		const employeeData = $fullEmployeeData.find((fed) => fed.employee.id === employeeId);
 		return employeeData?.activeRoute || null;
 	});
 }

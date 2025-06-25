@@ -51,7 +51,7 @@ export const GET: RequestHandler = async ({ params }) => {
 
 		// Get all unique address IDs from active jobs
 		const addressIds = new Set<string>();
-		activeJobsData.forEach(job => {
+		activeJobsData.forEach((job) => {
 			addressIds.add(job.employeeStartAddressId);
 			addressIds.add(job.jobAddressId);
 			addressIds.add(job.employeeEndAddressId);
@@ -59,18 +59,29 @@ export const GET: RequestHandler = async ({ params }) => {
 
 		// Get all addresses and active routes in parallel
 		const [addressesData, activeRoutesData] = await Promise.all([
-			db.select().from(addresses).where(inArray(addresses.id, Array.from(addressIds))),
-			db.select().from(activeRoutes).where(inArray(activeRoutes.activeJobId, activeJobsData.map(job => job.id)))
+			db
+				.select()
+				.from(addresses)
+				.where(inArray(addresses.id, Array.from(addressIds))),
+			db
+				.select()
+				.from(activeRoutes)
+				.where(
+					inArray(
+						activeRoutes.activeJobId,
+						activeJobsData.map((job) => job.id)
+					)
+				)
 		]);
 
 		// Create maps for quick lookup
-		const addressMap = new Map(addressesData.map(addr => [addr.id, addr]));
-		const activeRouteMap = new Map(activeRoutesData.map(route => [route.activeJobId, route]));
+		const addressMap = new Map(addressesData.map((addr) => [addr.id, addr]));
+		const activeRouteMap = new Map(activeRoutesData.map((route) => [route.activeJobId, route]));
 
 		// Create FullEmployeeData array
 		const fullEmployeeData: FullEmployeeData[] = allEmployees.map((employee) => {
 			const activeJob = activeJobsData.find((job) => job.employeeId === employee.id) || null;
-			
+
 			if (!activeJob) {
 				return {
 					employee,

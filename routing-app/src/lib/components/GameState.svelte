@@ -17,7 +17,7 @@
 		employees,
 		currentUser,
 		activeJobsByEmployee,
-		getEmployeeActiveJob
+		fullEmployeeData
 	} from '$lib/stores/gameData';
 	import { selectedEmployee } from '$lib/stores/selectedEmployee';
 	import type { GameState, Employee } from '$lib/server/db/schema';
@@ -219,9 +219,7 @@
 				<JobCard />
 
 				<!-- Employee Details -->
-				<EmployeeDetails
-					employee={$employees.find((emp) => emp.id === $selectedEmployee) || null}
-				/>
+				<EmployeeDetails />
 
 				<!-- Employees List -->
 				<div class="space-y-3">

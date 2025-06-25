@@ -1,18 +1,19 @@
 <script lang="ts">
 	import { getVehicleConfig } from '$lib/upgrades/vehicles';
-	import { getEmployeeActiveJob } from '$lib/stores/gameData';
-	import type { Employee } from '$lib/server/db/schema';
+	import { selectedFullEmployeeData } from '$lib/stores/selectedEmployee';
 	import EmployeeJobDetailsTab from './EmployeeJobDetailsTab.svelte';
 	import EmployeeLevelStatusTab from './EmployeeLevelStatusTab.svelte';
 	import EmployeeUpgradeMenuTab from './EmployeeUpgradeMenuTab.svelte';
 
-	export let employee: Employee | null = null;
-
 	let activeTab: 'route' | 'levels' | 'upgrades' = 'route';
 
-	// Get active job from store
-	$: employeeActiveJob = employee ? getEmployeeActiveJob(employee.id) : null;
-	$: activeJob = employeeActiveJob ? $employeeActiveJob : null;
+	// Extract data from selectedFullEmployeeData store
+	$: employee = $selectedFullEmployeeData?.employee || null;
+	$: activeJob = $selectedFullEmployeeData?.activeJob || null;
+	$: employeeStartAddress = $selectedFullEmployeeData?.employeeStartAddress || null;
+	$: jobAddress = $selectedFullEmployeeData?.jobAddress || null;
+	$: employeeEndAddress = $selectedFullEmployeeData?.employeeEndAddress || null;
+	$: activeRoute = $selectedFullEmployeeData?.activeRoute || null;
 </script>
 
 {#if employee}
@@ -50,7 +51,13 @@
 
 			<!-- Tab Content -->
 			{#if activeTab === 'route'}
-				<EmployeeJobDetailsTab {activeJob} />
+				<EmployeeJobDetailsTab 
+					{activeJob} 
+					{employeeStartAddress}
+					{jobAddress}
+					{employeeEndAddress}
+					{activeRoute}
+				/>
 			{:else if activeTab === 'levels'}
 				<EmployeeLevelStatusTab {employee} />
 			{:else if activeTab === 'upgrades'}
