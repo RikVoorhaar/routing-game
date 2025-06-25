@@ -4,13 +4,13 @@
 
 import { JobCategory } from './jobs/jobCategories';
 import type { Employee } from '$lib/server/db/schema';
-import { VehicleType, LicenseType, VehicleClass, getVehicleConfig } from './vehicles';
+import { VehicleType, LicenseType, VehicleClass, getVehicleConfig } from './upgrades/vehicles';
 import {
 	getDefaultCategoryLevels,
 	getDefaultCategoryUpgrades,
 	getDefaultDrivingLevel,
 	canDoJobCategory
-} from './upgrades';
+} from './upgrades/upgrades';
 
 export interface NewEmployeeData {
 	gameId: string;

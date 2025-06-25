@@ -221,10 +221,6 @@
 				<!-- Employee Details -->
 				<EmployeeDetails
 					employee={$employees.find((emp) => emp.id === $selectedEmployee) || null}
-					activeJob={$selectedEmployee ? $activeJobsByEmployee[$selectedEmployee] || null : null}
-					on:purchaseLicense={handlePurchaseLicense}
-					on:purchaseVehicle={handlePurchaseVehicle}
-					on:purchaseUpgrade={handlePurchaseUpgrade}
 				/>
 
 				<!-- Employees List -->

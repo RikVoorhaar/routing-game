@@ -2,7 +2,7 @@
  * Employee upgrade system configuration
  */
 
-import { JobCategory } from './jobs/jobCategories';
+import { JobCategory } from '../jobs/jobCategories';
 import { LicenseType, VehicleClass } from './vehicles';
 
 export interface UpgradeInfo {

@@ -4,10 +4,10 @@
 export * from './jobs/jobCategories';
 
 // Export vehicle system
-export * from './vehicles';
+export * from './upgrades/vehicles';
 
 // Export upgrade system
-export * from './upgrades';
+export * from './upgrades/upgrades';
 
 // Export employee utilities
 export * from './employeeUtils';

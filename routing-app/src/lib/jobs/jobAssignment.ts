@@ -1,6 +1,6 @@
 import type { Employee, Job } from '$lib/server/db/schema';
 import { JobCategory } from '$lib/jobs/jobCategories';
-import { canEmployeeDoJobCategory, getEmployeeMaxSpeed } from '$lib/employeeUtils';
+import { canEmployeeDoJobCategory } from '$lib/employeeUtils';
 
 /**
  * Check if an employee can perform a specific job
@@ -75,7 +75,7 @@ export function getEmployeePosition(employee: Employee): { lat: number; lon: num
 			lat: locationData.lat || 0,
 			lon: locationData.lon || 0
 		};
-	} catch (e) {
+	} catch  {
 		return null;
 	}
 }
@@ -89,7 +89,7 @@ export function sortEmployeesByDistanceFromJob(employees: Employee[], job: Job):
 
 	try {
 		// job.location is a PostGIS POINT in EWKT format like "POINT(lon lat)"
-		const pointMatch = job.location.match(/POINT\(([^\s]+)\s+([^\)]+)\)/);
+		const pointMatch = job.location.match(/POINT\(([^\s]+)\s+([^)]+)\)/);
 		if (pointMatch) {
 			jobLon = parseFloat(pointMatch[1]);
 			jobLat = parseFloat(pointMatch[2]);

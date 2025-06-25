@@ -2,7 +2,6 @@
  * Vehicle system configuration
  */
 
-import { JobCategory } from './jobs/jobCategories';
 
 export enum VehicleType {
 	BIKE = 0,
@@ -170,6 +169,27 @@ export const VEHICLE_CONFIGS: Record<VehicleType, VehicleConfig> = {
 		vehicleClass: VehicleClass.TRUCK
 	}
 };
+
+export function getNextVehicle(
+	currentVehicle: VehicleType,
+	licenseLevel: LicenseType
+): VehicleType | null {
+	for (
+		let vehicleType = currentVehicle + 1;
+		vehicleType <= VehicleType.DOUBLE_TRAILER_TRUCK;
+		vehicleType++
+	) {
+		const config = VEHICLE_CONFIGS[vehicleType as VehicleType];
+		if (config.minLicenseLevel <= licenseLevel) {
+			return vehicleType as VehicleType;
+		}
+	}
+	return null;
+}
+export function getNextLicense(currentLicense: LicenseType): LicenseType | null {
+	const nextLevel = currentLicense + 1;
+	return nextLevel <= LicenseType.TOXIC_GOODS ? (nextLevel as LicenseType) : null;
+}
 
 export const LICENSE_CONFIGS: Record<LicenseType, LicenseConfig> = {
 	[LicenseType.UNLICENSED]: {
