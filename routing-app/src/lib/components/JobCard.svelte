@@ -34,9 +34,12 @@
 		>
 	>({});
 
+	// Reactive store for the selected employee ID
+	const selectedEmployeeIdStore = writable<string | null>(null);
+
 	// Derived store for the currently selected employee's active job data
 	const selectedEmployeeActiveJobData = derived(
-		[activeJobsByEmployee, writable(selectedEmployeeId)],
+		[activeJobsByEmployee, selectedEmployeeIdStore],
 		([$activeJobsByEmployee, $selectedEmployeeId]) => {
 			if (!$selectedEmployeeId) return null;
 			return $activeJobsByEmployee[$selectedEmployeeId] || null;
@@ -61,6 +64,7 @@
 		activeJobsByEmployee.set({});
 		setSelectedActiveJobData(null);
 		selectedEmployeeId = null;
+		selectedEmployeeIdStore.set(null);
 		isCreatingActiveJob = false;
 		isAcceptingJob = false;
 	}
@@ -68,11 +72,17 @@
 	$: if ($selectedEmployee && eligibleEmployees.length > 0) {
 		// Set default selected employee if it's eligible
 		const isEligible = eligibleEmployees.some((emp) => emp.id === $selectedEmployee);
-		selectedEmployeeId = isEligible ? $selectedEmployee : eligibleEmployees[0]?.id || null;
+		const newSelectedEmployeeId = isEligible ? $selectedEmployee : eligibleEmployees[0]?.id || null;
+		
+		// Only update if it's actually different to avoid infinite loops
+		if (selectedEmployeeId !== newSelectedEmployeeId) {
+			selectedEmployeeId = newSelectedEmployeeId;
+			selectedEmployeeIdStore.set(selectedEmployeeId);
 
-		// When employee changes, check if we need to compute their active job
-		if (selectedEmployeeId) {
-			handleEmployeeSelection();
+			// Automatically compute route when employee changes
+			if (selectedEmployeeId) {
+				handleEmployeeSelection();
+			}
 		}
 	}
 
@@ -122,7 +132,18 @@
 			if (eligibleEmployees.length > 0) {
 				const defaultEmployee =
 					eligibleEmployees.find((emp) => emp.id === $selectedEmployee) || eligibleEmployees[0];
-				selectedEmployeeId = defaultEmployee.id;
+				const newSelectedEmployeeId = defaultEmployee.id;
+				
+				// Only update if it's actually different
+				if (selectedEmployeeId !== newSelectedEmployeeId) {
+					selectedEmployeeId = newSelectedEmployeeId;
+					selectedEmployeeIdStore.set(selectedEmployeeId);
+					
+					// Automatically compute route for the new employee
+					if (selectedEmployeeId) {
+						handleEmployeeSelection();
+					}
+				}
 			}
 		} catch (error) {
 			console.error('Error updating eligible employees:', error);
@@ -278,10 +299,13 @@
 		clearSelectedJob();
 		activeJobsByEmployee.set({});
 		selectedEmployeeId = null;
+		selectedEmployeeIdStore.set(null);
 	}
 
 	// Handle employee selection change
 	function onEmployeeChange() {
+		selectedEmployeeIdStore.set(selectedEmployeeId);
+		// Automatically compute route when user changes employee selection
 		if (selectedEmployeeId) {
 			handleEmployeeSelection();
 		}
@@ -382,7 +406,23 @@
 			{/if}
 
 			<!-- Computed Route Info -->
-			{#if $selectedEmployeeActiveJobData}
+			{#if isCreatingActiveJob}
+				<div class="alert alert-warning mb-4">
+					<svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+						<path
+							fill-rule="evenodd"
+							d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+							clip-rule="evenodd"
+						/>
+					</svg>
+					<div>
+						<div class="font-medium">Computing Route...</div>
+						<div class="text-sm opacity-90">
+							Calculating optimal route for selected employee
+						</div>
+					</div>
+				</div>
+			{:else if $selectedEmployeeActiveJobData}
 				<div class="alert alert-info mb-4">
 					<svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
 						<path
@@ -410,18 +450,10 @@
 			<div class="flex justify-end gap-2">
 				<button class="btn btn-ghost" on:click={handleCancel}> Cancel </button>
 
-				{#if selectedEmployeeId && !$selectedEmployeeActiveJobData}
-					<button
-						class="btn btn-primary"
-						on:click={handleEmployeeSelection}
-						disabled={isCreatingActiveJob}
-					>
-						{#if isCreatingActiveJob}
-							<span class="loading loading-spinner loading-sm"></span>
-							Computing Route...
-						{:else}
-							Compute Route
-						{/if}
+				{#if isCreatingActiveJob}
+					<button class="btn btn-primary" disabled>
+						<span class="loading loading-spinner loading-sm"></span>
+						Computing Route...
 					</button>
 				{:else if $selectedEmployeeActiveJobData && $selectedActiveJobData && !$selectedActiveJobData.activeJob.startTime}
 					<button class="btn btn-success" on:click={handleAcceptJob} disabled={isAcceptingJob}>
