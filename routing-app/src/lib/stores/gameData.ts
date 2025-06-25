@@ -31,29 +31,13 @@ const jobCompletionTimers = new Map<string, NodeJS.Timeout>();
 
 // Function to schedule job completion
 function scheduleJobCompletion(employeeId: string, activeJob: ActiveJob) {
-	if (!activeJob.startTime || activeJob.endTime) return;
+	if (!activeJob.startTime) return;
 
 	const startTime = new Date(activeJob.startTime).getTime();
 	const currentTime = Date.now();
 
 	// Calculate total completion time
-	let totalDuration = 0;
-	if (activeJob.currentPhase === 'traveling_to_job' && activeJob.modifiedRouteToJobData) {
-		// Still traveling - set timer for travel completion, then job completion
-		totalDuration = activeJob.modifiedRouteToJobData.travelTimeSeconds * 1000;
-		if (activeJob.modifiedJobRouteData) {
-			totalDuration += activeJob.modifiedJobRouteData.travelTimeSeconds * 1000;
-		}
-	} else {
-		// On job or no travel needed
-		let travelTime = 0;
-		if (activeJob.modifiedRouteToJobData) {
-			travelTime = activeJob.modifiedRouteToJobData.travelTimeSeconds * 1000;
-		}
-		const jobTime = activeJob.modifiedJobRouteData.travelTimeSeconds * 1000;
-		totalDuration = travelTime + jobTime;
-	}
-
+	const totalDuration = activeJob.durationSeconds * 1000;
 	const elapsed = currentTime - startTime;
 	const remainingTime = Math.max(0, totalDuration - elapsed);
 
@@ -219,7 +203,7 @@ export const gameDataActions = {
 		}
 
 		// Set up completion timer if there's an active job
-		if (activeJob && activeJob.startTime && !activeJob.endTime) {
+		if (activeJob && activeJob.startTime) {
 			scheduleJobCompletion(employeeId, activeJob);
 		}
 	},
@@ -253,7 +237,7 @@ export const gameDataActions = {
 			newActiveJobs[employeeId] = activeJob;
 
 			// Set up completion timer if needed
-			if (activeJob && activeJob.startTime && !activeJob.endTime) {
+			if (activeJob && activeJob.startTime) {
 				scheduleJobCompletion(employeeId, activeJob);
 			}
 		});
