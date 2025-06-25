@@ -75,7 +75,7 @@ export function getEmployeePosition(employee: Employee): { lat: number; lon: num
 			lat: locationData.lat || 0,
 			lon: locationData.lon || 0
 		};
-	} catch  {
+	} catch {
 		return null;
 	}
 }

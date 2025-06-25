@@ -2,7 +2,6 @@
  * Vehicle system configuration
  */
 
-
 export enum VehicleType {
 	BIKE = 0,
 	BACKPACK = 1,

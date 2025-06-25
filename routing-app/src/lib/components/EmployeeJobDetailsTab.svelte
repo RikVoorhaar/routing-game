@@ -1,5 +1,11 @@
 <script lang="ts">
-	import { formatMoney, formatAddress, formatTimeFromMs, formatTime, formatDistance } from '$lib/formatting';
+	import {
+		formatMoney,
+		formatAddress,
+		formatTimeFromMs,
+		formatTime,
+		formatDistance
+	} from '$lib/formatting';
 	import { getJobProgress } from '$lib/jobs/jobUtils';
 	import type { Employee, ActiveJob } from '$lib/server/db/schema';
 
@@ -58,11 +64,14 @@
 			</div>
 			<div class="flex justify-between">
 				<span><strong>Duration:</strong> {formatTime(jobDetails.duration)}</span>
-				<span><strong>XP:</strong> {activeJob.drivingXp} driving, {activeJob.categoryXp} category</span>
+				<span
+					><strong>XP:</strong> {activeJob.drivingXp} driving, {activeJob.categoryXp} category</span
+				>
 			</div>
 			{#if activeJob.startTime}
 				<div>
-					<strong>Started:</strong> {new Date(activeJob.startTime).toLocaleTimeString()}
+					<strong>Started:</strong>
+					{new Date(activeJob.startTime).toLocaleTimeString()}
 				</div>
 			{/if}
 		</div>
@@ -73,4 +82,4 @@
 			<p class="mt-1 text-sm text-base-content/50">Assign a job from the job market</p>
 		</div>
 	{/if}
-</div> 
+</div>

@@ -73,4 +73,4 @@
 		<div class="mb-2 text-4xl">📊</div>
 		<p class="text-base-content/70">No employee selected</p>
 	</div>
-{/if} 
+{/if}
