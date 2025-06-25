@@ -1,7 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { gameStates, employees, activeJobs, jobs, activeRoutes } from '$lib/server/db/schema';
+import { gameStates, employees, activeJobs, jobs, activeRoutes, addresses } from '$lib/server/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { computeActiveJob } from '$lib/jobs/activeJobComputation';
 
@@ -82,8 +82,22 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		});
 
 		if (existingActiveJob) {
-			// Return existing active job
-			return json({ activeJob: existingActiveJob, isExisting: true });
+			// Get complete data for existing active job
+			const [employeeStartAddress, jobAddress, employeeEndAddress, activeRoute] = await Promise.all([
+				db.query.addresses.findFirst({ where: eq(addresses.id, existingActiveJob.employeeStartAddressId) }),
+				db.query.addresses.findFirst({ where: eq(addresses.id, existingActiveJob.jobAddressId) }),
+				db.query.addresses.findFirst({ where: eq(addresses.id, existingActiveJob.employeeEndAddressId) }),
+				db.query.activeRoutes.findFirst({ where: eq(activeRoutes.activeJobId, existingActiveJob.id) })
+			]);
+
+			return json({ 
+				activeJob: existingActiveJob, 
+				activeRoute,
+				employeeStartAddress,
+				jobAddress,
+				employeeEndAddress,
+				isExisting: true 
+			});
 		}
 
 		// Get the job details
@@ -98,6 +112,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// Compute the active job using our new logic
 		const { activeJob, activeRoute } = await computeActiveJob(employee, job, gameState);
 
+		// Get the addresses for the computed active job
+		const [employeeStartAddress, jobAddress, employeeEndAddress] = await Promise.all([
+			db.query.addresses.findFirst({ where: eq(addresses.id, activeJob.employeeStartAddressId) }),
+			db.query.addresses.findFirst({ where: eq(addresses.id, activeJob.jobAddressId) }),
+			db.query.addresses.findFirst({ where: eq(addresses.id, activeJob.employeeEndAddressId) })
+		]);
+
 		// Insert the computed active job and active route into the database
 		await db.transaction(async (tx) => {
 			await tx.insert(activeJobs).values(activeJob);
@@ -106,7 +127,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		return json({
 			activeJob: activeJob,
-			activeRoute: activeRoute
+			activeRoute: activeRoute,
+			employeeStartAddress,
+			jobAddress,
+			employeeEndAddress
 		});
 	} catch (err) {
 		console.error('Error creating active job:', err);
@@ -173,7 +197,21 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 			await tx.insert(activeJobs).values(modifiedActiveJob);
 		});
 
-		return json(modifiedActiveJob);
+		// Get complete data for the accepted active job
+		const [employeeStartAddress, jobAddress, employeeEndAddress, activeRoute] = await Promise.all([
+			db.query.addresses.findFirst({ where: eq(addresses.id, modifiedActiveJob.employeeStartAddressId) }),
+			db.query.addresses.findFirst({ where: eq(addresses.id, modifiedActiveJob.jobAddressId) }),
+			db.query.addresses.findFirst({ where: eq(addresses.id, modifiedActiveJob.employeeEndAddressId) }),
+			db.query.activeRoutes.findFirst({ where: eq(activeRoutes.activeJobId, modifiedActiveJob.id) })
+		]);
+
+		return json({
+			activeJob: modifiedActiveJob,
+			activeRoute,
+			employeeStartAddress,
+			jobAddress,
+			employeeEndAddress
+		});
 	} catch (err) {
 		console.error('Error accepting active job:', err);
 		return error(500, 'Failed to accept active job');

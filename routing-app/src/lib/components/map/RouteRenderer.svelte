@@ -1,21 +1,13 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import { formatMoney } from '$lib/formatting';
-	import type { Route, PathPoint, Address } from '$lib/server/db/schema';
+	import { formatMoney, formatTimeFromSeconds } from '$lib/formatting';
+	import type { PathPoint, Address } from '$lib/server/db/schema';
+	import type { RouteDisplay } from '$lib/stores/mapDisplay';
 	import { log } from '$lib/logger';
 
 	export let map: any;
 	export let L: any;
-	export let routes: Array<{
-		route: Route;
-		style: {
-			color: string;
-			weight: number;
-			opacity: number;
-			dashArray?: string;
-		};
-		onClick?: () => void;
-	}> = [];
+	export let routes: RouteDisplay[] = [];
 
 	let routePolylines: any[] = [];
 
@@ -44,9 +36,16 @@
 		});
 	}
 
-	function createRoutePolyline(routeDisplay: (typeof routes)[number]) {
+	function createRoutePolyline(routeDisplay: RouteDisplay) {
 		const { route, style, onClick } = routeDisplay;
-		const routeData = parseRouteData(route.routeData);
+		
+		// Use the path directly from DisplayableRoute or parse from routeData
+		let routeData: PathPoint[] = [];
+		if (route.path && route.path.length > 0) {
+			routeData = route.path;
+		} else if (route.routeData) {
+			routeData = parseRouteData(route.routeData);
+		}
 
 		if (routeData.length === 0) return null;
 
@@ -65,18 +64,17 @@
 		}
 
 		// Add popup with route info
-		const startLocation = parseLocationData(route.startLocation);
-		const endLocation = parseLocationData(route.endLocation);
-		const rewardFormatted = formatMoney(route.reward);
+		const destination = route.destination;
+		const durationFormatted = formatTimeFromSeconds(route.travelTimeSeconds);
+		const distanceFormatted = `${(route.totalDistanceMeters / 1000).toFixed(1)} km`;
 
 		polyline.bindPopup(`
             <div>
-                <strong>Route</strong><br>
-                From: ${startLocation.city || 'Unknown'}<br>
-                To: ${endLocation.city || 'Unknown'}<br>
-                Duration: ${formatRouteDuration(route.lengthTime)}<br>
-                Reward: ${rewardFormatted}<br>
-                Goods: ${route.goodsType}
+                <strong>Route ${route.id}</strong><br>
+                ${destination ? `To: ${destination.city || 'Unknown'}<br>` : ''}
+                Duration: ${durationFormatted}<br>
+                Distance: ${distanceFormatted}<br>
+                ${route.startTime ? `Started: ${new Date(route.startTime).toLocaleTimeString()}<br>` : ''}
             </div>
         `);
 

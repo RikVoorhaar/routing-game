@@ -9,12 +9,12 @@
 	import { selectedJob, selectJob } from '$lib/stores/selectedJob';
 	import { DEFAULT_EMPLOYEE_LOCATION } from '$lib/employeeUtils';
 	import { log } from '$lib/logger';
-	import type { Employee, Route, PathPoint, Address, Coordinate, Job } from '$lib/server/db/schema';
+	import type { Employee, ActiveJob, PathPoint, Address, Coordinate, Job } from '$lib/server/db/schema';
 
 	export let map: any;
 	export let L: any;
 	export let employees: Employee[] = [];
-	export let routesByEmployee: Record<string, { available: Route[]; current: Route | null }> = {};
+	export let activeJobsByEmployee: Record<string, ActiveJob> = {};
 
 	let employeeMarkers: Record<string, any> = {};
 	let jobMarkersByTile: Map<string, any[]> = new Map(); // Track markers per tile
@@ -170,8 +170,7 @@
 
 		// Add markers for each employee
 		employees.forEach((employee) => {
-			const employeeRoutes = routesByEmployee[employee.id];
-			const currentRoute = employeeRoutes?.current;
+			const activeJob = activeJobsByEmployee[employee.id];
 
 			let position: Coordinate;
 			let isAnimated = false;
@@ -179,34 +178,25 @@
 			let progress = 0;
 			let eta: string | null = null;
 
-			if (currentRoute && currentRoute.startTime) {
-				// Employee is on a route - calculate animated position
-				routeData = parseRouteData(currentRoute.routeData);
-
-				// Calculate elapsed time since route started
-				const startTime = new Date(currentRoute.startTime).getTime();
+			if (activeJob && activeJob.startTime) {
+				// Employee is on an active job - calculate animated position
+				// Note: We don't have route data in ActiveJob, so we'll show static position for now
+				// This could be enhanced by passing route data from the parent component
+				
+				// Calculate elapsed time since job started
+				const startTime = new Date(activeJob.startTime).getTime();
 				const currentTime = Date.now();
 				const elapsedSeconds = (currentTime - startTime) / 1000;
 
-				// Convert lengthTime to number if it's a string (PostgreSQL numeric fields)
-				const routeLengthTime =
-					typeof currentRoute.lengthTime === 'string'
-						? parseFloat(currentRoute.lengthTime)
-						: currentRoute.lengthTime;
-
-				// Calculate progress percentage
-				progress = Math.min((elapsedSeconds / routeLengthTime) * 100, 100);
+				// Calculate progress percentage based on job duration
+				progress = Math.min((elapsedSeconds / activeJob.durationSeconds) * 100, 100);
 
 				// Calculate ETA
-				const remainingSeconds = Math.max(0, routeLengthTime - elapsedSeconds);
+				const remainingSeconds = Math.max(0, activeJob.durationSeconds - elapsedSeconds);
 				eta = formatTimeRemaining(remainingSeconds);
 
-				// Use interpolateLocationAtTime to get current position
-				const interpolatedPosition = interpolateLocationAtTime(routeData, elapsedSeconds);
-				position = interpolatedPosition || {
-					lat: DEFAULT_EMPLOYEE_LOCATION.lat,
-					lon: DEFAULT_EMPLOYEE_LOCATION.lon
-				};
+				// For now, use employee's base location (could be enhanced with route interpolation)
+				position = getEmployeePosition(employee);
 				isAnimated = true;
 			} else {
 				// Employee is idle - use their location or default

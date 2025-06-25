@@ -2,16 +2,19 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 	import { get } from 'svelte/store';
-	import { employees, activeJobsByEmployee } from '$lib/stores/gameData';
+	import { fullEmployeeData } from '$lib/stores/gameData';
 	import { selectedEmployee } from '$lib/stores/selectedEmployee';
 	import { selectedRoute, selectRoute } from '$lib/stores/selectedRoute';
+	import { selectedActiveJobData } from '$lib/stores/selectedJob';
 	import { cheatSettings, activeTiles } from '$lib/stores/cheats';
 	import { mapDisplaySettings, displayedRoutes, mapDisplayActions } from '$lib/stores/mapDisplay';
 	import { MapManager } from './map/MapManager';
 	import { JobLoader } from './map/JobLoader';
 	import MarkerRenderer from './map/MarkerRenderer.svelte';
 	import RouteRenderer from './map/RouteRenderer.svelte';
-	import type { Employee, Route, Address } from '$lib/server/db/schema';
+	import type { Employee, Address, RoutingResult } from '$lib/server/db/schema';
+	import type { DisplayableRoute } from '$lib/stores/mapDisplay';
+	import { formatAddress } from '$lib/formatting';
 	import { log } from '$lib/logger';
 
 	// Animation configuration
@@ -34,6 +37,9 @@
 	// Job loading state
 	let jobLoadingTimeout: NodeJS.Timeout | null = null;
 
+	// Route markers management
+	let routeMarkers: any[] = []; // Keep track of route markers for cleanup
+
 	// Reactive updates
 	$: {
 		if (leafletMap) {
@@ -51,6 +57,13 @@
 	// Reactive updates for selected route
 	$: {
 		if (leafletMap && $selectedRoute !== undefined) {
+			updateDisplayedRoutes();
+		}
+	}
+
+	// Reactive updates for selected active job data (preview route)
+	$: {
+		if (leafletMap && $selectedActiveJobData) {
 			updateDisplayedRoutes();
 		}
 	}
@@ -84,45 +97,164 @@
 	function updateDisplayedRoutes() {
 		if (!leafletMap || !L) return;
 
-		// Clear existing routes
+		// Clear existing routes and markers
 		mapDisplayActions.clearRoutes();
+		clearRouteMarkers();
 
-		// Draw all active jobs for all employees
-		$employees.forEach((employee) => {
-			const activeJob = $activeJobsByEmployee[employee.id];
-			if (activeJob) {
-				// For now, we'll need to create a route-like object from the active job
-				// This is a temporary solution until we fully refactor the map system
-				const routeData = activeJob.modifiedJobRouteData;
-				if (routeData) {
-					const routeForDisplay = {
-						id: activeJob.id,
-						path: routeData.path,
-						travelTimeSeconds: routeData.travelTimeSeconds,
-						totalDistanceMeters: routeData.totalDistanceMeters,
-						destination: routeData.destination,
-						startTime: activeJob.startTime
-					};
+		// 1. Display preview route from selected active job data (if any)
+		if ($selectedActiveJobData) {
+			const previewRoute = createRouteFromActiveJobData($selectedActiveJobData, 'preview');
+			if (previewRoute) {
+				mapDisplayActions.addRoute(previewRoute, {
+					isSelected: false,
+					isPreview: true,
+					color: '#ff6b35', // Orange color for preview
+					onClick: () => {
+						selectRoute(previewRoute.id);
+						zoomToRoute(previewRoute);
+					}
+				});
 
-					const isSelected = activeJob.id === $selectedRoute;
-					mapDisplayActions.addRoute(routeForDisplay, {
+				// Add markers for preview route
+				addRouteMarkers($selectedActiveJobData, 'preview');
+			}
+		}
+
+		// 2. Display all active job routes for employees
+		$fullEmployeeData.forEach((fed) => {
+			if (fed.activeJob && fed.activeRoute && fed.activeJob.startTime) {
+				const activeRoute = createRouteFromFullEmployeeData(fed);
+				if (activeRoute) {
+					const isSelected = activeRoute.id === $selectedRoute;
+					mapDisplayActions.addRoute(activeRoute, {
 						isSelected,
 						isActive: true,
+						color: isSelected ? '#00d4aa' : '#0080ff', // Teal for selected, blue for active
 						onClick: () => {
-							selectRoute(activeJob.id);
-							zoomToRoute(routeForDisplay);
+							selectRoute(activeRoute.id);
+							zoomToRoute(activeRoute);
 						}
 					});
+
+					// Add markers for active route
+					addRouteMarkers(fed, 'active');
 				}
 			}
 		});
-
-		// For now, we don't show available routes for idle employees
-		// This would require a different approach in the new job system
-		// Available jobs would be shown on the map as job markers instead
 	}
 
-	function showAvailableRoutes(routes: Route[]) {
+	function clearRouteMarkers() {
+		// Remove all existing route markers from map
+		routeMarkers.forEach(marker => {
+			if (marker && leafletMap) {
+				leafletMap.removeLayer(marker);
+			}
+		});
+		routeMarkers = [];
+	}
+
+	function createRouteFromActiveJobData(selectedActiveJobData: any, routeType: string): DisplayableRoute | null {
+		if (!selectedActiveJobData?.activeRoute?.routeData) return null;
+
+		const routeData = selectedActiveJobData.activeRoute.routeData;
+		return {
+			id: `${routeType}-${selectedActiveJobData.activeJob.id}`,
+			path: routeData.path,
+			travelTimeSeconds: routeData.travelTimeSeconds,
+			totalDistanceMeters: routeData.totalDistanceMeters,
+			destination: routeData.destination,
+			startTime: selectedActiveJobData.activeJob.startTime,
+			routeData: routeData
+		};
+	}
+
+	function createRouteFromFullEmployeeData(fed: any): DisplayableRoute | null {
+		if (!fed.activeRoute?.routeData) return null;
+
+		const routeData = fed.activeRoute.routeData;
+		return {
+			id: `active-${fed.activeJob.id}`,
+			path: routeData.path,
+			travelTimeSeconds: routeData.travelTimeSeconds,
+			totalDistanceMeters: routeData.totalDistanceMeters,
+			destination: routeData.destination,
+			startTime: fed.activeJob.startTime,
+			routeData: routeData
+		};
+	}
+
+	function addRouteMarkers(data: any, routeType: string) {
+		if (!leafletMap || !L) return;
+
+		const { employeeStartAddress, jobAddress, employeeEndAddress } = data;
+
+		// Marker styles
+		const markerStyles: Record<string, any> = {
+			preview: {
+				start: { color: '#ff6b35', icon: '🚀' },
+				job: { color: '#ff6b35', icon: '📦' },
+				end: { color: '#ff6b35', icon: '🏠' }
+			},
+			active: {
+				start: { color: '#0080ff', icon: '🚗' },
+				job: { color: '#00d4aa', icon: '🎯' },
+				end: { color: '#0080ff', icon: '🏁' }
+			}
+		};
+
+		const style = markerStyles[routeType] || markerStyles.active;
+
+		// Add start marker
+		if (employeeStartAddress) {
+			const startMarker = L.marker([employeeStartAddress.lat, employeeStartAddress.lon], {
+				icon: createCustomIcon(style.start.icon, style.start.color)
+			}).addTo(leafletMap);
+			startMarker.bindPopup(`${routeType === 'preview' ? 'Preview' : 'Active'} Route Start<br/>${formatAddress(employeeStartAddress)}`);
+			routeMarkers.push(startMarker);
+		}
+
+		// Add job marker
+		if (jobAddress) {
+			const jobMarker = L.marker([jobAddress.lat, jobAddress.lon], {
+				icon: createCustomIcon(style.job.icon, style.job.color)
+			}).addTo(leafletMap);
+			jobMarker.bindPopup(`Job Location<br/>${formatAddress(jobAddress)}`);
+			routeMarkers.push(jobMarker);
+		}
+
+		// Add end marker
+		if (employeeEndAddress) {
+			const endMarker = L.marker([employeeEndAddress.lat, employeeEndAddress.lon], {
+				icon: createCustomIcon(style.end.icon, style.end.color)
+			}).addTo(leafletMap);
+			endMarker.bindPopup(`${routeType === 'preview' ? 'Preview' : 'Active'} Route End<br/>${formatAddress(employeeEndAddress)}`);
+			routeMarkers.push(endMarker);
+		}
+	}
+
+	function createCustomIcon(emoji: string, color: string) {
+		if (!L) return null;
+		
+		return L.divIcon({
+			html: `<div style="
+				background-color: ${color};
+				border: 2px solid white;
+				border-radius: 50%;
+				width: 30px;
+				height: 30px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				font-size: 16px;
+				box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+			">${emoji}</div>`,
+			className: 'custom-div-icon',
+			iconSize: [30, 30],
+			iconAnchor: [15, 15]
+		});
+	}
+
+	function showAvailableRoutes(routes: any[]) {
 		const allCoords: [number, number][] = [];
 
 		routes.forEach((route) => {
@@ -151,12 +283,12 @@
 		}
 	}
 
-	function zoomToRoute(route: Route) {
+	function zoomToRoute(route: DisplayableRoute) {
 		if (!leafletMap || !L) return;
 
-		const routeData = parseRouteData(route.routeData);
+		const routeData = route.path || (route.routeData ? parseRouteData(route.routeData) : []);
 		if (routeData.length > 0) {
-			const routeCoords = routeData.map((point) => [point.coordinates.lat, point.coordinates.lon]);
+			const routeCoords = routeData.map((point: any) => [point.coordinates.lat, point.coordinates.lon]);
 			const bounds = L.latLngBounds(routeCoords);
 			leafletMap.fitBounds(bounds, { padding: [20, 20] });
 		}
@@ -183,41 +315,30 @@
 
 		animationInterval = setInterval(() => {
 			// Check if any employees are currently on active jobs
-			const hasAnimatedEmployees = $employees.some((employee) => {
-				const activeJob = $activeJobsByEmployee[employee.id];
-				return activeJob && activeJob.startTime;
+			const hasAnimatedEmployees = $fullEmployeeData.some((fed) => {
+				return fed.activeJob && fed.activeJob.startTime;
 			});
 
 			if (hasAnimatedEmployees) {
-				// Trigger reactivity for marker updates by updating the employees store
-				employees.set($employees);
+				// Trigger reactivity for marker updates
+				updateDisplayedRoutes();
 			}
 		}, ANIMATION_INTERVAL_MS); // Update every ~33ms for smooth animation
 	}
 
 	function handleEmployeeSelection(employeeId: string) {
-		const employee = $employees.find((emp) => emp.id === employeeId);
-		if (!employee || !leafletMap) return;
+		const fed = $fullEmployeeData.find((fed) => fed.employee.id === employeeId);
+		if (!fed || !leafletMap) return;
 
-		const activeJob = $activeJobsByEmployee[employeeId];
-
-		if (activeJob && activeJob.startTime) {
+		if (fed.activeJob && fed.activeJob.startTime && fed.activeRoute) {
 			// Employee is on an active job - zoom to show the job route
-			const routeData = activeJob.modifiedJobRouteData;
-			if (routeData) {
-				const routeForDisplay = {
-					id: activeJob.id,
-					path: routeData.path,
-					travelTimeSeconds: routeData.travelTimeSeconds,
-					totalDistanceMeters: routeData.totalDistanceMeters,
-					destination: routeData.destination,
-					startTime: activeJob.startTime
-				};
-				zoomToRoute(routeForDisplay);
+			const activeRoute = createRouteFromFullEmployeeData(fed);
+			if (activeRoute) {
+				zoomToRoute(activeRoute);
 			}
 		} else {
 			// Employee is idle - just pan to employee location
-			const position = getEmployeePosition(employee);
+			const position = getEmployeePosition(fed.employee);
 			leafletMap.setView([position.lat, position.lon], leafletMap.getZoom());
 		}
 
@@ -348,14 +469,18 @@
 
 	<!-- Render markers and routes -->
 	{#if leafletMap && L}
-		<!-- MarkerRenderer temporarily disabled until fully updated for new job system -->
-		<!-- <MarkerRenderer
+		<MarkerRenderer
 			bind:this={markerRenderer}
 			map={leafletMap}
 			{L}
-			employees={$employees}
-			activeJobsByEmployee={$activeJobsByEmployee}
-		/> -->
+			employees={$fullEmployeeData.map(fed => fed.employee)}
+			activeJobsByEmployee={$fullEmployeeData.reduce((acc, fed) => {
+				if (fed.activeJob) {
+					acc[fed.employee.id] = fed.activeJob;
+				}
+				return acc;
+			}, {} as Record<string, any>)}
+		/>
 
 		<RouteRenderer map={leafletMap} {L} routes={$displayedRoutes} />
 	{/if}

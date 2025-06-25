@@ -1,11 +1,5 @@
 <script lang="ts">
-	import { selectedJob, clearSelectedJob } from '$lib/stores/selectedJob';
-	import {
-		selectedActiveJob,
-		selectActiveJob,
-		clearSelectedActiveJob,
-		cacheActiveJobsForJob
-	} from '$lib/stores/activeJobs';
+	import { selectedJob, clearSelectedJob, selectedActiveJobData, setSelectedActiveJobData } from '$lib/stores/selectedJob';
 	import { selectedEmployee } from '$lib/stores/selectedEmployee';
 	import { employees, currentGameState, gameDataAPI } from '$lib/stores/gameData';
 	import { getCategoryName, getTierColor } from '$lib/jobs/jobCategories';
@@ -13,7 +7,6 @@
 	import { employeeCanPerformJob, sortEmployeesByDistanceFromJob } from '$lib/jobs/jobAssignment';
 	import { addError } from '$lib/stores/errors';
 	import type { Employee } from '$lib/server/db/schema';
-	import type { ActiveJob } from '$lib/stores/activeJobs';
 	import { writable, derived } from 'svelte/store';
 
 	let selectedEmployeeId: string | null = null;
@@ -24,7 +17,7 @@
 
 	// Store for active jobs associated with the current job, keyed by employee ID
 	const activeJobsByEmployee = writable<
-		Record<string, { activeJob: ActiveJob; activeRoute?: any }>
+		Record<string, { activeJob: any; activeRoute?: any; employeeStartAddress?: any; jobAddress?: any; employeeEndAddress?: any }>
 	>({});
 
 	// Derived store for the currently selected employee's active job data
@@ -52,7 +45,7 @@
 
 	function clearPreviousState() {
 		activeJobsByEmployee.set({});
-		clearSelectedActiveJob();
+		setSelectedActiveJobData(null);
 		selectedEmployeeId = null;
 		isCreatingActiveJob = false;
 		isAcceptingJob = false;
@@ -67,6 +60,22 @@
 		if (selectedEmployeeId) {
 			handleEmployeeSelection();
 		}
+	}
+
+	// Update the global selected active job data when the local selection changes
+	$: if ($selectedEmployeeActiveJobData) {
+		const data = $selectedEmployeeActiveJobData;
+		if (data.activeJob && data.employeeStartAddress && data.jobAddress && data.employeeEndAddress && data.activeRoute) {
+			setSelectedActiveJobData({
+				activeJob: data.activeJob,
+				employeeStartAddress: data.employeeStartAddress,
+				jobAddress: data.jobAddress,
+				employeeEndAddress: data.employeeEndAddress,
+				activeRoute: data.activeRoute
+			});
+		}
+	} else {
+		setSelectedActiveJobData(null);
 	}
 
 	function updateEligibleEmployees() {
@@ -113,7 +122,7 @@
 				const allActiveJobs = await response.json();
 
 				// Group active jobs by employee ID for this job
-				const jobActiveJobs: Record<string, { activeJob: ActiveJob; activeRoute?: any }> = {};
+				const jobActiveJobs: Record<string, { activeJob: any; activeRoute?: any; employeeStartAddress?: any; jobAddress?: any; employeeEndAddress?: any }> = {};
 
 				for (const activeJob of allActiveJobs) {
 					if (activeJob.jobId === $selectedJob.id) {
@@ -138,9 +147,8 @@
 
 		// Check if we already have this employee's active job data
 		const currentData = $activeJobsByEmployee;
-		if (currentData[selectedEmployeeId]) {
-			// We already have data for this employee, just select their active job
-			selectActiveJob(currentData[selectedEmployeeId].activeJob);
+		if (currentData[selectedEmployeeId] && currentData[selectedEmployeeId].activeRoute) {
+			// We already have complete data for this employee
 			return;
 		}
 
@@ -166,13 +174,13 @@
 						...cache,
 						[selectedEmployeeId!]: {
 							activeJob: result.activeJob,
-							activeRoute: result.activeRoute
+							activeRoute: result.activeRoute,
+							employeeStartAddress: result.employeeStartAddress,
+							jobAddress: result.jobAddress,
+							employeeEndAddress: result.employeeEndAddress
 						}
 					}));
 				}
-
-				// Select this active job
-				selectActiveJob(result.activeJob);
 			} else {
 				const errorData = await response.json();
 				addError(errorData.message || 'Failed to compute job route', 'error');
@@ -186,7 +194,7 @@
 	}
 
 	async function handleAcceptJob() {
-		if (!$selectedActiveJob || !$currentGameState || !selectedEmployeeId) return;
+		if (!$selectedActiveJobData || !$currentGameState || !selectedEmployeeId) return;
 
 		isAcceptingJob = true;
 
@@ -195,14 +203,14 @@
 				method: 'PUT',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					activeJobId: $selectedActiveJob.id,
+					activeJobId: $selectedActiveJobData.activeJob.id,
 					gameStateId: $currentGameState.id,
 					employeeId: selectedEmployeeId
 				})
 			});
 
 			if (response.ok) {
-				const acceptedActiveJob = await response.json();
+				const result = await response.json();
 				addError('Job accepted successfully!', 'info');
 
 				// Update the active job in our cache to reflect it's been started
@@ -211,21 +219,20 @@
 						...cache,
 						[selectedEmployeeId!]: {
 							...cache[selectedEmployeeId!],
-							activeJob: acceptedActiveJob
+							activeJob: result.activeJob
 						}
 					}));
 				}
 
-				// Refresh the employee data to show the new active job
+				// Refresh the full employee data to show the new active job
 				try {
-					await gameDataAPI.refreshEmployee(selectedEmployeeId);
+					await gameDataAPI.loadAllEmployeeData();
 				} catch (error) {
 					console.error('Error refreshing employee data:', error);
 					// Don't fail the whole operation if employee refresh fails
 				}
 
 				clearSelectedJob();
-				clearSelectedActiveJob();
 			} else {
 				const errorData = await response.json();
 				addError(errorData.message || 'Failed to accept job', 'error');
@@ -240,7 +247,6 @@
 
 	function handleCancel() {
 		clearSelectedJob();
-		clearSelectedActiveJob();
 		activeJobsByEmployee.set({});
 		selectedEmployeeId = null;
 	}
@@ -388,7 +394,7 @@
 							Compute Route
 						{/if}
 					</button>
-				{:else if $selectedEmployeeActiveJobData && $selectedActiveJob && !$selectedActiveJob.startTime}
+				{:else if $selectedEmployeeActiveJobData && $selectedActiveJobData && !$selectedActiveJobData.activeJob.startTime}
 					<button class="btn btn-success" on:click={handleAcceptJob} disabled={isAcceptingJob}>
 						{#if isAcceptingJob}
 							<span class="loading loading-spinner loading-sm"></span>
@@ -397,7 +403,7 @@
 							Accept Job
 						{/if}
 					</button>
-				{:else if $selectedEmployeeActiveJobData && $selectedActiveJob && $selectedActiveJob.startTime}
+				{:else if $selectedEmployeeActiveJobData && $selectedActiveJobData && $selectedActiveJobData.activeJob.startTime}
 					<div class="badge badge-success">Job In Progress</div>
 				{/if}
 			</div>

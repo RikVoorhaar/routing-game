@@ -1,5 +1,5 @@
 import { writable, derived } from 'svelte/store';
-import type { Route } from '$lib/server/db/schema';
+import type { RoutingResult, PathPoint, Address } from '$lib/server/db/schema';
 
 /**
  * Route display styling options
@@ -12,14 +12,28 @@ export interface RouteDisplayStyle {
 }
 
 /**
+ * Displayable route data for the map
+ */
+export interface DisplayableRoute {
+	id: string;
+	path: PathPoint[]; // PathPoint array from RoutingResult
+	travelTimeSeconds: number;
+	totalDistanceMeters: number;
+	destination?: Address; // Address from RoutingResult
+	startTime?: Date | null;
+	routeData?: RoutingResult;
+}
+
+/**
  * Route display configuration
  */
 export interface RouteDisplay {
-	route: Route;
+	route: DisplayableRoute;
 	style: RouteDisplayStyle;
 	isSelected: boolean;
 	isAvailable: boolean;
 	isActive: boolean;
+	isPreview: boolean;
 	onClick?: () => void;
 }
 
@@ -72,6 +86,13 @@ export const ROUTE_STYLES = {
 		dashArray: undefined
 	} as RouteDisplayStyle,
 
+	PREVIEW: {
+		color: '#ff6b35', // orange
+		weight: 6,
+		opacity: 0.85,
+		dashArray: undefined
+	} as RouteDisplayStyle,
+
 	DEFAULT: {
 		color: '#3b82f6', // blue
 		weight: 5,
@@ -92,6 +113,7 @@ export const mapDisplaySettings = writable({
 	showJobs: true,
 	showAvailableRoutes: true,
 	showActiveRoutes: true,
+	showPreviewRoutes: true,
 	animateEmployees: true,
 	jobZoomThreshold: 12 // Minimum zoom level to show jobs
 });
@@ -111,26 +133,42 @@ export const mapDisplayActions = {
 	 * Add a route to display
 	 */
 	addRoute(
-		route: Route,
+		route: DisplayableRoute,
 		options: {
 			isSelected?: boolean;
 			isAvailable?: boolean;
 			isActive?: boolean;
+			isPreview?: boolean;
+			color?: string;
 			onClick?: () => void;
 		} = {}
 	) {
-		const { isSelected = false, isAvailable = false, isActive = false, onClick } = options;
+		const { 
+			isSelected = false, 
+			isAvailable = false, 
+			isActive = false, 
+			isPreview = false,
+			color,
+			onClick 
+		} = options;
 
 		let style: RouteDisplayStyle;
 
 		if (isSelected) {
-			style = ROUTE_STYLES.SELECTED;
+			style = { ...ROUTE_STYLES.SELECTED };
+		} else if (isPreview) {
+			style = { ...ROUTE_STYLES.PREVIEW };
 		} else if (isAvailable) {
-			style = ROUTE_STYLES.AVAILABLE;
+			style = { ...ROUTE_STYLES.AVAILABLE };
 		} else if (isActive) {
-			style = ROUTE_STYLES.ACTIVE;
+			style = { ...ROUTE_STYLES.ACTIVE };
 		} else {
-			style = ROUTE_STYLES.DEFAULT;
+			style = { ...ROUTE_STYLES.DEFAULT };
+		}
+
+		// Override color if provided
+		if (color) {
+			style.color = color;
 		}
 
 		const routeDisplay: RouteDisplay = {
@@ -139,6 +177,7 @@ export const mapDisplayActions = {
 			isSelected,
 			isAvailable,
 			isActive,
+			isPreview,
 			onClick
 		};
 
@@ -163,11 +202,13 @@ export const mapDisplayActions = {
 				style:
 					r.route.id === routeId
 						? ROUTE_STYLES.SELECTED
-						: r.isAvailable
-							? ROUTE_STYLES.AVAILABLE
-							: r.isActive
-								? ROUTE_STYLES.ACTIVE
-								: ROUTE_STYLES.DEFAULT
+						: r.isPreview
+							? ROUTE_STYLES.PREVIEW
+							: r.isAvailable
+								? ROUTE_STYLES.AVAILABLE
+								: r.isActive
+									? ROUTE_STYLES.ACTIVE
+									: ROUTE_STYLES.DEFAULT
 			}))
 		);
 	},
