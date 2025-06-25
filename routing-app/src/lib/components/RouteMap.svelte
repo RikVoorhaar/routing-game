@@ -145,7 +145,7 @@
 
 	function clearRouteMarkers() {
 		// Remove all existing route markers from map
-		routeMarkers.forEach(marker => {
+		routeMarkers.forEach((marker) => {
 			if (marker && leafletMap) {
 				leafletMap.removeLayer(marker);
 			}
@@ -153,7 +153,10 @@
 		routeMarkers = [];
 	}
 
-	function createRouteFromActiveJobData(selectedActiveJobData: any, routeType: string): DisplayableRoute | null {
+	function createRouteFromActiveJobData(
+		selectedActiveJobData: any,
+		routeType: string
+	): DisplayableRoute | null {
 		if (!selectedActiveJobData?.activeRoute?.routeData) return null;
 
 		const routeData = selectedActiveJobData.activeRoute.routeData;
@@ -209,7 +212,9 @@
 			const startMarker = L.marker([employeeStartAddress.lat, employeeStartAddress.lon], {
 				icon: createCustomIcon(style.start.icon, style.start.color)
 			}).addTo(leafletMap);
-			startMarker.bindPopup(`${routeType === 'preview' ? 'Preview' : 'Active'} Route Start<br/>${formatAddress(employeeStartAddress)}`);
+			startMarker.bindPopup(
+				`${routeType === 'preview' ? 'Preview' : 'Active'} Route Start<br/>${formatAddress(employeeStartAddress)}`
+			);
 			routeMarkers.push(startMarker);
 		}
 
@@ -227,14 +232,16 @@
 			const endMarker = L.marker([employeeEndAddress.lat, employeeEndAddress.lon], {
 				icon: createCustomIcon(style.end.icon, style.end.color)
 			}).addTo(leafletMap);
-			endMarker.bindPopup(`${routeType === 'preview' ? 'Preview' : 'Active'} Route End<br/>${formatAddress(employeeEndAddress)}`);
+			endMarker.bindPopup(
+				`${routeType === 'preview' ? 'Preview' : 'Active'} Route End<br/>${formatAddress(employeeEndAddress)}`
+			);
 			routeMarkers.push(endMarker);
 		}
 	}
 
 	function createCustomIcon(emoji: string, color: string) {
 		if (!L) return null;
-		
+
 		return L.divIcon({
 			html: `<div style="
 				background-color: ${color};
@@ -288,7 +295,10 @@
 
 		const routeData = route.path || (route.routeData ? parseRouteData(route.routeData) : []);
 		if (routeData.length > 0) {
-			const routeCoords = routeData.map((point: any) => [point.coordinates.lat, point.coordinates.lon]);
+			const routeCoords = routeData.map((point: any) => [
+				point.coordinates.lat,
+				point.coordinates.lon
+			]);
 			const bounds = L.latLngBounds(routeCoords);
 			leafletMap.fitBounds(bounds, { padding: [20, 20] });
 		}
@@ -473,13 +483,16 @@
 			bind:this={markerRenderer}
 			map={leafletMap}
 			{L}
-			employees={$fullEmployeeData.map(fed => fed.employee)}
-			activeJobsByEmployee={$fullEmployeeData.reduce((acc, fed) => {
-				if (fed.activeJob) {
-					acc[fed.employee.id] = fed.activeJob;
-				}
-				return acc;
-			}, {} as Record<string, any>)}
+			employees={$fullEmployeeData.map((fed) => fed.employee)}
+			activeJobsByEmployee={$fullEmployeeData.reduce(
+				(acc, fed) => {
+					if (fed.activeJob) {
+						acc[fed.employee.id] = fed.activeJob;
+					}
+					return acc;
+				},
+				{} as Record<string, any>
+			)}
 		/>
 
 		<RouteRenderer map={leafletMap} {L} routes={$displayedRoutes} />

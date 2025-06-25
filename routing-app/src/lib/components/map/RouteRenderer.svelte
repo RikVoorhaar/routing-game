@@ -38,7 +38,7 @@
 
 	function createRoutePolyline(routeDisplay: RouteDisplay) {
 		const { route, style, onClick } = routeDisplay;
-		
+
 		// Use the path directly from DisplayableRoute or parse from routeData
 		let routeData: PathPoint[] = [];
 		if (route.path && route.path.length > 0) {

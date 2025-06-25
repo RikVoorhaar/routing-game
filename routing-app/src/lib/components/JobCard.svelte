@@ -1,5 +1,10 @@
 <script lang="ts">
-	import { selectedJob, clearSelectedJob, selectedActiveJobData, setSelectedActiveJobData } from '$lib/stores/selectedJob';
+	import {
+		selectedJob,
+		clearSelectedJob,
+		selectedActiveJobData,
+		setSelectedActiveJobData
+	} from '$lib/stores/selectedJob';
 	import { selectedEmployee } from '$lib/stores/selectedEmployee';
 	import { employees, currentGameState, gameDataAPI } from '$lib/stores/gameData';
 	import { getCategoryName, getTierColor } from '$lib/jobs/jobCategories';
@@ -17,7 +22,16 @@
 
 	// Store for active jobs associated with the current job, keyed by employee ID
 	const activeJobsByEmployee = writable<
-		Record<string, { activeJob: any; activeRoute?: any; employeeStartAddress?: any; jobAddress?: any; employeeEndAddress?: any }>
+		Record<
+			string,
+			{
+				activeJob: any;
+				activeRoute?: any;
+				employeeStartAddress?: any;
+				jobAddress?: any;
+				employeeEndAddress?: any;
+			}
+		>
 	>({});
 
 	// Derived store for the currently selected employee's active job data
@@ -65,7 +79,13 @@
 	// Update the global selected active job data when the local selection changes
 	$: if ($selectedEmployeeActiveJobData) {
 		const data = $selectedEmployeeActiveJobData;
-		if (data.activeJob && data.employeeStartAddress && data.jobAddress && data.employeeEndAddress && data.activeRoute) {
+		if (
+			data.activeJob &&
+			data.employeeStartAddress &&
+			data.jobAddress &&
+			data.employeeEndAddress &&
+			data.activeRoute
+		) {
 			setSelectedActiveJobData({
 				activeJob: data.activeJob,
 				employeeStartAddress: data.employeeStartAddress,
@@ -122,7 +142,16 @@
 				const allActiveJobs = await response.json();
 
 				// Group active jobs by employee ID for this job
-				const jobActiveJobs: Record<string, { activeJob: any; activeRoute?: any; employeeStartAddress?: any; jobAddress?: any; employeeEndAddress?: any }> = {};
+				const jobActiveJobs: Record<
+					string,
+					{
+						activeJob: any;
+						activeRoute?: any;
+						employeeStartAddress?: any;
+						jobAddress?: any;
+						employeeEndAddress?: any;
+					}
+				> = {};
 
 				for (const activeJob of allActiveJobs) {
 					if (activeJob.jobId === $selectedJob.id) {

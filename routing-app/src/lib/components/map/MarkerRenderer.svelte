@@ -9,7 +9,14 @@
 	import { selectedJob, selectJob } from '$lib/stores/selectedJob';
 	import { DEFAULT_EMPLOYEE_LOCATION } from '$lib/employeeUtils';
 	import { log } from '$lib/logger';
-	import type { Employee, ActiveJob, PathPoint, Address, Coordinate, Job } from '$lib/server/db/schema';
+	import type {
+		Employee,
+		ActiveJob,
+		PathPoint,
+		Address,
+		Coordinate,
+		Job
+	} from '$lib/server/db/schema';
 
 	export let map: any;
 	export let L: any;
@@ -182,7 +189,7 @@
 				// Employee is on an active job - calculate animated position
 				// Note: We don't have route data in ActiveJob, so we'll show static position for now
 				// This could be enhanced by passing route data from the parent component
-				
+
 				// Calculate elapsed time since job started
 				const startTime = new Date(activeJob.startTime).getTime();
 				const currentTime = Date.now();

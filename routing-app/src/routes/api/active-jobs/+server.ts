@@ -1,7 +1,14 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { gameStates, employees, activeJobs, jobs, activeRoutes, addresses } from '$lib/server/db/schema';
+import {
+	gameStates,
+	employees,
+	activeJobs,
+	jobs,
+	activeRoutes,
+	addresses
+} from '$lib/server/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { computeActiveJob } from '$lib/jobs/activeJobComputation';
 
@@ -83,20 +90,28 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		if (existingActiveJob) {
 			// Get complete data for existing active job
-			const [employeeStartAddress, jobAddress, employeeEndAddress, activeRoute] = await Promise.all([
-				db.query.addresses.findFirst({ where: eq(addresses.id, existingActiveJob.employeeStartAddressId) }),
-				db.query.addresses.findFirst({ where: eq(addresses.id, existingActiveJob.jobAddressId) }),
-				db.query.addresses.findFirst({ where: eq(addresses.id, existingActiveJob.employeeEndAddressId) }),
-				db.query.activeRoutes.findFirst({ where: eq(activeRoutes.activeJobId, existingActiveJob.id) })
-			]);
+			const [employeeStartAddress, jobAddress, employeeEndAddress, activeRoute] = await Promise.all(
+				[
+					db.query.addresses.findFirst({
+						where: eq(addresses.id, existingActiveJob.employeeStartAddressId)
+					}),
+					db.query.addresses.findFirst({ where: eq(addresses.id, existingActiveJob.jobAddressId) }),
+					db.query.addresses.findFirst({
+						where: eq(addresses.id, existingActiveJob.employeeEndAddressId)
+					}),
+					db.query.activeRoutes.findFirst({
+						where: eq(activeRoutes.activeJobId, existingActiveJob.id)
+					})
+				]
+			);
 
-			return json({ 
-				activeJob: existingActiveJob, 
+			return json({
+				activeJob: existingActiveJob,
 				activeRoute,
 				employeeStartAddress,
 				jobAddress,
 				employeeEndAddress,
-				isExisting: true 
+				isExisting: true
 			});
 		}
 
@@ -199,9 +214,13 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 
 		// Get complete data for the accepted active job
 		const [employeeStartAddress, jobAddress, employeeEndAddress, activeRoute] = await Promise.all([
-			db.query.addresses.findFirst({ where: eq(addresses.id, modifiedActiveJob.employeeStartAddressId) }),
+			db.query.addresses.findFirst({
+				where: eq(addresses.id, modifiedActiveJob.employeeStartAddressId)
+			}),
 			db.query.addresses.findFirst({ where: eq(addresses.id, modifiedActiveJob.jobAddressId) }),
-			db.query.addresses.findFirst({ where: eq(addresses.id, modifiedActiveJob.employeeEndAddressId) }),
+			db.query.addresses.findFirst({
+				where: eq(addresses.id, modifiedActiveJob.employeeEndAddressId)
+			}),
 			db.query.activeRoutes.findFirst({ where: eq(activeRoutes.activeJobId, modifiedActiveJob.id) })
 		]);
 

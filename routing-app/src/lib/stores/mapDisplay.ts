@@ -143,13 +143,13 @@ export const mapDisplayActions = {
 			onClick?: () => void;
 		} = {}
 	) {
-		const { 
-			isSelected = false, 
-			isAvailable = false, 
-			isActive = false, 
+		const {
+			isSelected = false,
+			isAvailable = false,
+			isActive = false,
 			isPreview = false,
 			color,
-			onClick 
+			onClick
 		} = options;
 
 		let style: RouteDisplayStyle;
