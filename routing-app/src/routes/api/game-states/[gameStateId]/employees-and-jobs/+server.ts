@@ -1,7 +1,8 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { employees, activeJobs } from '$lib/server/db/schema';
-import { eq, and, isNotNull } from 'drizzle-orm';
+import { employees, activeJobs, addresses, activeRoutes } from '$lib/server/db/schema';
+import type { FullEmployeeData } from '$lib/server/db/schema';
+import { eq, and, isNotNull, inArray } from 'drizzle-orm';
 import { processCompletedJobs } from '$lib/jobs/jobCompletion';
 import { log } from '$lib/logger';
 import type { RequestHandler } from './$types';
@@ -28,24 +29,80 @@ export const GET: RequestHandler = async ({ params }) => {
 			.from(activeJobs)
 			.where(and(eq(activeJobs.gameStateId, gameStateId), isNotNull(activeJobs.startTime)));
 
-		// Format active jobs by employee ID
-		const employeeActiveJobs = allEmployees.map((employee) => ({
-			employeeId: employee.id,
-			activeJob: activeJobsData.find((activeJob) => activeJob.employeeId === employee.id) || null
-		}));
+		// If there are no active jobs, return early with empty data
+		if (activeJobsData.length === 0) {
+			const fullEmployeeData: FullEmployeeData[] = allEmployees.map((employee) => ({
+				employee,
+				activeJob: null,
+				employeeStartAddress: null,
+				jobAddress: null,
+				employeeEndAddress: null,
+				activeRoute: null
+			}));
+
+			return json({
+				success: true,
+				fullEmployeeData,
+				gameState: completionResult.updatedGameState,
+				processedJobs: completionResult.processedJobs,
+				totalReward: completionResult.totalReward
+			});
+		}
+
+		// Get all unique address IDs from active jobs
+		const addressIds = new Set<string>();
+		activeJobsData.forEach(job => {
+			addressIds.add(job.employeeStartAddressId);
+			addressIds.add(job.jobAddressId);
+			addressIds.add(job.employeeEndAddressId);
+		});
+
+		// Get all addresses and active routes in parallel
+		const [addressesData, activeRoutesData] = await Promise.all([
+			db.select().from(addresses).where(inArray(addresses.id, Array.from(addressIds))),
+			db.select().from(activeRoutes).where(inArray(activeRoutes.activeJobId, activeJobsData.map(job => job.id)))
+		]);
+
+		// Create maps for quick lookup
+		const addressMap = new Map(addressesData.map(addr => [addr.id, addr]));
+		const activeRouteMap = new Map(activeRoutesData.map(route => [route.activeJobId, route]));
+
+		// Create FullEmployeeData array
+		const fullEmployeeData: FullEmployeeData[] = allEmployees.map((employee) => {
+			const activeJob = activeJobsData.find((job) => job.employeeId === employee.id) || null;
+			
+			if (!activeJob) {
+				return {
+					employee,
+					activeJob: null,
+					employeeStartAddress: null,
+					jobAddress: null,
+					employeeEndAddress: null,
+					activeRoute: null
+				};
+			}
+
+			return {
+				employee,
+				activeJob,
+				employeeStartAddress: addressMap.get(activeJob.employeeStartAddressId) || null,
+				jobAddress: addressMap.get(activeJob.jobAddressId) || null,
+				employeeEndAddress: addressMap.get(activeJob.employeeEndAddressId) || null,
+				activeRoute: activeRouteMap.get(activeJob.id) || null
+			};
+		});
 
 		log.debug(
 			'[EmployeesAndJobs] Loaded',
 			allEmployees.length,
 			'employees and',
-			employeeActiveJobs.filter((eaj) => eaj.activeJob).length,
+			fullEmployeeData.filter((fed) => fed.activeJob).length,
 			'active jobs'
 		);
 
 		return json({
 			success: true,
-			employees: allEmployees,
-			employeeActiveJobs,
+			fullEmployeeData,
 			gameState: completionResult.updatedGameState,
 			processedJobs: completionResult.processedJobs,
 			totalReward: completionResult.totalReward

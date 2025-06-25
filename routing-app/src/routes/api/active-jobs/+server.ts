@@ -5,7 +5,7 @@ import { gameStates, employees, activeJobs, jobs, activeRoutes } from '$lib/serv
 import { eq, and } from 'drizzle-orm';
 import { computeActiveJob } from '$lib/jobs/activeJobComputation';
 
-// GET /api/active-jobs?jobId=123&gameStateId=abc - Get active jobs for a specific job
+// GET /api/active-jobs?jobId=123&gameStateId=abc - Get active jobs for a specific job and gameState
 export const GET: RequestHandler = async ({ url, locals }) => {
 	const session = await locals.auth();
 

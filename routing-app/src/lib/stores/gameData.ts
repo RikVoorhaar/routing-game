@@ -1,5 +1,5 @@
 import { writable, derived, get } from 'svelte/store';
-import type { GameState, Job, Employee, ActiveJob } from '$lib/server/db/schema';
+import type { GameState, Job, Employee, ActiveJob, FullEmployeeData } from '$lib/server/db/schema';
 import { addError } from './errors';
 import { log } from '$lib/logger';
 
@@ -20,11 +20,21 @@ export const currentGameState = writable<GameState | null>(null);
 // Available game states store (for character selection)
 export const availableGameStates = writable<GameState[]>([]);
 
-// Employees store
-export const employees = writable<Employee[]>([]);
+// Full employee data store - includes employee, active job, and addresses
+export const fullEmployeeData = writable<FullEmployeeData[]>([]);
 
-// Active jobs store - organized by employee ID for efficient lookup
-export const activeJobsByEmployee = writable<Record<string, ActiveJob | null>>({});
+// Derived stores for backward compatibility and convenience
+export const employees = derived(fullEmployeeData, ($fullEmployeeData) => 
+	$fullEmployeeData.map(fed => fed.employee)
+);
+
+export const activeJobsByEmployee = derived(fullEmployeeData, ($fullEmployeeData) => {
+	const activeJobs: Record<string, ActiveJob | null> = {};
+	$fullEmployeeData.forEach(fed => {
+		activeJobs[fed.employee.id] = fed.activeJob;
+	});
+	return activeJobs;
+});
 
 // Client-side timers for job completion
 const jobCompletionTimers = new Map<string, NodeJS.Timeout>();
@@ -101,6 +111,7 @@ export const gameDataActions = {
 		gameState?: GameState;
 		gameStates?: GameState[];
 		employees?: Employee[];
+		fullEmployeeData?: FullEmployeeData[];
 		cheatsEnabled?: boolean;
 	}) {
 		if (data.user) {
@@ -118,8 +129,19 @@ export const gameDataActions = {
 			availableGameStates.set(data.gameStates);
 		}
 
-		if (data.employees) {
-			employees.set(data.employees);
+		if (data.fullEmployeeData) {
+			fullEmployeeData.set(data.fullEmployeeData);
+		} else if (data.employees) {
+			// Backward compatibility: convert employees to FullEmployeeData format
+			const fedData: FullEmployeeData[] = data.employees.map(employee => ({
+				employee,
+				activeJob: null,
+				employeeStartAddress: null,
+				jobAddress: null,
+				employeeEndAddress: null,
+				activeRoute: null
+			}));
+			fullEmployeeData.set(fedData);
 		}
 	},
 
@@ -169,31 +191,67 @@ export const gameDataActions = {
 		});
 	},
 
-	// Update employees
+	// Update full employee data
+	setFullEmployeeData(newFullEmployeeData: FullEmployeeData[]) {
+		fullEmployeeData.set(newFullEmployeeData);
+		// Clear any existing timers
+		jobCompletionTimers.forEach((timer) => clearTimeout(timer));
+		jobCompletionTimers.clear();
+		
+		// Set up completion timers for any active jobs
+		newFullEmployeeData.forEach(fed => {
+			if (fed.activeJob && fed.activeJob.startTime) {
+				scheduleJobCompletion(fed.employee.id, fed.activeJob);
+			}
+		});
+	},
+
+	// Update employees (backward compatibility)
 	setEmployees(newEmployees: Employee[]) {
-		employees.set(newEmployees);
-		// Clear active jobs when employees change
-		activeJobsByEmployee.set({});
+		const fedData: FullEmployeeData[] = newEmployees.map(employee => ({
+			employee,
+			activeJob: null,
+			employeeStartAddress: null,
+			jobAddress: null,
+			employeeEndAddress: null,
+			activeRoute: null
+		}));
+		this.setFullEmployeeData(fedData);
 	},
 
 	// Update a single employee
 	updateEmployee(employeeId: string, updates: Partial<Employee>) {
-		employees.update((currentEmployees) => {
-			return currentEmployees.map((emp) => (emp.id === employeeId ? { ...emp, ...updates } : emp));
+		fullEmployeeData.update((currentFullData) => {
+			return currentFullData.map((fed) => 
+				fed.employee.id === employeeId 
+					? { ...fed, employee: { ...fed.employee, ...updates } }
+					: fed
+			);
 		});
 	},
 
 	// Add a new employee
 	addEmployee(employee: Employee) {
-		employees.update((currentEmployees) => [...currentEmployees, employee]);
+		const newFed: FullEmployeeData = {
+			employee,
+			activeJob: null,
+			employeeStartAddress: null,
+			jobAddress: null,
+			employeeEndAddress: null,
+			activeRoute: null
+		};
+		fullEmployeeData.update((currentFullData) => [...currentFullData, newFed]);
 	},
 
 	// Set active job for a specific employee and set up completion timer
 	setEmployeeActiveJob(employeeId: string, activeJob: ActiveJob | null) {
-		activeJobsByEmployee.update((activeJobs) => ({
-			...activeJobs,
-			[employeeId]: activeJob
-		}));
+		fullEmployeeData.update((currentFullData) => {
+			return currentFullData.map((fed) => 
+				fed.employee.id === employeeId 
+					? { ...fed, activeJob }
+					: fed
+			);
+		});
 
 		// Clear any existing timer for this employee
 		const existingTimer = jobCompletionTimers.get(employeeId);
@@ -210,10 +268,20 @@ export const gameDataActions = {
 
 	// Clear active job for an employee (when job is completed)
 	clearEmployeeActiveJob(employeeId: string) {
-		activeJobsByEmployee.update((activeJobs) => ({
-			...activeJobs,
-			[employeeId]: null
-		}));
+		fullEmployeeData.update((currentFullData) => {
+			return currentFullData.map((fed) => 
+				fed.employee.id === employeeId 
+					? { 
+						...fed, 
+						activeJob: null, 
+						employeeStartAddress: null, 
+						jobAddress: null, 
+						employeeEndAddress: null,
+						activeRoute: null
+					}
+					: fed
+			);
+		});
 
 		// Clear any completion timer
 		const existingTimer = jobCompletionTimers.get(employeeId);
@@ -223,7 +291,7 @@ export const gameDataActions = {
 		}
 	},
 
-	// Update multiple employees at once (for bulk loading)
+	// Update multiple employees at once (for bulk loading) - backward compatibility
 	setAllEmployeesActiveJobs(
 		employeeActiveJobs: Array<{ employeeId: string; activeJob: ActiveJob | null }>
 	) {
@@ -232,25 +300,32 @@ export const gameDataActions = {
 		jobCompletionTimers.clear();
 
 		// Update the store
-		const newActiveJobs: Record<string, ActiveJob | null> = {};
-		employeeActiveJobs.forEach(({ employeeId, activeJob }) => {
-			newActiveJobs[employeeId] = activeJob;
-
-			// Set up completion timer if needed
-			if (activeJob && activeJob.startTime) {
-				scheduleJobCompletion(employeeId, activeJob);
-			}
+		fullEmployeeData.update((currentFullData) => {
+			return currentFullData.map((fed) => {
+				const employeeActiveJob = employeeActiveJobs.find(eaj => eaj.employeeId === fed.employee.id);
+				if (employeeActiveJob) {
+					const updatedFed = { ...fed, activeJob: employeeActiveJob.activeJob };
+					
+					// Set up completion timer if needed
+					if (employeeActiveJob.activeJob && employeeActiveJob.activeJob.startTime) {
+						scheduleJobCompletion(fed.employee.id, employeeActiveJob.activeJob);
+					}
+					
+					return updatedFed;
+				}
+				return fed;
+			});
 		});
-
-		activeJobsByEmployee.set(newActiveJobs);
 	},
 
 	// Clear all data (for logout or game switch)
 	clear() {
 		currentUser.set(null);
 		currentGameState.set(null);
-		employees.set([]);
-		activeJobsByEmployee.set({});
+		fullEmployeeData.set([]);
+		// Clear all timers
+		jobCompletionTimers.forEach((timer) => clearTimeout(timer));
+		jobCompletionTimers.clear();
 	}
 };
 
@@ -292,19 +367,14 @@ export const gameDataAPI = {
 
 			const data = await response.json();
 
-			// Update employees store
-			if (data.employees) {
-				gameDataActions.setEmployees(data.employees);
-			}
-
 			// Update game state if it changed (money from completed jobs)
 			if (data.gameState && data.gameState.money !== gameState.money) {
 				gameDataActions.setGameState(data.gameState);
 			}
 
-			// Update active jobs with timer scheduling
-			if (data.employeeActiveJobs) {
-				gameDataActions.setAllEmployeesActiveJobs(data.employeeActiveJobs);
+			// Update full employee data with timer scheduling
+			if (data.fullEmployeeData) {
+				gameDataActions.setFullEmployeeData(data.fullEmployeeData);
 			}
 
 			log.debug('[GameData] Employee data loaded successfully');
@@ -563,5 +633,20 @@ export const gameDataAPI = {
 export function getEmployeeActiveJob(employeeId: string) {
 	return derived(activeJobsByEmployee, ($activeJobsByEmployee) => {
 		return $activeJobsByEmployee[employeeId] || null;
+	});
+}
+
+// Helper to get full employee data for a specific employee
+export function getFullEmployeeData(employeeId: string) {
+	return derived(fullEmployeeData, ($fullEmployeeData) => {
+		return $fullEmployeeData.find(fed => fed.employee.id === employeeId) || null;
+	});
+}
+
+// Helper to get active route for a specific employee
+export function getEmployeeActiveRoute(employeeId: string) {
+	return derived(fullEmployeeData, ($fullEmployeeData) => {
+		const employeeData = $fullEmployeeData.find(fed => fed.employee.id === employeeId);
+		return employeeData?.activeRoute || null;
 	});
 }

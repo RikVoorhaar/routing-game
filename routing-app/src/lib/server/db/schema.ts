@@ -320,6 +320,17 @@ export interface RoutingResult {
 	totalDistanceMeters: number;
 	destination: Address;
 }
+
+// Full employee data that includes active job with complete address information
+export interface FullEmployeeData {
+	employee: Employee;
+	activeJob: ActiveJob | null;
+	employeeStartAddress: Address | null;
+	jobAddress: Address | null;
+	employeeEndAddress: Address | null;
+	activeRoute: ActiveRoute | null;
+}
+
 export type Employee = InferSelectModel<typeof employees>;
 export type Job = InferSelectModel<typeof jobs>;
 export type GameState = InferSelectModel<typeof gameStates>;
