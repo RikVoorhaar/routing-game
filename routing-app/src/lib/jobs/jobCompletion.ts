@@ -107,33 +107,29 @@ export async function processCompletedJobs(gameStateId: string): Promise<{
 
 	// Get all active jobs for this game state that have been started
 	const activeJobsData = await db
-		.select({
-			activeJob: activeJobs,
-			employee: employees
-		})
+		.select()
 		.from(activeJobs)
-		.innerJoin(employees, eq(activeJobs.employeeId, employees.id))
 		.where(
 			and(
-				eq(employees.gameId, gameStateId),
+				eq(activeJobs.gameStateId, gameStateId),
 				isNotNull(activeJobs.startTime) // Only jobs that have been started
 			)
 		);
 
 	const currentTime = Date.now();
-	const jobsToComplete: Array<{ activeJob: ActiveJob; employee: Employee }> = [];
+	const jobsToComplete: ActiveJob[] = [];
 
 	// Check which jobs should be completed based on timing
-	for (const { activeJob, employee } of activeJobsData) {
+	for (const activeJob of activeJobsData) {
 		if (isJobComplete(activeJob, currentTime)) {
-			jobsToComplete.push({ activeJob, employee });
+			jobsToComplete.push(activeJob);
 		}
 	}
 
 	log.debug('[JobCompletion] Found', jobsToComplete.length, 'jobs to complete');
 
 	// Process all jobs in parallel (without updating game state)
-	const jobCompletionPromises = jobsToComplete.map(({ activeJob }) =>
+	const jobCompletionPromises = jobsToComplete.map((activeJob) =>
 		completeActiveJob(activeJob.id, false).catch((error) => {
 			log.error('[JobCompletion] Failed to complete job:', activeJob.id, error);
 			return null;

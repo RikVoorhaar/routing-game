@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { employees, activeJobs } from '$lib/server/db/schema';
-import { eq, and, isNotNull, isNull } from 'drizzle-orm';
+import { eq, and, isNotNull } from 'drizzle-orm';
 import { processCompletedJobs } from '$lib/jobs/jobCompletion';
 import { log } from '$lib/logger';
 import type { RequestHandler } from './$types';
@@ -22,26 +22,21 @@ export const GET: RequestHandler = async ({ params }) => {
 		// Get all employees for this game state
 		const allEmployees = await db.select().from(employees).where(eq(employees.gameId, gameStateId));
 
-		// Get all active jobs for employees in this game state
+		// Get all active jobs for this game state
 		const activeJobsData = await db
-			.select({
-				activeJob: activeJobs,
-				employeeId: employees.id
-			})
+			.select()
 			.from(activeJobs)
-			.innerJoin(employees, eq(activeJobs.employeeId, employees.id))
 			.where(
 				and(
-					eq(employees.gameId, gameStateId),
+					eq(activeJobs.gameStateId, gameStateId),
 					isNotNull(activeJobs.startTime),
-					isNull(activeJobs.endTime) // Only get incomplete jobs
 				)
 			);
 
 		// Format active jobs by employee ID
 		const employeeActiveJobs = allEmployees.map((employee) => ({
 			employeeId: employee.id,
-			activeJob: activeJobsData.find((aj) => aj.employeeId === employee.id)?.activeJob || null
+			activeJob: activeJobsData.find((activeJob) => activeJob.employeeId === employee.id) || null
 		}));
 
 		log.debug(
