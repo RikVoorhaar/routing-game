@@ -44,7 +44,12 @@
 		if (route.path && route.path.length > 0) {
 			routeData = route.path;
 		} else if (route.routeData) {
-			routeData = parseRouteData(route.routeData);
+			// If routeData is a RoutingResult object, extract the path
+			if (typeof route.routeData === 'object' && !Array.isArray(route.routeData) && route.routeData.path) {
+				routeData = route.routeData.path;
+			} else {
+				routeData = parseRouteData(route.routeData);
+			}
 		}
 
 		if (routeData.length === 0) return null;

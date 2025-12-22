@@ -8,6 +8,7 @@
 	} from '$lib/formatting';
 	import { JobCategory } from '$lib/jobs/jobCategories';
 	import { getJobProgress } from '$lib/jobs/jobUtils';
+	import { onDestroy } from 'svelte';
 	import type { ActiveJob, Address, ActiveRoute } from '$lib/server/db/schema';
 
 	export let activeJob: ActiveJob | null = null;
@@ -18,6 +19,30 @@
 
 	// Job progress calculation
 	$: jobProgress = activeJob ? getJobProgress(activeJob) : null;
+	
+	let progressUpdateInterval: NodeJS.Timeout | null = null;
+	
+	// Set up interval to update progress when job is active
+	$: if (activeJob && activeJob.startTime) {
+		if (progressUpdateInterval) {
+			clearInterval(progressUpdateInterval);
+		}
+		progressUpdateInterval = setInterval(() => {
+			// Force reactivity by reassigning
+			jobProgress = activeJob ? getJobProgress(activeJob) : null;
+		}, 1000);
+	} else {
+		if (progressUpdateInterval) {
+			clearInterval(progressUpdateInterval);
+			progressUpdateInterval = null;
+		}
+	}
+	
+	onDestroy(() => {
+		if (progressUpdateInterval) {
+			clearInterval(progressUpdateInterval);
+		}
+	});
 
 	// Helper function to get job details with route data
 	function getJobDetails(

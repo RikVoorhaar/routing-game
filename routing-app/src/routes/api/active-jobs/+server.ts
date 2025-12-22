@@ -9,7 +9,7 @@ import {
 	activeRoutes,
 	addresses
 } from '$lib/server/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, ne } from 'drizzle-orm';
 import { computeActiveJob } from '$lib/jobs/activeJobComputation';
 
 // GET /api/active-jobs?jobId=123&gameStateId=abc - Get active jobs for a specific job and gameState
@@ -194,38 +194,60 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 			return error(404, 'Employee not found');
 		}
 
-		const modifiedActiveJob = {
-			...activeJob,
-			startTime: new Date()
-		};
+		const startTime = new Date();
 
 		await db.transaction(async (tx) => {
-			// Delete all active jobs for this employee
-			await tx.delete(activeJobs).where(eq(activeJobs.employeeId, activeJob.employeeId));
+			// Delete all active jobs for this employee (except the one we're accepting)
+			await tx
+				.delete(activeJobs)
+				.where(
+					and(
+						eq(activeJobs.employeeId, activeJob.employeeId),
+						ne(activeJobs.id, activeJob.id)
+					)
+				);
 
-			// Delete all active jobs for this job from other employees of the same user
+			// Delete all active jobs for this job from other employees
 			if (activeJob.jobId) {
-				await tx.delete(activeJobs).where(eq(activeJobs.jobId, activeJob.jobId));
+				await tx
+					.delete(activeJobs)
+					.where(
+						and(
+							eq(activeJobs.jobId, activeJob.jobId),
+							ne(activeJobs.id, activeJob.id)
+						)
+					);
 			}
 
-			// Insert the modified active job with start time
-			await tx.insert(activeJobs).values(modifiedActiveJob);
+			// Update the active job with start time (keep the same ID)
+			await tx
+				.update(activeJobs)
+				.set({ startTime })
+				.where(eq(activeJobs.id, activeJob.id));
 		});
 
-		// Get complete data for the accepted active job
-		const [employeeStartAddress, jobAddress, employeeEndAddress, activeRoute] = await Promise.all([
-			db.query.addresses.findFirst({
-				where: eq(addresses.id, modifiedActiveJob.employeeStartAddressId)
-			}),
-			db.query.addresses.findFirst({ where: eq(addresses.id, modifiedActiveJob.jobAddressId) }),
-			db.query.addresses.findFirst({
-				where: eq(addresses.id, modifiedActiveJob.employeeEndAddressId)
-			}),
-			db.query.activeRoutes.findFirst({ where: eq(activeRoutes.activeJobId, modifiedActiveJob.id) })
-		]);
+		// Get the updated active job and complete data
+		const [updatedActiveJob, employeeStartAddress, jobAddress, employeeEndAddress, activeRoute] =
+			await Promise.all([
+				db.query.activeJobs.findFirst({
+					where: eq(activeJobs.id, activeJob.id)
+				}),
+				db.query.addresses.findFirst({
+					where: eq(addresses.id, activeJob.employeeStartAddressId)
+				}),
+				db.query.addresses.findFirst({ where: eq(addresses.id, activeJob.jobAddressId) }),
+				db.query.addresses.findFirst({
+					where: eq(addresses.id, activeJob.employeeEndAddressId)
+				}),
+				db.query.activeRoutes.findFirst({ where: eq(activeRoutes.activeJobId, activeJob.id) })
+			]);
+
+		if (!updatedActiveJob) {
+			return error(404, 'Active job not found after update');
+		}
 
 		return json({
-			activeJob: modifiedActiveJob,
+			activeJob: updatedActiveJob,
 			activeRoute,
 			employeeStartAddress,
 			jobAddress,

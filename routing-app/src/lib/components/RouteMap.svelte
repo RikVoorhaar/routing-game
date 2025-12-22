@@ -172,17 +172,31 @@
 	}
 
 	function createRouteFromFullEmployeeData(fed: any): DisplayableRoute | null {
-		if (!fed.activeRoute?.routeData) return null;
+		if (!fed.activeRoute?.routeData) {
+			return null;
+		}
 
 		const routeData = fed.activeRoute.routeData;
+		
+		// Handle case where routeData might be a JSON string
+		let parsedRouteData = routeData;
+		if (typeof routeData === 'string') {
+			try {
+				parsedRouteData = JSON.parse(routeData);
+			} catch (e) {
+				log.error('[RouteMap] Failed to parse routeData:', e);
+				return null;
+			}
+		}
+		
 		return {
 			id: `active-${fed.activeJob.id}`,
-			path: routeData.path,
-			travelTimeSeconds: routeData.travelTimeSeconds,
-			totalDistanceMeters: routeData.totalDistanceMeters,
-			destination: routeData.destination,
+			path: parsedRouteData.path || [],
+			travelTimeSeconds: parsedRouteData.travelTimeSeconds || 0,
+			totalDistanceMeters: parsedRouteData.totalDistanceMeters || 0,
+			destination: parsedRouteData.destination,
 			startTime: fed.activeJob.startTime,
-			routeData: routeData
+			routeData: parsedRouteData
 		};
 	}
 

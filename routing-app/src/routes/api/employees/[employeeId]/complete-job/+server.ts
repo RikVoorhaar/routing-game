@@ -15,7 +15,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
 
 		log.debug('[CompleteJob] Completing job for employee:', employeeId, 'job:', activeJobId);
 
-		const result = await completeActiveJob(employeeId, activeJobId);
+		const result = await completeActiveJob(activeJobId);
 
 		log.debug('[CompleteJob] Job completed successfully. Reward:', result.reward);
 

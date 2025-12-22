@@ -63,6 +63,13 @@ function scheduleJobCompletion(employeeId: string, activeJob: ActiveJob) {
 		const timer = setTimeout(async () => {
 			log.debug('[GameData] Auto-completing job for employee:', employeeId);
 			try {
+				// Check if job still exists before completing
+				const currentFullData = get(fullEmployeeData);
+				const employeeData = currentFullData.find((fed) => fed.employee.id === employeeId);
+				if (!employeeData || !employeeData.activeJob || employeeData.activeJob.id !== activeJob.id) {
+					log.debug('[GameData] Job already completed, skipping timer completion');
+					return;
+				}
 				await gameDataAPI.completeJob(employeeId, activeJob.id);
 			} catch (error) {
 				log.error('[GameData] Failed to auto-complete job:', error);
@@ -76,6 +83,13 @@ function scheduleJobCompletion(employeeId: string, activeJob: ActiveJob) {
 		log.debug('[GameData] Job already past completion time, completing immediately');
 		setTimeout(async () => {
 			try {
+				// Check if job still exists before completing
+				const currentFullData = get(fullEmployeeData);
+				const employeeData = currentFullData.find((fed) => fed.employee.id === employeeId);
+				if (!employeeData || !employeeData.activeJob || employeeData.activeJob.id !== activeJob.id) {
+					log.debug('[GameData] Overdue job already completed, skipping');
+					return;
+				}
 				await gameDataAPI.completeJob(employeeId, activeJob.id);
 			} catch (error) {
 				log.error('[GameData] Failed to complete overdue job:', error);

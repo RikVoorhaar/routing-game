@@ -1,4 +1,24 @@
 BUGS:
+- [ ] Routes are not displayed on the map after accepting a job
+  - **Analysis**: 
+    - RouteMap.svelte `updateDisplayedRoutes()` calls `createRouteFromFullEmployeeData()` which extracts `routeData.path`
+    - The `activeRoute.routeData` is stored as JSONB in the database and may need parsing if it's a string
+    - RouteRenderer expects `route.path` to be an array of PathPoint objects with `coordinates.lat` and `coordinates.lon`
+    - If `path` is empty, undefined, or malformed, RouteRenderer returns null and no polyline is created
+    - Need to verify: Is routeData being properly loaded from the database? Is it a string that needs JSON.parse()? Is the path array structure correct?
+    - The `createRouteFromFullEmployeeData()` function handles string parsing but may not handle all cases
+    - RouteRenderer has logic to extract path from RoutingResult object, but the data flow might be broken
+- [ ] Employee marker position doesn't update during active job (animation)
+  - **Analysis**:
+    - MarkerRenderer.svelte `updateEmployeeMarkers()` only uses `getEmployeePosition(employee)` which returns the employee's base location
+    - The comment says "We don't have route data in ActiveJob" - but route data IS available in `fullEmployeeData` via `fed.activeRoute.routeData`
+    - MarkerRenderer receives `employees` and `activeJobsByEmployee` props, but NOT the full route data needed for interpolation
+    - To animate position, need to:
+      1. Pass route data (PathPoint[]) to MarkerRenderer
+      2. Use `interpolateLocationAtTime()` from routing-client.ts to calculate position based on elapsed time
+      3. Update marker position in the animation loop (currently animation loop only calls `updateDisplayedRoutes()`)
+    - The animation interval in RouteMap.svelte (line 340) calls `updateDisplayedRoutes()` but doesn't trigger marker re-rendering
+    - MarkerRenderer's reactive statement (line 76) only triggers on `employees` or `activeJobsByEmployee` changes, not on time updates
 
 ENHANCEMENTS:
 - [ ] When clicking on an employee it is highlighted, and highlighted employees are stored in a store. 
