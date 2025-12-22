@@ -201,29 +201,18 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 			await tx
 				.delete(activeJobs)
 				.where(
-					and(
-						eq(activeJobs.employeeId, activeJob.employeeId),
-						ne(activeJobs.id, activeJob.id)
-					)
+					and(eq(activeJobs.employeeId, activeJob.employeeId), ne(activeJobs.id, activeJob.id))
 				);
 
 			// Delete all active jobs for this job from other employees
 			if (activeJob.jobId) {
 				await tx
 					.delete(activeJobs)
-					.where(
-						and(
-							eq(activeJobs.jobId, activeJob.jobId),
-							ne(activeJobs.id, activeJob.id)
-						)
-					);
+					.where(and(eq(activeJobs.jobId, activeJob.jobId), ne(activeJobs.id, activeJob.id)));
 			}
 
 			// Update the active job with start time (keep the same ID)
-			await tx
-				.update(activeJobs)
-				.set({ startTime })
-				.where(eq(activeJobs.id, activeJob.id));
+			await tx.update(activeJobs).set({ startTime }).where(eq(activeJobs.id, activeJob.id));
 		});
 
 		// Get the updated active job and complete data

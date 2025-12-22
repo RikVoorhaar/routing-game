@@ -177,7 +177,7 @@
 		}
 
 		const routeData = fed.activeRoute.routeData;
-		
+
 		// Handle case where routeData might be a JSON string
 		let parsedRouteData = routeData;
 		if (typeof routeData === 'string') {
@@ -188,7 +188,7 @@
 				return null;
 			}
 		}
-		
+
 		return {
 			id: `active-${fed.activeJob.id}`,
 			path: parsedRouteData.path || [],

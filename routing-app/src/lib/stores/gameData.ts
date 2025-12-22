@@ -66,7 +66,11 @@ function scheduleJobCompletion(employeeId: string, activeJob: ActiveJob) {
 				// Check if job still exists before completing
 				const currentFullData = get(fullEmployeeData);
 				const employeeData = currentFullData.find((fed) => fed.employee.id === employeeId);
-				if (!employeeData || !employeeData.activeJob || employeeData.activeJob.id !== activeJob.id) {
+				if (
+					!employeeData ||
+					!employeeData.activeJob ||
+					employeeData.activeJob.id !== activeJob.id
+				) {
 					log.debug('[GameData] Job already completed, skipping timer completion');
 					return;
 				}
@@ -86,7 +90,11 @@ function scheduleJobCompletion(employeeId: string, activeJob: ActiveJob) {
 				// Check if job still exists before completing
 				const currentFullData = get(fullEmployeeData);
 				const employeeData = currentFullData.find((fed) => fed.employee.id === employeeId);
-				if (!employeeData || !employeeData.activeJob || employeeData.activeJob.id !== activeJob.id) {
+				if (
+					!employeeData ||
+					!employeeData.activeJob ||
+					employeeData.activeJob.id !== activeJob.id
+				) {
 					log.debug('[GameData] Overdue job already completed, skipping');
 					return;
 				}

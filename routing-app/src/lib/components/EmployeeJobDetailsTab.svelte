@@ -19,9 +19,9 @@
 
 	// Job progress calculation
 	$: jobProgress = activeJob ? getJobProgress(activeJob) : null;
-	
+
 	let progressUpdateInterval: NodeJS.Timeout | null = null;
-	
+
 	// Set up interval to update progress when job is active
 	$: if (activeJob && activeJob.startTime) {
 		if (progressUpdateInterval) {
@@ -37,7 +37,7 @@
 			progressUpdateInterval = null;
 		}
 	}
-	
+
 	onDestroy(() => {
 		if (progressUpdateInterval) {
 			clearInterval(progressUpdateInterval);
