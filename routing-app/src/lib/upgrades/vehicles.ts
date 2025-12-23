@@ -1,8 +1,7 @@
 /**
  * Vehicle system configuration
+ * Client-safe - uses static configs that can be overridden server-side
  */
-
-import { config } from '$lib/server/config';
 
 export enum VehicleType {
 	BIKE = 0,
@@ -133,9 +132,31 @@ const VEHICLE_METADATA: Record<
 	}
 };
 
-// Build vehicle configs from YAML config and metadata
+// Build vehicle configs - use static defaults, can be overridden server-side
 function buildVehicleConfigs(): Record<VehicleType, VehicleConfig> {
 	const configs = {} as Record<VehicleType, VehicleConfig>;
+
+	// Static default values (matching current config.yaml)
+	// Server-side code can override these using the config system
+	const staticVehicleData: Record<
+		keyof typeof VehicleType,
+		{ baseCost: number; capacity: number; maxSpeed: number }
+	> = {
+		BIKE: { baseCost: 0, capacity: 10, maxSpeed: 15 },
+		BACKPACK: { baseCost: 10, capacity: 20, maxSpeed: 15 },
+		SADDLEBAGS: { baseCost: 15, capacity: 40, maxSpeed: 15 },
+		ELECTRIC_BIKE: { baseCost: 30, capacity: 40, maxSpeed: 25 },
+		SCOOTER: { baseCost: 100, capacity: 50, maxSpeed: 45 },
+		MICRO_CAR: { baseCost: 200, capacity: 100, maxSpeed: 100 },
+		SEDAN: { baseCost: 300, capacity: 200, maxSpeed: 130 },
+		HATCHBACK: { baseCost: 400, capacity: 300, maxSpeed: 130 },
+		SMALL_VAN: { baseCost: 500, capacity: 500, maxSpeed: 120 },
+		BIG_VAN: { baseCost: 750, capacity: 1000, maxSpeed: 120 },
+		TRAILER: { baseCost: 1000, capacity: 2000, maxSpeed: 100 },
+		TRUCK: { baseCost: 3000, capacity: 5000, maxSpeed: 100 },
+		SINGLE_TRAILER_TRUCK: { baseCost: 10000, capacity: 10000, maxSpeed: 90 },
+		DOUBLE_TRAILER_TRUCK: { baseCost: 20000, capacity: 15000, maxSpeed: 90 }
+	};
 
 	// Map enum values to their string keys
 	const vehicleTypeKeys: Record<VehicleType, keyof typeof VehicleType> = {
@@ -160,17 +181,13 @@ function buildVehicleConfigs(): Record<VehicleType, VehicleConfig> {
 	) as VehicleType[]) {
 		const typeKey = vehicleTypeKeys[vehicleType];
 		const metadata = VEHICLE_METADATA[vehicleType];
-		const vehicleConfig = config.vehicles[typeKey];
-
-		if (!vehicleConfig) {
-			throw new Error(`Vehicle config not found for ${typeKey}`);
-		}
+		const staticData = staticVehicleData[typeKey];
 
 		configs[vehicleType] = {
 			name: metadata.name,
-			baseCost: vehicleConfig.baseCost,
-			capacity: vehicleConfig.capacity,
-			maxSpeed: vehicleConfig.maxSpeed,
+			baseCost: staticData.baseCost,
+			capacity: staticData.capacity,
+			maxSpeed: staticData.maxSpeed,
 			minLicenseLevel: metadata.minLicenseLevel,
 			vehicleClass: metadata.vehicleClass
 		};
@@ -215,9 +232,25 @@ const LICENSE_METADATA: Record<LicenseType, { name: string }> = {
 	[LicenseType.TOXIC_GOODS]: { name: 'Toxic goods' }
 };
 
-// Build license configs from YAML config and metadata
+// Build license configs - use static defaults, can be overridden server-side
 function buildLicenseConfigs(): Record<LicenseType, LicenseConfig> {
 	const configs = {} as Record<LicenseType, LicenseConfig>;
+
+	// Static default values (matching current config.yaml)
+	const staticLicenseData: Record<
+		keyof typeof LicenseType,
+		{ minDrivingLevel: number; cost: number }
+	> = {
+		UNLICENSED: { minDrivingLevel: 0, cost: 0 },
+		SCOOTER: { minDrivingLevel: 1, cost: 50 },
+		CAR: { minDrivingLevel: 2, cost: 100 },
+		TAXI: { minDrivingLevel: 3, cost: 500 },
+		FRAGILE_GOODS: { minDrivingLevel: 4, cost: 500 },
+		CONSTRUCTION: { minDrivingLevel: 5, cost: 500 },
+		TRUCKING: { minDrivingLevel: 6, cost: 1000 },
+		LIQUID_GOODS: { minDrivingLevel: 7, cost: 2000 },
+		TOXIC_GOODS: { minDrivingLevel: 8, cost: 3000 }
+	};
 
 	// Map enum values to their string keys
 	const licenseTypeKeys: Record<LicenseType, keyof typeof LicenseType> = {
@@ -237,16 +270,12 @@ function buildLicenseConfigs(): Record<LicenseType, LicenseConfig> {
 	) as LicenseType[]) {
 		const typeKey = licenseTypeKeys[licenseType];
 		const metadata = LICENSE_METADATA[licenseType];
-		const licenseConfig = config.licenses[typeKey];
-
-		if (!licenseConfig) {
-			throw new Error(`License config not found for ${typeKey}`);
-		}
+		const staticData = staticLicenseData[typeKey];
 
 		configs[licenseType] = {
 			name: metadata.name,
-			minDrivingLevel: licenseConfig.minDrivingLevel,
-			cost: licenseConfig.cost
+			minDrivingLevel: staticData.minDrivingLevel,
+			cost: staticData.cost
 		};
 	}
 

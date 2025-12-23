@@ -9,6 +9,7 @@ import {
 	computeEmployeeCosts,
 	DEFAULT_EMPLOYEE_LOCATION
 } from '$lib/employeeUtils';
+import { config } from '$lib/server/config';
 
 // POST /api/employees - Hire a new employee
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -43,7 +44,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			.where(eq(employees.gameId, gameStateId));
 
 		const employeeCount = existingEmployees.length;
-		const hiringCost = computeEmployeeCosts(employeeCount);
+		const hiringCost = computeEmployeeCosts(
+			employeeCount,
+			config.employees.hiring.baseCost,
+			config.employees.hiring.exponent,
+			config.employees.hiring.firstEmployeeFree
+		);
 
 		// Check if user has enough money - convert string to number if needed
 		const currentMoney =

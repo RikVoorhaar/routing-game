@@ -21,6 +21,7 @@
 	} from '$lib/stores/gameData';
 	import { selectedEmployee } from '$lib/stores/selectedEmployee';
 	import type { GameState, Employee } from '$lib/server/db/schema';
+	import { config } from '$lib/stores/config';
 
 	// Props for initial data - we'll move this to stores
 	export let gameState: GameState;
@@ -32,8 +33,20 @@
 	let isHiring = false;
 	let hireError = '';
 
+	let configLoaded = false;
+
 	// Initialize stores with props data
 	onMount(async () => {
+		// Ensure config is loaded before proceeding
+		try {
+			await config.load();
+			configLoaded = true;
+		} catch (error) {
+			console.error('Failed to load config:', error);
+			addError('Failed to load game configuration', 'error');
+			return; // Don't proceed if config fails to load
+		}
+		
 		gameDataActions.init({
 			gameState,
 			employees: initialEmployees,
@@ -58,8 +71,18 @@
 		// This is handled automatically by the store when cleared
 	});
 
-	// Reactive calculations using stores
-	$: hiringCost = computeEmployeeCosts($employees.length);
+	// Reactive calculations using stores - only calculate when config is loaded
+	let hiringCost = 0;
+	$: {
+		if ($config && configLoaded) {
+			hiringCost = computeEmployeeCosts(
+				$employees.length,
+				$config.employees.hiring.baseCost,
+				$config.employees.hiring.exponent,
+				$config.employees.hiring.firstEmployeeFree
+			);
+		}
+	}
 	$: canAffordEmployee = $currentGameState ? $currentGameState.money >= hiringCost : false;
 
 	function handleHireModalOpen() {
@@ -185,6 +208,15 @@
 	}
 </script>
 
+{#if !configLoaded || !$config}
+	<!-- Loading State -->
+	<div class="flex min-h-screen items-center justify-center bg-base-200">
+		<div class="text-center">
+			<span class="loading loading-spinner loading-lg text-primary"></span>
+			<p class="mt-4 text-lg">Loading game configuration...</p>
+		</div>
+	</div>
+{:else}
 <div class="min-h-screen bg-base-200">
 	<!-- Header -->
 	<div class="navbar bg-base-100 shadow-lg">
@@ -406,3 +438,4 @@
 
 <!-- Global Error Overlay -->
 <ErrorOverlay />
+{/if}
