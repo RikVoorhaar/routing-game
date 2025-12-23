@@ -6,7 +6,8 @@
 		setSelectedActiveJobData
 	} from '$lib/stores/selectedJob';
 	import { selectedEmployee } from '$lib/stores/selectedEmployee';
-	import { employees, currentGameState, gameDataAPI } from '$lib/stores/gameData';
+	import { employees, currentGameState, gameDataAPI, gameDataActions, fullEmployeeData } from '$lib/stores/gameData';
+	import { get } from 'svelte/store';
 	import { getCategoryName, getTierColor } from '$lib/jobs/jobCategories';
 	import { formatCurrency, formatDistance, formatTime } from '$lib/formatting';
 	import { employeeCanPerformJob, sortEmployeesByDistanceFromJob } from '$lib/jobs/jobAssignment';
@@ -263,7 +264,7 @@
 				const result = await response.json();
 				addError('Job accepted successfully!', 'info');
 
-				// Update the active job in our cache to reflect it's been started
+				// Update the active job in our local cache to reflect it's been started
 				if (selectedEmployeeId) {
 					activeJobsByEmployee.update((cache) => ({
 						...cache,
@@ -274,12 +275,16 @@
 					}));
 				}
 
-				// Refresh the full employee data to show the new active job
+				// Update the global store and set up completion timers
+				if (selectedEmployeeId && result.activeJob) {
+					gameDataActions.setEmployeeActiveJob(selectedEmployeeId, result.activeJob);
+				}
+
+				// Refresh the full employee data to ensure everything is in sync
 				try {
 					await gameDataAPI.loadAllEmployeeData();
 				} catch (error) {
 					console.error('Error refreshing employee data:', error);
-					// Don't fail the whole operation if employee refresh fails
 				}
 
 				clearSelectedJob();

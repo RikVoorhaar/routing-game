@@ -74,11 +74,10 @@
 		jobMarkersByTile.clear();
 	}
 
-	// Reactive updates for employees and animation timestamp
-	$: {
-		if (map && L) {
-			updateEmployeeMarkers();
-		}
+	// Reactive updates for employees, activeJobsByEmployee, and routesByEmployee
+	// This triggers when any of these props change (new employees, job state changes, route updates)
+	$: if (map && L && employees && activeJobsByEmployee && routesByEmployee) {
+		updateEmployeeMarkers();
 	}
 
 	// Reactive update when animation timestamp changes (for position updates)
@@ -124,6 +123,27 @@
 						});
 						marker.setIcon(markerIcon);
 						marker.setTitle(`${employee.name} (${Math.round(progress)}% complete, ETA: ${eta})`);
+					}
+				}
+			} else {
+				// Employee is idle - update marker to show idle state
+				// Check if marker currently shows active state (has animated styling)
+				const currentIcon = marker.options.icon;
+				if (currentIcon && currentIcon.options && currentIcon.options.iconSize) {
+					// If icon size is 80 (animated), recreate with idle state
+					if (currentIcon.options.iconSize[1] === 80) {
+						const position = getEmployeePosition(employee);
+						marker.setLatLng([position.lat, position.lon]);
+						
+						const isSelected = employee.id === $selectedEmployee;
+						const markerIcon = L.divIcon({
+							html: createEmployeeMarkerHTML(employee.name, false, 0, null, isSelected),
+							className: 'custom-employee-marker',
+							iconSize: [140, 50],
+							iconAnchor: [70, 25]
+						});
+						marker.setIcon(markerIcon);
+						marker.setTitle(`${employee.name} (idle)`);
 					}
 				}
 			}

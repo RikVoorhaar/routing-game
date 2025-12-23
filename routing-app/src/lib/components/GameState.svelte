@@ -278,11 +278,13 @@
 						</div>
 					{:else}
 						<div class="max-h-80 space-y-2 overflow-y-auto pr-2">
-							{#each $employees as employee (employee.id)}
-								{@const employeeActiveJob = $activeJobsByEmployee[employee.id] || null}
+							{#each $fullEmployeeData as fed (fed.employee.id)}
+								{@const activeJob = fed.activeJob}
+								{@const activeRoute = fed.activeRoute}
 								<EmployeeCard
-									{employee}
-									activeJob={employeeActiveJob}
+									employee={fed.employee}
+									{activeJob}
+									{activeRoute}
 									gameStateId={$currentGameState?.id || ''}
 								/>
 							{/each}

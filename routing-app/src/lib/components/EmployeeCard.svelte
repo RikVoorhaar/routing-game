@@ -10,6 +10,7 @@
 	export let employee: Employee;
 	export let availableRoutes: any[] = [];
 	export let activeJob: ActiveJob | null = null;
+	export let activeRoute: any | null = null; // Add activeRoute prop
 	export let gameStateId: string;
 
 	const dispatch = createEventDispatcher<{
@@ -36,8 +37,17 @@
 	$: selectedRouteIsForThisEmployee =
 		$selectedRoute && availableRoutes.some((route) => route.id === $selectedRoute);
 
-	// Job progress calculation
-	$: jobProgress = activeJob ? calculateJobProgress(activeJob) : null;
+	// Job progress calculation - explicitly track activeJob changes for reactivity
+	let jobProgress: ReturnType<typeof calculateJobProgress> = null;
+	
+	$: {
+		// Force reactivity by explicitly referencing activeJob and its properties
+		// This ensures the component reacts when activeJob prop changes
+		const activeJobId = activeJob?.id;
+		const activeJobStartTime = activeJob?.startTime;
+		
+		jobProgress = activeJob ? calculateJobProgress(activeJob) : null;
+	}
 
 	// Handle job completion with debouncing and state machine
 	$: {
@@ -105,77 +115,23 @@
 	].join(' ');
 
 	function calculateJobProgress(activeJob: ActiveJob) {
-		if (!activeJob.startTime) return null;
+		if (!activeJob.startTime) {
+			return null;
+		}
 
 		const startTime = new Date(activeJob.startTime).getTime();
 		const currentTime = Date.now();
-
-		// If job is completed (has endTime), return 100%
-		if (activeJob.endTime) {
-			return {
-				progress: 100,
-				remainingTimeMs: 0,
-				isComplete: true,
-				currentPhase: activeJob.currentPhase
-			};
-		}
-
-		// Calculate progress based on current phase
-		let totalProgress = 0;
-		let remainingTimeMs = 0;
-		let phaseProgress = 0;
-
-		if (activeJob.currentPhase === 'traveling_to_job' && activeJob.modifiedRouteToJobData) {
-			// In travel phase
-			const travelData = activeJob.modifiedRouteToJobData;
-			const travelDuration = travelData.travelTimeSeconds * 1000; // Convert to ms
-			const travelElapsed = currentTime - startTime;
-			phaseProgress = Math.min(100, (travelElapsed / travelDuration) * 100);
-
-			// If travel is complete, we should be on job now
-			if (phaseProgress >= 100) {
-				// Transition to job phase (this would normally be handled by server)
-				totalProgress = 50; // Halfway through overall job
-				// Estimate remaining job time
-				const jobData = activeJob.modifiedJobRouteData;
-				remainingTimeMs = jobData.travelTimeSeconds * 1000;
-			} else {
-				// Still traveling
-				totalProgress = phaseProgress * 0.5; // Travel is first half
-				remainingTimeMs = travelDuration - travelElapsed;
-			}
-		} else {
-			// On job phase (or no travel needed)
-			const jobData = activeJob.modifiedJobRouteData;
-			const jobDuration = jobData.travelTimeSeconds * 1000;
-
-			let jobStartTime = startTime;
-			if (activeJob.jobPhaseStartTime) {
-				jobStartTime = new Date(activeJob.jobPhaseStartTime).getTime();
-			} else if (activeJob.modifiedRouteToJobData) {
-				// Estimate job start time
-				jobStartTime = startTime + activeJob.modifiedRouteToJobData.travelTimeSeconds * 1000;
-			}
-
-			const jobElapsed = currentTime - jobStartTime;
-			phaseProgress = Math.min(100, (jobElapsed / jobDuration) * 100);
-
-			if (activeJob.modifiedRouteToJobData) {
-				// Had travel phase, so job is second half
-				totalProgress = 50 + phaseProgress * 0.5;
-			} else {
-				// No travel, job is the whole thing
-				totalProgress = phaseProgress;
-			}
-
-			remainingTimeMs = Math.max(0, jobDuration - jobElapsed);
-		}
+		const totalDurationMs = activeJob.durationSeconds * 1000;
+		const elapsed = currentTime - startTime;
+		const progress = Math.min(100, (elapsed / totalDurationMs) * 100);
+		const remainingTimeMs = Math.max(0, totalDurationMs - elapsed);
+		const isComplete = progress >= 100;
 
 		return {
-			progress: Math.min(100, totalProgress),
+			progress,
 			remainingTimeMs,
-			isComplete: totalProgress >= 100,
-			currentPhase: activeJob.currentPhase
+			isComplete,
+			currentPhase: 'on_job' as const // ActiveJob doesn't have currentPhase, default to 'on_job'
 		};
 	}
 
@@ -336,11 +292,7 @@
 			<div class="mb-3">
 				<div class="mb-1 flex items-center justify-between">
 					<span class="text-xs text-base-content/70">
-						{#if jobProgress.currentPhase === 'traveling_to_job'}
-							Traveling...
-						{:else}
-							On Job
-						{/if}
+						On Job
 					</span>
 					<span class="text-xs text-base-content/70">
 						{Math.round(jobProgress.progress)}%

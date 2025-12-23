@@ -3,10 +3,12 @@ BUGS:
   - **Fixed**: Added reactive dependency for routes in RouteRenderer, added routeData parsing consistency, and added validation
 - [X] Employee marker position doesn't update during active job (animation)
   - **Fixed**: Added proper reactivity, and fixed a bug in the cumulative time calulation for concatenating routes.
-- [ ] When hiring a new employee, they don't show up on the map until refershing page.
-- [ ] After reading idle state the marker doesn't update.
-- [ ] In the employees list, the state doesn't update when a job is started.
+- [X] When hiring a new employee, they don't show up on the map until refershing page.
+- [X] After reaching the destination, the marker doesn't update state and should show the 'idle' state.
+- [X] In the employees list, the state doesn't update when a job is started.
 - [ ] When accepting a job we see a 'failed to load active job' error displayed in a notification.
+- [ ] The ETA in the employee card doesn't update every second, only on page refresh or if the state of another employee changes and a refersh is triggered. The ETA should be animated.
+- [ ] Unaivailable employees are still shown in the dropdown for selecting an employee in the job card
 - [ ] The 'complete all active routes cheat' doesn't work, and throws an error:
   ```typescript
   Error completing routes via cheat: PostgresError: syntax error at or near "="
