@@ -32,6 +32,7 @@ BUGS:
 
 ENHANCEMENTS:
 - [ ] When showing a preview of a route, the colors should be different for the route to the start, and the end marker. 
+- [ ] The distance shown in the job detail card uses the wrong unit (km) instead of meters, and isn't properly formatted (big distances should switch to km). 
 - [ ] The notification bubbles appear behind the map.
 - [ ] Add a cheat to increase speedup by an arbitrary factor
 - [ ] Moving employee markers should be a simple pin, not teh whole box with eta and progress (that belongs in a different list)

@@ -25,11 +25,15 @@
 	let lastCompletedJobId = ''; // Track which job was last completed
 	let jobCompletionState: 'pending' | 'processing' | 'completed' | 'error' = 'pending';
 	let completionTimeout: any = null;
+	let progressUpdateInterval: NodeJS.Timeout | null = null;
 
-	// Cleanup timeout on component destroy
+	// Cleanup timeout and interval on component destroy
 	onDestroy(() => {
 		if (completionTimeout) {
 			clearTimeout(completionTimeout);
+		}
+		if (progressUpdateInterval) {
+			clearInterval(progressUpdateInterval);
 		}
 	});
 
@@ -47,6 +51,25 @@
 		const activeJobStartTime = activeJob?.startTime;
 
 		jobProgress = activeJob ? calculateJobProgress(activeJob) : null;
+	}
+
+	// Set up interval to update progress every second when job is active
+	$: if (activeJob && activeJob.startTime) {
+		// Clear any existing interval
+		if (progressUpdateInterval) {
+			clearInterval(progressUpdateInterval);
+		}
+		progressUpdateInterval = setInterval(() => {
+			// Recalculate progress using the current activeJob prop
+			// This will update the ETA every second for smooth animation
+			jobProgress = activeJob ? calculateJobProgress(activeJob) : null;
+		}, 1000);
+	} else {
+		// Clear interval when job is not active
+		if (progressUpdateInterval) {
+			clearInterval(progressUpdateInterval);
+			progressUpdateInterval = null;
+		}
 	}
 
 	// Handle job completion with debouncing and state machine
