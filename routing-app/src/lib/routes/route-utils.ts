@@ -1,7 +1,22 @@
 import type { RoutingResult } from '$lib/server/db/schema';
 
 export function concatenateRoutes(route1: RoutingResult, route2: RoutingResult): RoutingResult {
-	const concatPath = [...route1.path, ...route2.path];
+	// Get the final cumulative time and distance from route1
+	const route1FinalTime = route1.path.length > 0 
+		? route1.path[route1.path.length - 1].cumulative_time_seconds 
+		: 0;
+	const route1FinalDistance = route1.path.length > 0
+		? route1.path[route1.path.length - 1].cumulative_distance_meters
+		: 0;
+
+	// Adjust route2's path points to continue from route1's final values
+	const adjustedRoute2Path = route2.path.map((point) => ({
+		...point,
+		cumulative_time_seconds: point.cumulative_time_seconds + route1FinalTime,
+		cumulative_distance_meters: point.cumulative_distance_meters + route1FinalDistance
+	}));
+
+	const concatPath = [...route1.path, ...adjustedRoute2Path];
 	const concatDistance = route1.totalDistanceMeters + route2.totalDistanceMeters;
 
 	return {
@@ -37,12 +52,17 @@ export function applyMaxSpeed(
 	for (let i = 0; i < modifiedRoute.path.length; i++) {
 		const point = modifiedRoute.path[i];
 
-		// Skip walking segments as they are not affected by max speed
+		// Handle walking segments - they are not affected by max speed or multiplier
 		if (point.is_walking_segment) {
-			cumulativeTimeSeconds +=
-				point.cumulative_time_seconds -
-				(i > 0 ? modifiedRoute.path[i - 1].cumulative_time_seconds : 0);
+			// Use original cumulative times to calculate segment time
+			const prevOriginalCumulativeTime = i > 0 
+				? route.path[i - 1].cumulative_time_seconds 
+				: 0;
+			const segmentTime = point.cumulative_time_seconds - prevOriginalCumulativeTime;
+			cumulativeTimeSeconds += segmentTime;
 			cumulativeDistanceMeters = point.cumulative_distance_meters;
+			// Update the point's cumulative time to match our calculated value
+			point.cumulative_time_seconds = cumulativeTimeSeconds;
 			continue;
 		}
 

@@ -1,17 +1,8 @@
 BUGS:
 - [x] Routes are not displayed on the map after accepting a job
   - **Fixed**: Added reactive dependency for routes in RouteRenderer, added routeData parsing consistency, and added validation
-- [ ] Employee marker position doesn't update during active job (animation)
-  - **Analysis**:
-    - MarkerRenderer.svelte `updateEmployeeMarkers()` only uses `getEmployeePosition(employee)` which returns the employee's base location
-    - The comment says "We don't have route data in ActiveJob" - but route data IS available in `fullEmployeeData` via `fed.activeRoute.routeData`
-    - MarkerRenderer receives `employees` and `activeJobsByEmployee` props, but NOT the full route data needed for interpolation
-    - To animate position, need to:
-      1. Pass route data (PathPoint[]) to MarkerRenderer
-      2. Use `interpolateLocationAtTime()` from routing-client.ts to calculate position based on elapsed time
-      3. Update marker position in the animation loop (currently animation loop only calls `updateDisplayedRoutes()`)
-    - The animation interval in RouteMap.svelte (line 340) calls `updateDisplayedRoutes()` but doesn't trigger marker re-rendering
-    - MarkerRenderer's reactive statement (line 76) only triggers on `employees` or `activeJobsByEmployee` changes, not on time updates
+- [X] Employee marker position doesn't update during active job (animation)
+  - **Fixed**: Added proper reactivity, and fixed a bug in the cumulative time calulation for concatenating routes.
 
 ENHANCEMENTS:
 - [ ] When showing a preview of a route, the colors should be different for the route to the start, and the end marker. 
