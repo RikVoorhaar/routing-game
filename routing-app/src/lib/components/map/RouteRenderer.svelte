@@ -11,9 +11,9 @@
 
 	let routePolylines: any[] = [];
 
-	// Reactive updates
+	// Reactive updates - trigger when routes, map, or L changes
 	$: {
-		if (map && L) {
+		if (map && L && routes) {
 			updateRoutes();
 		}
 	}
@@ -56,7 +56,37 @@
 			}
 		}
 
-		if (routeData.length === 0) return null;
+		if (routeData.length === 0) {
+			log.warn('[RouteRenderer] No route data to render for route:', route.id);
+			return null;
+		}
+
+		// Validate that routeData points have the expected structure
+		const invalidPoints = routeData.filter(
+			(point) =>
+				!point.coordinates ||
+				typeof point.coordinates.lat !== 'number' ||
+				typeof point.coordinates.lon !== 'number'
+		);
+
+		if (invalidPoints.length > 0) {
+			log.warn('[RouteRenderer] Invalid coordinate data in route:', route.id, {
+				invalidPoints: invalidPoints.length,
+				totalPoints: routeData.length
+			});
+			// Filter out invalid points
+			routeData = routeData.filter(
+				(point) =>
+					point.coordinates &&
+					typeof point.coordinates.lat === 'number' &&
+					typeof point.coordinates.lon === 'number'
+			);
+		}
+
+		if (routeData.length === 0) {
+			log.warn('[RouteRenderer] No valid route points after filtering for route:', route.id);
+			return null;
+		}
 
 		const routeCoords = routeData.map((point) => [point.coordinates.lat, point.coordinates.lon]);
 

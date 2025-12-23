@@ -21,6 +21,8 @@ BUGS:
     - MarkerRenderer's reactive statement (line 76) only triggers on `employees` or `activeJobsByEmployee` changes, not on time updates
 
 ENHANCEMENTS:
+- [ ] When showing a preview of a route, the colors should be different for the route to the start, and the end marker. 
+- [ ] The route end icon should be consistent between the preview and the active route. (home icon vs. finish icon.)
 - [ ] When clicking on an employee it is highlighted, and highlighted employees are stored in a store. 
 - [ ] When an employee is selected, the route map should pan to the employee's location. If the employee is on a route, the zoom should be such that the entire route is visible. If no route is active, just pan and don't change the zoom. If there are available routes, then show the available routes on the map and zoom/pan to make sure all routes are visible.
 - [ ] When selecting a route, pan and zoom on the route. When starting a route, the pan/zoom shouldn't change because it already shows the route.

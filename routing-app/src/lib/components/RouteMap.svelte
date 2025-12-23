@@ -68,6 +68,13 @@
 		}
 	}
 
+	// Reactive updates for full employee data (active routes)
+	$: {
+		if (leafletMap && $fullEmployeeData) {
+			updateDisplayedRoutes();
+		}
+	}
+
 	async function initMap() {
 		if (!browser) return;
 
@@ -117,6 +124,8 @@
 
 				// Add markers for preview route
 				addRouteMarkers($selectedActiveJobData, 'preview');
+			} else {
+				log.warn('[RouteMap] Failed to create preview route');
 			}
 		}
 
@@ -157,22 +166,59 @@
 		selectedActiveJobData: any,
 		routeType: string
 	): DisplayableRoute | null {
-		if (!selectedActiveJobData?.activeRoute?.routeData) return null;
+		if (!selectedActiveJobData?.activeRoute?.routeData) {
+			log.warn('[RouteMap] No route data in selectedActiveJobData');
+			return null;
+		}
 
 		const routeData = selectedActiveJobData.activeRoute.routeData;
+
+		// Handle case where routeData might be a JSON string
+		let parsedRouteData = routeData;
+		if (typeof routeData === 'string') {
+			try {
+				parsedRouteData = JSON.parse(routeData);
+			} catch (e) {
+				log.error('[RouteMap] Failed to parse routeData string:', e);
+				return null;
+			}
+		}
+
+		// Validate routeData structure
+		if (!parsedRouteData || typeof parsedRouteData !== 'object') {
+			log.warn('[RouteMap] Invalid routeData format:', typeof parsedRouteData);
+			return null;
+		}
+
+		// Check that path exists and is an array
+		if (!parsedRouteData.path || !Array.isArray(parsedRouteData.path)) {
+			log.warn('[RouteMap] Missing or invalid path in routeData:', {
+				hasPath: !!parsedRouteData.path,
+				pathType: typeof parsedRouteData.path
+			});
+			return null;
+		}
+
+		// Check that path has at least one point
+		if (parsedRouteData.path.length === 0) {
+			log.warn('[RouteMap] Empty path array in routeData');
+			return null;
+		}
+
 		return {
 			id: `${routeType}-${selectedActiveJobData.activeJob.id}`,
-			path: routeData.path,
-			travelTimeSeconds: routeData.travelTimeSeconds,
-			totalDistanceMeters: routeData.totalDistanceMeters,
-			destination: routeData.destination,
+			path: parsedRouteData.path,
+			travelTimeSeconds: parsedRouteData.travelTimeSeconds || 0,
+			totalDistanceMeters: parsedRouteData.totalDistanceMeters || 0,
+			destination: parsedRouteData.destination,
 			startTime: selectedActiveJobData.activeJob.startTime,
-			routeData: routeData
+			routeData: parsedRouteData
 		};
 	}
 
 	function createRouteFromFullEmployeeData(fed: any): DisplayableRoute | null {
 		if (!fed.activeRoute?.routeData) {
+			log.warn('[RouteMap] No route data in fullEmployeeData for employee:', fed.employee?.id);
 			return null;
 		}
 
@@ -184,14 +230,36 @@
 			try {
 				parsedRouteData = JSON.parse(routeData);
 			} catch (e) {
-				log.error('[RouteMap] Failed to parse routeData:', e);
+				log.error('[RouteMap] Failed to parse routeData string:', e);
 				return null;
 			}
 		}
 
+		// Validate routeData structure
+		if (!parsedRouteData || typeof parsedRouteData !== 'object') {
+			log.warn('[RouteMap] Invalid routeData format:', typeof parsedRouteData);
+			return null;
+		}
+
+		// Check that path exists and is an array
+		if (!parsedRouteData.path || !Array.isArray(parsedRouteData.path)) {
+			log.warn('[RouteMap] Missing or invalid path in routeData:', {
+				hasPath: !!parsedRouteData.path,
+				pathType: typeof parsedRouteData.path,
+				employeeId: fed.employee?.id
+			});
+			return null;
+		}
+
+		// Check that path has at least one point
+		if (parsedRouteData.path.length === 0) {
+			log.warn('[RouteMap] Empty path array in routeData for employee:', fed.employee?.id);
+			return null;
+		}
+
 		return {
 			id: `active-${fed.activeJob.id}`,
-			path: parsedRouteData.path || [],
+			path: parsedRouteData.path,
 			travelTimeSeconds: parsedRouteData.travelTimeSeconds || 0,
 			totalDistanceMeters: parsedRouteData.totalDistanceMeters || 0,
 			destination: parsedRouteData.destination,
