@@ -85,14 +85,16 @@
 	// This only sets a default if the current selection is invalid - it won't override manual selection
 	$: if ($selectedJob && eligibleEmployees.length > 0) {
 		// Only update if current selection is invalid (not in eligible list)
-		const currentIsValid = selectedEmployeeId && eligibleEmployees.some((emp) => emp.id === selectedEmployeeId);
-		
+		const currentIsValid =
+			selectedEmployeeId && eligibleEmployees.some((emp) => emp.id === selectedEmployeeId);
+
 		if (!currentIsValid) {
 			// Current selection is invalid, pick a new one
 			// Prefer the globally selected employee if they're eligible, otherwise use first available
-			const preferredEmployee = $selectedEmployee && eligibleEmployees.find((emp) => emp.id === $selectedEmployee);
+			const preferredEmployee =
+				$selectedEmployee && eligibleEmployees.find((emp) => emp.id === $selectedEmployee);
 			const newSelectedEmployeeId = preferredEmployee?.id || eligibleEmployees[0]?.id || null;
-			
+
 			if (newSelectedEmployeeId) {
 				selectedEmployeeId = newSelectedEmployeeId;
 				selectedEmployeeIdStore.set(selectedEmployeeId);
@@ -132,9 +134,7 @@
 
 		try {
 			// Get a map of employee IDs to their full data (including active jobs)
-			const employeeDataMap = new Map(
-				$fullEmployeeData.map((fed) => [fed.employee.id, fed])
-			);
+			const employeeDataMap = new Map($fullEmployeeData.map((fed) => [fed.employee.id, fed]));
 
 			// Filter employees that can perform this job AND are available (no active job)
 			const capable = $employees.filter((emp) => {
@@ -165,14 +165,12 @@
 			if (eligibleEmployees.length > 0) {
 				// Check if currently selected employee is still eligible
 				const currentEmployeeStillEligible =
-					selectedEmployeeId &&
-					eligibleEmployees.some((emp) => emp.id === selectedEmployeeId);
+					selectedEmployeeId && eligibleEmployees.some((emp) => emp.id === selectedEmployeeId);
 
 				if (!currentEmployeeStillEligible) {
 					// Current selection is no longer valid, pick a new one
 					const defaultEmployee =
-						eligibleEmployees.find((emp) => emp.id === $selectedEmployee) ||
-						eligibleEmployees[0];
+						eligibleEmployees.find((emp) => emp.id === $selectedEmployee) || eligibleEmployees[0];
 					const newSelectedEmployeeId = defaultEmployee.id;
 
 					selectedEmployeeId = newSelectedEmployeeId;
