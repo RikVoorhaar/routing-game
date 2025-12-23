@@ -39,13 +39,13 @@
 
 	// Job progress calculation - explicitly track activeJob changes for reactivity
 	let jobProgress: ReturnType<typeof calculateJobProgress> = null;
-	
+
 	$: {
 		// Force reactivity by explicitly referencing activeJob and its properties
 		// This ensures the component reacts when activeJob prop changes
 		const activeJobId = activeJob?.id;
 		const activeJobStartTime = activeJob?.startTime;
-		
+
 		jobProgress = activeJob ? calculateJobProgress(activeJob) : null;
 	}
 
@@ -291,9 +291,7 @@
 		{#if activeJob && jobProgress}
 			<div class="mb-3">
 				<div class="mb-1 flex items-center justify-between">
-					<span class="text-xs text-base-content/70">
-						On Job
-					</span>
+					<span class="text-xs text-base-content/70"> On Job </span>
 					<span class="text-xs text-base-content/70">
 						{Math.round(jobProgress.progress)}%
 					</span>

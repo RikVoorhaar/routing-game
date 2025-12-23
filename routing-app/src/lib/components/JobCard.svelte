@@ -6,7 +6,13 @@
 		setSelectedActiveJobData
 	} from '$lib/stores/selectedJob';
 	import { selectedEmployee } from '$lib/stores/selectedEmployee';
-	import { employees, currentGameState, gameDataAPI, gameDataActions, fullEmployeeData } from '$lib/stores/gameData';
+	import {
+		employees,
+		currentGameState,
+		gameDataAPI,
+		gameDataActions,
+		fullEmployeeData
+	} from '$lib/stores/gameData';
 	import { get } from 'svelte/store';
 	import { getCategoryName, getTierColor } from '$lib/jobs/jobCategories';
 	import { formatCurrency, formatDistance, formatTime } from '$lib/formatting';

@@ -134,7 +134,7 @@
 					if (currentIcon.options.iconSize[1] === 80) {
 						const position = getEmployeePosition(employee);
 						marker.setLatLng([position.lat, position.lon]);
-						
+
 						const isSelected = employee.id === $selectedEmployee;
 						const markerIcon = L.divIcon({
 							html: createEmployeeMarkerHTML(employee.name, false, 0, null, isSelected),
