@@ -66,7 +66,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				message: 'No active jobs to complete',
 				completedRoutes: 0,
 				totalReward: 0,
-				newBalance: typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money
+				newBalance:
+					typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money
 			});
 		}
 
@@ -92,10 +93,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const newMoney = currentMoney + totalReward;
 
 		// Update game state with total rewards in a single transaction
-		await db
-			.update(gameStates)
-			.set({ money: newMoney })
-			.where(eq(gameStates.id, gameStateId));
+		await db.update(gameStates).set({ money: newMoney }).where(eq(gameStates.id, gameStateId));
 
 		console.log(
 			`[CHEAT] Force completed ${successfulResults.length} active jobs for game ${gameStateId}, total reward: €${totalReward}`
