@@ -67,6 +67,11 @@
 		loadActiveJobsForJob();
 	}
 
+	// Update eligible employees when fullEmployeeData changes (employees get/complete jobs)
+	$: if ($selectedJob && $fullEmployeeData.length > 0) {
+		updateEligibleEmployees();
+	}
+
 	function clearPreviousState() {
 		activeJobsByEmployee.set({});
 		setSelectedActiveJobData(null);
@@ -76,19 +81,23 @@
 		isAcceptingJob = false;
 	}
 
-	$: if ($selectedEmployee && eligibleEmployees.length > 0) {
-		// Set default selected employee if it's eligible
-		const isEligible = eligibleEmployees.some((emp) => emp.id === $selectedEmployee);
-		const newSelectedEmployeeId = isEligible ? $selectedEmployee : eligibleEmployees[0]?.id || null;
-
-		// Only update if it's actually different to avoid infinite loops
-		if (selectedEmployeeId !== newSelectedEmployeeId) {
-			selectedEmployeeId = newSelectedEmployeeId;
-			selectedEmployeeIdStore.set(selectedEmployeeId);
-
-			// Automatically compute route when employee changes
-			if (selectedEmployeeId) {
-				handleEmployeeSelection();
+	// Handle initial employee selection when job changes or when selection becomes invalid
+	// This only sets a default if the current selection is invalid - it won't override manual selection
+	$: if ($selectedJob && eligibleEmployees.length > 0) {
+		// Only update if current selection is invalid (not in eligible list)
+		const currentIsValid = selectedEmployeeId && eligibleEmployees.some((emp) => emp.id === selectedEmployeeId);
+		
+		if (!currentIsValid) {
+			// Current selection is invalid, pick a new one
+			// Prefer the globally selected employee if they're eligible, otherwise use first available
+			const preferredEmployee = $selectedEmployee && eligibleEmployees.find((emp) => emp.id === $selectedEmployee);
+			const newSelectedEmployeeId = preferredEmployee?.id || eligibleEmployees[0]?.id || null;
+			
+			if (newSelectedEmployeeId) {
+				selectedEmployeeId = newSelectedEmployeeId;
+				selectedEmployeeIdStore.set(selectedEmployeeId);
+				// Note: Don't call handleEmployeeSelection() here to avoid conflicts with manual selection
+				// It will be called by onEmployeeChange() or the updateEligibleEmployees() function
 			}
 		}
 	}
@@ -122,10 +131,27 @@
 		}
 
 		try {
-			// Filter employees that can perform this job
+			// Get a map of employee IDs to their full data (including active jobs)
+			const employeeDataMap = new Map(
+				$fullEmployeeData.map((fed) => [fed.employee.id, fed])
+			);
+
+			// Filter employees that can perform this job AND are available (no active job)
 			const capable = $employees.filter((emp) => {
 				try {
-					return employeeCanPerformJob(emp, $selectedJob);
+					// Check if employee can perform the job
+					if (!employeeCanPerformJob(emp, $selectedJob)) {
+						return false;
+					}
+
+					// Check if employee is available (no active job or active job hasn't started)
+					const employeeData = employeeDataMap.get(emp.id);
+					if (employeeData?.activeJob?.startTime) {
+						// Employee has an active job that has been started - not available
+						return false;
+					}
+
+					return true;
 				} catch (error) {
 					console.error('Error checking if employee can perform job:', error);
 					return false;
@@ -135,14 +161,20 @@
 			// Sort by distance from job location
 			eligibleEmployees = sortEmployeesByDistanceFromJob(capable, $selectedJob);
 
-			// Set default selected employee
+			// Set default selected employee only if current selection is invalid
 			if (eligibleEmployees.length > 0) {
-				const defaultEmployee =
-					eligibleEmployees.find((emp) => emp.id === $selectedEmployee) || eligibleEmployees[0];
-				const newSelectedEmployeeId = defaultEmployee.id;
+				// Check if currently selected employee is still eligible
+				const currentEmployeeStillEligible =
+					selectedEmployeeId &&
+					eligibleEmployees.some((emp) => emp.id === selectedEmployeeId);
 
-				// Only update if it's actually different
-				if (selectedEmployeeId !== newSelectedEmployeeId) {
+				if (!currentEmployeeStillEligible) {
+					// Current selection is no longer valid, pick a new one
+					const defaultEmployee =
+						eligibleEmployees.find((emp) => emp.id === $selectedEmployee) ||
+						eligibleEmployees[0];
+					const newSelectedEmployeeId = defaultEmployee.id;
+
 					selectedEmployeeId = newSelectedEmployeeId;
 					selectedEmployeeIdStore.set(selectedEmployeeId);
 
@@ -151,6 +183,10 @@
 						handleEmployeeSelection();
 					}
 				}
+			} else {
+				// No eligible employees, clear selection
+				selectedEmployeeId = null;
+				selectedEmployeeIdStore.set(null);
 			}
 		} catch (error) {
 			console.error('Error updating eligible employees:', error);

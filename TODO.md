@@ -8,7 +8,7 @@ BUGS:
 - [X] In the employees list, the state doesn't update when a job is started.
 - [x] When accepting a job we see a 'failed to load active job' error displayed in a notification.
 - [x] The ETA in the employee card doesn't update every second, only on page refresh or if the state of another employee changes and a refersh is triggered. The ETA should be animated.
-- [ ] Unaivailable employees are still shown in the dropdown for selecting an employee in the job card
+- [x] Unaivailable employees are still shown in the dropdown for selecting an employee in the job card. Selecting other employees doesn't work, and only whichever option happened to be active when clicking on the job works, even if the employee is already on a job and thus unavailable.
 - [X] The 'complete all active routes cheat' doesn't work, and throws an error:
 
 ENHANCEMENTS:
@@ -26,6 +26,7 @@ Contrary to what LLM claims, the routes aren't displayed, and clicking on an emp
 
 - [ ] The map markers should also show the ETA, and not just a progress bar
 
+
 LOGGING:
 - [ ] Health checks shouldn't be logged  (server)
 - [ ] The logs should mention a request ID in each logging line for traceability. (server)
@@ -33,17 +34,16 @@ LOGGING:
 - [ ] Mark debug logging as debug (app)
 
 
-DEV:
+DEV / NEW FEATURES:
 - [x] The UI is pretty bad for the employee card
 - [x] Once a route is finished, it doesn't mark as completed
-- [ ] The rewards are way too low
+- [ ] Rebalancing of all rewards and costs
 - [x] Currency should be a float
 - [x] end address is formatted as coords, but start is a string
 - [ ] Add batched API endpoint to routing server for processing multiple routing requests in one call (performance optimization)
 - [ ] Many (1-2%) jobs fail to generate and are skipped. What are the causes of these skips, and are they necessary?
-- [ ] ALl the jobs show up as not costing anything
-- [ ] There are issue with the routes schema that I have notes on
-- [ ] Jobs shouldn't be allowed to be generated too close to each other. E.g. they need to be at least 20m apart.
+- [x] ALl the jobs show up as not costing anything
+- [x] There are issue with the routes schema that I have notes on
 - [ ] The current max of 100 jobs per tile is too large, reduce to like 25
 - [ ] remove the restriction that jobs aren't shown at tile levels below 12
 - [ ] Add filters to the map jobs, in particular checkboxes for each category, and a min/max slider for the tier. When you select an employee it should automatically adjust the _max_ tier, and the categories to those unlocked. 
@@ -54,6 +54,7 @@ DEV:
 - [ ] Implement upgrade system
 - [ ] Implement a way to buy licenses
 - [ ] Implement a way to buy upgrades
-- [ ] The init db script hangs on `creating schema using drizzle kit push`. 
-- [ ] When the user clicks on a job, do stuff 
-- [ ] The routing server is constantly using 100% CPU
+- [ ] The init db script hangs on `creating schema using drizzle kit push`.  (is this still true?)
+- [x] When the user clicks on a job, do stuff 
+- [x] The routing server is constantly using 100% CPU
+- [ ] Make a config system for the game: upgrades, scaling for costs, distances, number of jobs per tile, etc.
