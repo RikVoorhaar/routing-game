@@ -65,9 +65,13 @@ describe('route-utils applyMaxSpeed with interpolation', () => {
 				if (latDiff > tolerance || lonDiff > tolerance) {
 					console.error(`Multiplier ${multiplier}: Interpolation mismatch!`);
 					console.error(`  Duration: ${durationSeconds}s`);
-					console.error(`  Final path cumulative_time: ${modifiedRoute.path[modifiedRoute.path.length - 1].cumulative_time_seconds}s`);
+					console.error(
+						`  Final path cumulative_time: ${modifiedRoute.path[modifiedRoute.path.length - 1].cumulative_time_seconds}s`
+					);
 					console.error(`  End location: (${endLocation.lat}, ${endLocation.lon})`);
-					console.error(`  Interpolated location: (${interpolatedLocation.lat}, ${interpolatedLocation.lon})`);
+					console.error(
+						`  Interpolated location: (${interpolatedLocation.lat}, ${interpolatedLocation.lon})`
+					);
 					console.error(`  Difference: lat=${latDiff}, lon=${lonDiff}`);
 				}
 
@@ -120,7 +124,8 @@ describe('route-utils applyMaxSpeed with interpolation', () => {
 		const modifiedRoute = applyMaxSpeed(originalRoute, 100, multiplier);
 
 		const durationSeconds = modifiedRoute.travelTimeSeconds;
-		const finalCumulativeTime = modifiedRoute.path[modifiedRoute.path.length - 1].cumulative_time_seconds;
+		const finalCumulativeTime =
+			modifiedRoute.path[modifiedRoute.path.length - 1].cumulative_time_seconds;
 
 		console.log('Route modification details:');
 		console.log(`  Original travelTimeSeconds: ${originalRoute.travelTimeSeconds}`);
@@ -142,7 +147,9 @@ describe('route-utils applyMaxSpeed with interpolation', () => {
 			const lonDiff = Math.abs(interpolatedLocation.lon - endLocation.lon);
 
 			console.log(`  End location: (${endLocation.lat}, ${endLocation.lon})`);
-			console.log(`  Interpolated location: (${interpolatedLocation.lat}, ${interpolatedLocation.lon})`);
+			console.log(
+				`  Interpolated location: (${interpolatedLocation.lat}, ${interpolatedLocation.lon})`
+			);
 			console.log(`  Location difference: lat=${latDiff}, lon=${lonDiff}`);
 
 			// This is the bug: the interpolated location should match the end location exactly
@@ -192,7 +199,9 @@ describe('route-utils applyMaxSpeed with interpolation', () => {
 		// Check that walking segments have updated cumulative_time_seconds
 		console.log('Walking segment cumulative_time check:');
 		modifiedRoute.path.forEach((point, i) => {
-			console.log(`  Point ${i}: cumulative_time=${point.cumulative_time_seconds}, is_walking=${point.is_walking_segment}, original=${originalRoute.path[i].cumulative_time_seconds}`);
+			console.log(
+				`  Point ${i}: cumulative_time=${point.cumulative_time_seconds}, is_walking=${point.is_walking_segment}, original=${originalRoute.path[i].cumulative_time_seconds}`
+			);
 		});
 
 		// The first walking segment should still be 0
@@ -254,7 +263,8 @@ describe('route-utils applyMaxSpeed with interpolation', () => {
 		const modifiedRoute = applyMaxSpeed(originalRoute, maxSpeedKmh, multiplier);
 
 		const durationSeconds = modifiedRoute.travelTimeSeconds;
-		const finalCumulativeTime = modifiedRoute.path[modifiedRoute.path.length - 1].cumulative_time_seconds;
+		const finalCumulativeTime =
+			modifiedRoute.path[modifiedRoute.path.length - 1].cumulative_time_seconds;
 
 		console.log('Route modification with walking segments:');
 		console.log(`  Original travelTimeSeconds: ${originalRoute.travelTimeSeconds}`);
@@ -267,7 +277,9 @@ describe('route-utils applyMaxSpeed with interpolation', () => {
 		// Print all path points for debugging
 		console.log('Path points after modification:');
 		modifiedRoute.path.forEach((point, i) => {
-			console.log(`  Point ${i}: cumulative_time=${point.cumulative_time_seconds}, is_walking=${point.is_walking_segment}`);
+			console.log(
+				`  Point ${i}: cumulative_time=${point.cumulative_time_seconds}, is_walking=${point.is_walking_segment}`
+			);
 		});
 
 		// These should be equal
@@ -283,7 +295,9 @@ describe('route-utils applyMaxSpeed with interpolation', () => {
 			const lonDiff = Math.abs(interpolatedLocation.lon - endLocation.lon);
 
 			console.log(`  End location: (${endLocation.lat}, ${endLocation.lon})`);
-			console.log(`  Interpolated location: (${interpolatedLocation.lat}, ${interpolatedLocation.lon})`);
+			console.log(
+				`  Interpolated location: (${interpolatedLocation.lat}, ${interpolatedLocation.lon})`
+			);
 			console.log(`  Location difference: lat=${latDiff}, lon=${lonDiff}`);
 
 			const tolerance = 1e-6;
@@ -369,12 +383,15 @@ describe('route-utils applyMaxSpeed with interpolation', () => {
 
 		// The bug: route2's cumulative times start from 0, not from route1's final time (20)
 		// So the final point should have cumulative_time = 20 + 30 = 50
-		const finalCumulativeTime = concatenated.path[concatenated.path.length - 1].cumulative_time_seconds;
+		const finalCumulativeTime =
+			concatenated.path[concatenated.path.length - 1].cumulative_time_seconds;
 		console.log(`  Final cumulative_time: ${finalCumulativeTime}s (should be ${totalDuration}s)`);
 
 		// This is the bug - finalCumulativeTime is 30, not 50!
 		if (finalCumulativeTime !== totalDuration) {
-			console.error(`BUG REPRODUCED: Final cumulative_time (${finalCumulativeTime}) does not match total duration (${totalDuration})!`);
+			console.error(
+				`BUG REPRODUCED: Final cumulative_time (${finalCumulativeTime}) does not match total duration (${totalDuration})!`
+			);
 		}
 
 		// Test interpolation at total duration - should return end location
@@ -387,7 +404,9 @@ describe('route-utils applyMaxSpeed with interpolation', () => {
 			const lonDiff = Math.abs(interpolatedLocation.lon - endLocation.lon);
 
 			console.log(`  End location: (${endLocation.lat}, ${endLocation.lon})`);
-			console.log(`  Interpolated at ${totalDuration}s: (${interpolatedLocation.lat}, ${interpolatedLocation.lon})`);
+			console.log(
+				`  Interpolated at ${totalDuration}s: (${interpolatedLocation.lat}, ${interpolatedLocation.lon})`
+			);
 			console.log(`  Location difference: lat=${latDiff}, lon=${lonDiff}`);
 
 			// This will fail because the path's cumulative times are wrong
@@ -401,4 +420,3 @@ describe('route-utils applyMaxSpeed with interpolation', () => {
 		}
 	});
 });
-

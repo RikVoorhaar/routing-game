@@ -3,9 +3,35 @@ BUGS:
   - **Fixed**: Added reactive dependency for routes in RouteRenderer, added routeData parsing consistency, and added validation
 - [X] Employee marker position doesn't update during active job (animation)
   - **Fixed**: Added proper reactivity, and fixed a bug in the cumulative time calulation for concatenating routes.
+- [ ] When hiring a new employee, they don't show up on the map until refershing page.
+- [ ] After reading idle state the marker doesn't update.
+- [ ] In the employees list, the state doesn't update when a job is started.
+- [ ] When accepting a job we see a 'failed to load active job' error displayed in a notification.
+- [ ] The 'complete all active routes cheat' doesn't work, and throws an error:
+  ```typescript
+  Error completing routes via cheat: PostgresError: syntax error at or near "="
+      at ErrorResponse (file:///home/rik/git/routing-game/routing-app/node_modules/postgres/src/connection.js:794:26)
+      at handle (file:///home/rik/git/routing-game/routing-app/node_modules/postgres/src/connection.js:480:6)
+      at Socket.data (file:///home/rik/git/routing-game/routing-app/node_modules/postgres/src/connection.js:315:9)
+      at Socket.emit (node:events:508:28)
+      at addChunk (node:internal/streams/readable:559:12)
+      at readableAddChunkPushByteMode (node:internal/streams/readable:510:3)
+      at Readable.push (node:internal/streams/readable:390:5)
+      at TCP.onStreamRead (node:internal/stream_base_commons:189:23) {
+    severity_local: 'ERROR',
+    severity: 'ERROR',
+    code: '42601',
+    position: '1046',
+    file: 'scan.l',
+    line: '1244',
+    routine: 'scanner_yyerror'
+  }
+  ```
 
 ENHANCEMENTS:
 - [ ] When showing a preview of a route, the colors should be different for the route to the start, and the end marker. 
+- [ ] The notification bubbles appear behind the map.
+- [ ] Add a cheat to increase speedup by an arbitrary factor
 - [ ] Moving employee markers should be a simple pin, not teh whole box with eta and progress (that belongs in a different list)
 - [ ] The route end icon should be consistent between the preview and the active route. (home icon vs. finish icon.)
 - [ ] When clicking on an employee it is highlighted, and highlighted employees are stored in a store. 

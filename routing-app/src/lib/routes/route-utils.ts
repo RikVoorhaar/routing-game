@@ -2,12 +2,10 @@ import type { RoutingResult } from '$lib/server/db/schema';
 
 export function concatenateRoutes(route1: RoutingResult, route2: RoutingResult): RoutingResult {
 	// Get the final cumulative time and distance from route1
-	const route1FinalTime = route1.path.length > 0 
-		? route1.path[route1.path.length - 1].cumulative_time_seconds 
-		: 0;
-	const route1FinalDistance = route1.path.length > 0
-		? route1.path[route1.path.length - 1].cumulative_distance_meters
-		: 0;
+	const route1FinalTime =
+		route1.path.length > 0 ? route1.path[route1.path.length - 1].cumulative_time_seconds : 0;
+	const route1FinalDistance =
+		route1.path.length > 0 ? route1.path[route1.path.length - 1].cumulative_distance_meters : 0;
 
 	// Adjust route2's path points to continue from route1's final values
 	const adjustedRoute2Path = route2.path.map((point) => ({
@@ -55,9 +53,7 @@ export function applyMaxSpeed(
 		// Handle walking segments - they are not affected by max speed or multiplier
 		if (point.is_walking_segment) {
 			// Use original cumulative times to calculate segment time
-			const prevOriginalCumulativeTime = i > 0 
-				? route.path[i - 1].cumulative_time_seconds 
-				: 0;
+			const prevOriginalCumulativeTime = i > 0 ? route.path[i - 1].cumulative_time_seconds : 0;
 			const segmentTime = point.cumulative_time_seconds - prevOriginalCumulativeTime;
 			cumulativeTimeSeconds += segmentTime;
 			cumulativeDistanceMeters = point.cumulative_distance_meters;
