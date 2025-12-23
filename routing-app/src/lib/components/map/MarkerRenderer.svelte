@@ -22,6 +22,8 @@
 	export let L: any;
 	export let employees: Employee[] = [];
 	export let activeJobsByEmployee: Record<string, ActiveJob> = {};
+	export let routesByEmployee: Record<string, PathPoint[] | null> = {};
+	export let animationTimestamp: number = 0;
 
 	let employeeMarkers: Record<string, any> = {};
 	let jobMarkersByTile: Map<string, any[]> = new Map(); // Track markers per tile
@@ -72,11 +74,66 @@
 		jobMarkersByTile.clear();
 	}
 
-	// Reactive updates for employees only
+	// Reactive updates for employees and animation timestamp
 	$: {
 		if (map && L) {
 			updateEmployeeMarkers();
 		}
+	}
+
+	// Reactive update when animation timestamp changes (for position updates)
+	$: {
+		if (map && L && animationTimestamp > 0) {
+			updateEmployeePositions();
+		}
+	}
+
+	function updateEmployeePositions() {
+		// Update positions of existing markers without recreating them
+		employees.forEach((employee) => {
+			const marker = employeeMarkers[employee.id];
+			if (!marker) return;
+
+			const activeJob = activeJobsByEmployee[employee.id];
+			if (activeJob && activeJob.startTime) {
+				// Calculate elapsed time since job started
+				const startTime = new Date(activeJob.startTime).getTime();
+				const currentTime = Date.now();
+				const elapsedSeconds = (currentTime - startTime) / 1000;
+
+				// Try to interpolate position along route if route data is available
+				const routePath = routesByEmployee[employee.id];
+				if (routePath && routePath.length > 0) {
+					const interpolatedPosition = interpolateLocationAtTime(routePath, elapsedSeconds);
+					if (interpolatedPosition) {
+						// Update marker position
+						marker.setLatLng([interpolatedPosition.lat, interpolatedPosition.lon]);
+						
+						// Update progress and ETA for marker title
+						const progress = Math.min((elapsedSeconds / activeJob.durationSeconds) * 100, 100);
+						const remainingSeconds = Math.max(0, activeJob.durationSeconds - elapsedSeconds);
+						const eta = formatTimeRemaining(remainingSeconds);
+						
+						// Update marker icon with new progress
+						const isSelected = employee.id === $selectedEmployee;
+						const markerIcon = L.divIcon({
+							html: createEmployeeMarkerHTML(
+								employee.name,
+								true,
+								progress,
+								eta,
+								isSelected
+							),
+							className: 'custom-employee-marker',
+							iconSize: [140, 80],
+							iconAnchor: [70, 40]
+						});
+						marker.setIcon(markerIcon);
+						marker.setTitle(`${employee.name} (${Math.round(progress)}% complete, ETA: ${eta})`);
+					}
+				}
+			}
+		});
 	}
 
 	function createJobMarker(job: Job) {
@@ -187,9 +244,6 @@
 
 			if (activeJob && activeJob.startTime) {
 				// Employee is on an active job - calculate animated position
-				// Note: We don't have route data in ActiveJob, so we'll show static position for now
-				// This could be enhanced by passing route data from the parent component
-
 				// Calculate elapsed time since job started
 				const startTime = new Date(activeJob.startTime).getTime();
 				const currentTime = Date.now();
@@ -202,8 +256,20 @@
 				const remainingSeconds = Math.max(0, activeJob.durationSeconds - elapsedSeconds);
 				eta = formatTimeRemaining(remainingSeconds);
 
-				// For now, use employee's base location (could be enhanced with route interpolation)
-				position = getEmployeePosition(employee);
+				// Try to interpolate position along route if route data is available
+				const routePath = routesByEmployee[employee.id];
+				if (routePath && routePath.length > 0) {
+					const interpolatedPosition = interpolateLocationAtTime(routePath, elapsedSeconds);
+					if (interpolatedPosition) {
+						position = interpolatedPosition;
+					} else {
+						// Fallback to employee's base location if interpolation fails
+						position = getEmployeePosition(employee);
+					}
+				} else {
+					// No route data available, use employee's base location
+					position = getEmployeePosition(employee);
+				}
 				isAnimated = true;
 			} else {
 				// Employee is idle - use their location or default

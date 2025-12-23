@@ -1,13 +1,6 @@
 BUGS:
-- [ ] Routes are not displayed on the map after accepting a job
-  - **Analysis**: 
-    - RouteMap.svelte `updateDisplayedRoutes()` calls `createRouteFromFullEmployeeData()` which extracts `routeData.path`
-    - The `activeRoute.routeData` is stored as JSONB in the database and may need parsing if it's a string
-    - RouteRenderer expects `route.path` to be an array of PathPoint objects with `coordinates.lat` and `coordinates.lon`
-    - If `path` is empty, undefined, or malformed, RouteRenderer returns null and no polyline is created
-    - Need to verify: Is routeData being properly loaded from the database? Is it a string that needs JSON.parse()? Is the path array structure correct?
-    - The `createRouteFromFullEmployeeData()` function handles string parsing but may not handle all cases
-    - RouteRenderer has logic to extract path from RoutingResult object, but the data flow might be broken
+- [x] Routes are not displayed on the map after accepting a job
+  - **Fixed**: Added reactive dependency for routes in RouteRenderer, added routeData parsing consistency, and added validation
 - [ ] Employee marker position doesn't update during active job (animation)
   - **Analysis**:
     - MarkerRenderer.svelte `updateEmployeeMarkers()` only uses `getEmployeePosition(employee)` which returns the employee's base location
@@ -22,6 +15,7 @@ BUGS:
 
 ENHANCEMENTS:
 - [ ] When showing a preview of a route, the colors should be different for the route to the start, and the end marker. 
+- [ ] Moving employee markers should be a simple pin, not teh whole box with eta and progress (that belongs in a different list)
 - [ ] The route end icon should be consistent between the preview and the active route. (home icon vs. finish icon.)
 - [ ] When clicking on an employee it is highlighted, and highlighted employees are stored in a store. 
 - [ ] When an employee is selected, the route map should pan to the employee's location. If the employee is on a route, the zoom should be such that the entire route is visible. If no route is active, just pan and don't change the zoom. If there are available routes, then show the available routes on the map and zoom/pan to make sure all routes are visible.
