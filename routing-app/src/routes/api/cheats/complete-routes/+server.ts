@@ -1,153 +1,113 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { users, gameStates, employees, routes } from '$lib/server/db/schema';
-import { eq, and, isNotNull, isNull } from 'drizzle-orm';
+import { users, gameStates, activeJobs } from '$lib/server/db/schema';
+import { eq, and, isNotNull } from 'drizzle-orm';
+import { completeActiveJob } from '$lib/jobs/jobCompletion';
 
 // POST /api/cheats/complete-routes - Instantly complete all active routes (cheats only)
 export const POST: RequestHandler = async ({ request, locals }) => {
-    const session = await locals.auth();
-    
-    if (!session?.user?.id) {
-        return error(401, 'Unauthorized');
-    }
+	const session = await locals.auth();
 
-    try {
-        const { gameStateId } = await request.json();
-        
-        if (!gameStateId) {
-            return error(400, 'Game state ID is required');
-        }
+	if (!session?.user?.id) {
+		return error(401, 'Unauthorized');
+	}
 
-        // Check if user has cheats enabled
-        const [user] = await db
-            .select({ cheatsEnabled: users.cheatsEnabled })
-            .from(users)
-            .where(eq(users.id, session.user.id))
-            .limit(1);
+	try {
+		const { gameStateId } = await request.json();
 
-        if (!user?.cheatsEnabled) {
-            return error(403, 'Cheats are not enabled for this user');
-        }
+		if (!gameStateId) {
+			return error(400, 'Game state ID is required');
+		}
 
-        // Verify the game state belongs to the current user
-        const [gameState] = await db
-            .select()
-            .from(gameStates)
-            .where(
-                and(
-                    eq(gameStates.id, gameStateId),
-                    eq(gameStates.userId, session.user.id)
-                )
-            )
-            .limit(1);
+		// Check if user has cheats enabled
+		const [user] = await db
+			.select({ cheatsEnabled: users.cheatsEnabled })
+			.from(users)
+			.where(eq(users.id, session.user.id))
+			.limit(1);
 
-        if (!gameState) {
-            return error(404, 'Game state not found or access denied');
-        }
+		if (!user?.cheatsEnabled) {
+			return error(403, 'Cheats are not enabled for this user');
+		}
 
-        // Debug: Let's see what routes exist overall
-        const allRoutes = await db.select().from(routes);
-        console.log(`[CHEAT] Found ${allRoutes.length} total routes in database:`);
-        allRoutes.forEach(route => {
-            console.log(`[CHEAT]   Route ${route.id}: startTime=${route.startTime ? new Date(route.startTime).toISOString() : 'null'}`);
-        });
+		// Verify the game state belongs to the current user
+		const [gameState] = await db
+			.select()
+			.from(gameStates)
+			.where(and(eq(gameStates.id, gameStateId), eq(gameStates.userId, session.user.id)))
+			.limit(1);
 
-        // Get all employees with active routes for this game state
-        // For the cheat, we'll complete ANY route an employee is assigned to
-        const employeesWithRoutes = await db
-            .select({
-                employee: employees,
-                route: routes
-            })
-            .from(employees)
-            .innerJoin(routes, eq(employees.currentRoute, routes.id))
-            .where(
-                and(
-                    eq(employees.gameId, gameStateId),
-                    isNotNull(employees.currentRoute)
-                )
-            );
+		if (!gameState) {
+			return error(404, 'Game state not found or access denied');
+		}
 
-        console.log(`[CHEAT] Found ${employeesWithRoutes.length} employees with active routes for game ${gameStateId}`);
+		// Get all active jobs for this game state that have been started
+		const activeJobsData = await db
+			.select({
+				activeJob: activeJobs
+			})
+			.from(activeJobs)
+			.where(
+				and(
+					eq(activeJobs.gameStateId, gameStateId),
+					isNotNull(activeJobs.startTime) // Only jobs that have been started
+				)
+			);
 
-        if (employeesWithRoutes.length === 0) {
-            console.log(`[CHEAT] No active routes to complete for game ${gameStateId}`);
-            return json({ 
-                success: true, 
-                message: 'No active routes to complete',
-                completedRoutes: 0,
-                totalReward: 0
-            });
-        }
+		console.log(
+			`[CHEAT] Found ${activeJobsData.length} active jobs to complete for game ${gameStateId}`
+		);
 
-        let totalReward = 0;
-        const currentTime = new Date(); // Use Date object instead of Date.now()
-        
-        console.log(`[CHEAT] Completing routes at timestamp: ${currentTime.toISOString()}`);
+		if (activeJobsData.length === 0) {
+			console.log(`[CHEAT] No active jobs to complete for game ${gameStateId}`);
+			return json({
+				success: true,
+				message: 'No active jobs to complete',
+				completedRoutes: 0,
+				totalReward: 0,
+				newBalance:
+					typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money
+			});
+		}
 
-        // Log each route being completed
-        employeesWithRoutes.forEach(({ employee, route }) => {
-            console.log(`[CHEAT] Route ${route.id} for employee ${employee.name} (${employee.id})`);
-            console.log(`[CHEAT]   - Reward: €${route.reward}`);
-            console.log(`[CHEAT]   - Start: ${route.startTime ? new Date(route.startTime).toISOString() : 'null'}`);
-            console.log(`[CHEAT]   - End location: ${route.endLocation}`);
-        });
+		// Process all active jobs using the same completion logic as normal job completion
+		// We'll complete them without updating game state individually, then update once at the end
+		const jobCompletionPromises = activeJobsData.map(({ activeJob }) =>
+			completeActiveJob(activeJob.id, false).catch((error) => {
+				console.error(`[CHEAT] Failed to complete job ${activeJob.id}:`, error);
+				return null;
+			})
+		);
 
-        // Calculate current money before transaction for return value
-        const currentMoney = typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money;
+		const results = await Promise.all(jobCompletionPromises);
+		const successfulResults = results.filter((result) => result !== null);
 
-        // Process all active routes in a transaction (force complete them)
-        await db.transaction(async (tx) => {
-            for (const { employee, route } of employeesWithRoutes) {
-                console.log(`[CHEAT] Processing route ${route.id} for employee ${employee.id}`);
-                
-                // Calculate reward - convert string to number if needed
-                const routeReward = typeof route.reward === 'string' ? parseFloat(route.reward) : route.reward;
-                totalReward += routeReward;
+		if (successfulResults.length === 0) {
+			return error(500, 'Failed to complete any jobs');
+		}
 
-                // Update employee: clear current route, update location to end location, clear available routes
-                console.log(`[CHEAT] Updating employee ${employee.id} - clearing route and updating location`);
-                await tx.update(employees)
-                    .set({ 
-                        currentRoute: null,
-                        location: route.endLocation,
-                        availableRoutes: JSON.stringify([]), // Clear available routes since they're all invalid now
-                        timeRoutesGenerated: null // Clear the timestamp so new routes can be generated immediately
-                    })
-                    .where(eq(employees.id, employee.id));
+		const totalReward = successfulResults.reduce((sum, result) => sum + result.reward, 0);
+		const currentMoney =
+			typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money;
+		const newMoney = currentMoney + totalReward;
 
-                // Delete the completed route from database instead of marking as completed
-                console.log(`[CHEAT] Deleting completed route ${route.id} from database`);
-                await tx.delete(routes)
-                    .where(eq(routes.id, route.id));
-                
-                console.log(`[CHEAT] Successfully processed route ${route.id}`);
-            }
+		// Update game state with total rewards in a single transaction
+		await db.update(gameStates).set({ money: newMoney }).where(eq(gameStates.id, gameStateId));
 
-            // Update game state with total rewards - convert string to number if needed
-            const newMoney = currentMoney + totalReward;
-            
-            console.log(`[CHEAT] Adding €${totalReward} to game state ${gameStateId}`);
-            await tx.update(gameStates)
-                .set({ money: newMoney.toString() })
-                .where(eq(gameStates.id, gameStateId));
-            
-            console.log(`[CHEAT] Updated game state money from €${gameState.money} to €${newMoney}`);
-        });
+		console.log(
+			`[CHEAT] Force completed ${successfulResults.length} active jobs for game ${gameStateId}, total reward: €${totalReward}`
+		);
 
-        console.log(`[CHEAT] Force completed ${employeesWithRoutes.length} routes for game ${gameStateId}, total reward: ${totalReward}`);
-
-        return json({ 
-            success: true, 
-            message: `Instantly completed ${employeesWithRoutes.length} routes`,
-            completedRoutes: employeesWithRoutes.length,
-            totalReward: totalReward,
-            newBalance: currentMoney + totalReward
-        });
-
-    } catch (err) {
-        console.error('Error completing routes via cheat:', err);
-        return error(500, 'Failed to complete routes');
-    }
-}; 
+		return json({
+			success: true,
+			message: `Instantly completed ${successfulResults.length} active jobs`,
+			completedRoutes: successfulResults.length,
+			totalReward: totalReward,
+			newBalance: newMoney
+		});
+	} catch (err) {
+		console.error('Error completing routes via cheat:', err);
+		return error(500, 'Failed to complete routes');
+	}
+};

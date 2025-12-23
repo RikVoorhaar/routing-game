@@ -1,0 +1,432 @@
+Statistical profiling result from isolate-0x57c73a095000-789115-v8.log, (324 ticks, 92 unaccounted, 0 excluded).
+
+ [Shared libraries]:
+   ticks  total  nonlib   name
+    134   41.4%          /usr/lib/libc.so.6
+      1    0.3%          /usr/lib/ld-linux-x86-64.so.2
+
+ [JavaScript]:
+   ticks  total  nonlib   name
+      3    0.9%    1.6%  Builtin: StrictEqual_Baseline
+      2    0.6%    1.1%  JS: ^parseSource node:internal/deps/cjs-module-lexer/lexer:85:22
+      2    0.6%    1.1%  Builtin: LoadIC_NoFeedback
+      2    0.6%    1.1%  Builtin: LoadIC
+      2    0.6%    1.1%  Builtin: CallFunction_ReceiverIsNotNullOrUndefined
+      2    0.6%    1.1%  Builtin: Add_Baseline
+      1    0.3%    0.5%  JS: ~#cachedDefaultResolve node:internal/modules/esm/loader:719:24
+      1    0.3%    0.5%  JS: ^processPromiseRejections node:internal/process/promises:439:34
+      1    0.3%    0.5%  JS: ^normalizeString node:path:76:25
+      1    0.3%    0.5%  Builtin: StringPrototypeCharCodeAt
+      1    0.3%    0.5%  Builtin: StoreIC_NoFeedback
+      1    0.3%    0.5%  Builtin: StoreFastElementIC_NoTransitionGrowAndHandleCOW
+      1    0.3%    0.5%  Builtin: LoadIC_Noninlined
+      1    0.3%    0.5%  Builtin: LoadIC_FunctionPrototype
+      1    0.3%    0.5%  Builtin: KeyedStoreIC
+      1    0.3%    0.5%  Builtin: KeyedLoadIC_PolymorphicName
+      1    0.3%    0.5%  Builtin: FastNewRestArguments
+      1    0.3%    0.5%  Builtin: FastNewClosure
+      1    0.3%    0.5%  Builtin: Call_ReceiverIsNullOrUndefined
+      1    0.3%    0.5%  Builtin: Call_ReceiverIsNotNullOrUndefined_Baseline_Compact
+      1    0.3%    0.5%  Builtin: Call_ReceiverIsNotNullOrUndefined
+      1    0.3%    0.5%  Builtin: Call_ReceiverIsAny
+      1    0.3%    0.5%  Builtin: CallWithArrayLike
+      1    0.3%    0.5%  Builtin: CallFunction_ReceiverIsNullOrUndefined
+      1    0.3%    0.5%  Builtin: CallFunctionTemplate_Generic
+      1    0.3%    0.5%  Builtin: CEntry_Return1_ArgvOnStack_NoBuiltinExit
+      1    0.3%    0.5%  Builtin: BaselineOutOfLinePrologue
+      1    0.3%    0.5%  Builtin: AsyncFunctionResolve
+
+ [C++]:
+   ticks  total  nonlib   name
+     15    4.6%    7.9%  node::loader::ModuleWrap::New(v8::FunctionCallbackInfo<v8::Value> const&)
+     14    4.3%    7.4%  fputc@@GLIBC_2.2.5
+      8    2.5%    4.2%  std::ostream::put(char)
+      5    1.5%    2.6%  std::ostream::sentry::sentry(std::ostream&)
+      4    1.2%    2.1%  syscall@@GLIBC_2.2.5
+      4    1.2%    2.1%  isprint@@GLIBC_2.2.5
+      2    0.6%    1.1%  fwrite@@GLIBC_2.2.5
+      1    0.3%    0.5%  ucase_isCaseSensitive_76
+      1    0.3%    0.5%  std::ostream::operator<<(int)
+      1    0.3%    0.5%  pthread_sigmask@GLIBC_2.2.5
+      1    0.3%    0.5%  pthread_cond_signal@@GLIBC_2.3.2
+      1    0.3%    0.5%  node::StartExecution(node::Environment*, std::function<v8::MaybeLocal<v8::Value> (node::StartExecutionCallbackInfo const&)>)
+      1    0.3%    0.5%  node::Environment::RunAndClearNativeImmediates(bool)
+      1    0.3%    0.5%  cfree@GLIBC_2.2.5
+      1    0.3%    0.5%  __write@@GLIBC_2.2.5
+      1    0.3%    0.5%  __munmap@@GLIBC_PRIVATE
+      1    0.3%    0.5%  __madvise@@GLIBC_PRIVATE
+
+ [Summary]:
+   ticks  total  nonlib   name
+     35   10.8%   18.5%  JavaScript
+     62   19.1%   32.8%  C++
+      3    0.9%    1.6%  GC
+    135   41.7%          Shared libraries
+     92   28.4%          Unaccounted
+
+ [C++ entry points]:
+   ticks    cpp   total   name
+     15   27.3%    4.6%  node::loader::ModuleWrap::New(v8::FunctionCallbackInfo<v8::Value> const&)
+     14   25.5%    4.3%  fputc@@GLIBC_2.2.5
+      6   10.9%    1.9%  std::ostream::put(char)
+      5    9.1%    1.5%  std::ostream::sentry::sentry(std::ostream&)
+      4    7.3%    1.2%  isprint@@GLIBC_2.2.5
+      3    5.5%    0.9%  syscall@@GLIBC_2.2.5
+      1    1.8%    0.3%  ucase_isCaseSensitive_76
+      1    1.8%    0.3%  std::ostream::operator<<(int)
+      1    1.8%    0.3%  pthread_sigmask@GLIBC_2.2.5
+      1    1.8%    0.3%  pthread_cond_signal@@GLIBC_2.3.2
+      1    1.8%    0.3%  fwrite@@GLIBC_2.2.5
+      1    1.8%    0.3%  cfree@GLIBC_2.2.5
+      1    1.8%    0.3%  __write@@GLIBC_2.2.5
+      1    1.8%    0.3%  __madvise@@GLIBC_PRIVATE
+
+ [Bottom up (heavy) profile]:
+  Note: percentage shows a share of a particular caller in the total
+  amount of its parent calls.
+  Callers occupying less than 1.0% are not shown.
+
+   ticks parent  name
+    134   41.4%  /usr/lib/libc.so.6
+      5    3.7%    JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      4   80.0%      JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1   25.0%        JS: ~<anonymous> node:tty:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ~builtinStrategy node:internal/modules/esm/translators:413:52
+      1   25.0%        JS: ~<anonymous> node:net:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1   25.0%        JS: ~<anonymous> node:internal/streams/duplex:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1   25.0%        Builtin: ReflectGet
+      1  100.0%          JS: ^getOwn node:internal/bootstrap/realm:202:16
+      1  100.0%            JS: ^syncExports node:internal/bootstrap/realm:371:14
+      1   20.0%      JS: +requireBuiltin node:internal/bootstrap/realm:420:24
+      1  100.0%        JS: ~<anonymous> node:crypto:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ^compileForPublicLoader node:internal/bootstrap/realm:331:25
+
+     92   28.4%  UNKNOWN
+     35   38.0%    JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+     30   85.7%      JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      4   13.3%        JS: ~<anonymous> node:internal/streams/duplex:1:1
+      4  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      4  100.0%            JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      3   10.0%        JS: ~<anonymous> node:internal/fs/promises:1:1
+      3  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      3  100.0%            JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      2    6.7%        JS: ~getTranslators node:internal/modules/esm/loader:95:24
+      2  100.0%          JS: ~ModuleLoader node:internal/modules/esm/loader:150:3
+      2  100.0%            JS: ~ModuleLoader node:internal/modules/esm/loader:186:14
+      2    6.7%        JS: ~getSource node:internal/modules/esm/load:32:25
+      2  100.0%          JS: ~defaultLoad node:internal/modules/esm/load:83:27
+      2  100.0%            JS: ~load node:internal/modules/esm/loader:811:13
+      2    6.7%        JS: ~<anonymous> node:tty:1:1
+      2  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      2  100.0%            JS: ~builtinStrategy node:internal/modules/esm/translators:413:52
+      2    6.7%        JS: ~<anonymous> node:stream:1:1
+      2  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      2  100.0%            JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      2    6.7%        JS: ~<anonymous> node:internal/streams/operators:1:1
+      2  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      2  100.0%            JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      2    6.7%        JS: ~<anonymous> node:internal/readline/interface:1:1
+      2  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      2  100.0%            JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1    3.3%        JS: ~load node:internal/modules/esm/loader:811:13
+      1  100.0%          JS: ~loadAndTranslate node:internal/modules/esm/loader:591:25
+      1  100.0%            JS: ~#createModuleJob node:internal/modules/esm/loader:609:19
+      1    3.3%        JS: ~initCJSParseSync node:internal/modules/esm/translators:79:26
+      1  100.0%          JS: ~commonjsStrategy node:internal/modules/esm/translators:306:54
+      1  100.0%            JS: ^#translate node:internal/modules/esm/loader:538:13
+      1    3.3%        JS: ~defaultResolve node:internal/modules/esm/loader:791:17
+      1  100.0%          JS: ~#cachedDefaultResolve node:internal/modules/esm/loader:719:24
+      1  100.0%            JS: ~resolve node:internal/modules/esm/loader:699:10
+      1    3.3%        JS: ~<anonymous> node:net:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1    3.3%        JS: ~<anonymous> node:module:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ^compileForPublicLoader node:internal/bootstrap/realm:331:25
+      1    3.3%        JS: ~<anonymous> node:internal/util/diff:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1    3.3%        JS: ~<anonymous> node:internal/data_url:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1    3.3%        JS: ~<anonymous> node:internal/crypto/pbkdf2:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1    3.3%        JS: ~<anonymous> node:internal/cluster/primary:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ~<anonymous> node:cluster:1:1
+      1    3.3%        JS: ~<anonymous> node:child_process:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ~builtinStrategy node:internal/modules/esm/translators:413:52
+      1    3.3%        JS: ~#createModuleJob node:internal/modules/esm/loader:609:19
+      1  100.0%          JS: ~#getJobFromResolveResult node:internal/modules/esm/loader:338:27
+      1  100.0%            JS: ~getModuleJobForImport node:internal/modules/esm/loader:308:30
+      3    8.6%      JS: +requireBuiltin node:internal/bootstrap/realm:420:24
+      3  100.0%        JS: ~<anonymous> node:crypto:1:1
+      3  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      3  100.0%            JS: ^compileForPublicLoader node:internal/bootstrap/realm:331:25
+      2    5.7%      JS: ~builtinStrategy node:internal/modules/esm/translators:413:52
+      2  100.0%        JS: ~#translate node:internal/modules/esm/loader:538:13
+      2  100.0%          JS: ~loadAndTranslate node:internal/modules/esm/loader:591:25
+      2  100.0%            Builtin: AsyncFunctionAwaitResolveClosure
+      7    7.6%    JS: ~<anonymous> node:internal/main/run_main_module:1:1
+      2    2.2%    JS: ~detectModuleFormat node:internal/modules/esm/get_format:36:28
+      2  100.0%      JS: ~getFileProtocolModuleFormat node:internal/modules/esm/get_format:111:37
+      2  100.0%        JS: ~defaultGetFormat node:internal/modules/esm/get_format:204:26
+      2  100.0%          JS: ^defaultLoad node:internal/modules/esm/load:83:27
+      2  100.0%            Builtin: AsyncFunctionAwaitResolveClosure
+      2    2.2%    JS: ^internalBinding node:internal/bootstrap/realm:182:45
+      1   50.0%      JS: ~<anonymous> node:internal/fs/watchers:1:1
+      1  100.0%        JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%          JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1  100.0%            JS: ~<anonymous> node:internal/fs/promises:1:1
+      1   50.0%      JS: ~<anonymous> node:crypto:1:1
+      1  100.0%        JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%          JS: ^compileForPublicLoader node:internal/bootstrap/realm:331:25
+      1  100.0%            JS: ^loadBuiltinModule node:internal/modules/helpers:101:27
+      1    1.1%    Script: ~<anonymous> file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/cli.mjs:1:1
+      1  100.0%      Builtin: GeneratorPrototypeNext
+      1  100.0%        Builtin: CallApiCallbackGeneric
+      1  100.0%          JS: ~run node:internal/modules/esm/module_job:348:12
+      1  100.0%            Builtin: AsyncFunctionAwaitResolveClosure
+      1    1.1%    JS: ~spawn node:child_process:755:15
+      1  100.0%      JS: ~ns file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/cli.mjs:22:8432
+      1  100.0%        JS: ~<anonymous> file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/cli.mjs:22:8836
+      1  100.0%          JS: ~<anonymous> file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/cli.mjs:53:34862
+      1  100.0%            Builtin: AsyncFunctionAwaitResolveClosure
+      1    1.1%    JS: ~shouldColorize node:internal/util/colors:18:17
+      1  100.0%      JS: ~refresh node:internal/util/colors:26:10
+      1  100.0%        JS: ~<anonymous> node:internal/util/colors:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1    1.1%    JS: ~regularExpression node:internal/deps/cjs-module-lexer/lexer:1281:28
+      1  100.0%      JS: ^parseSource node:internal/deps/cjs-module-lexer/lexer:85:22
+      1  100.0%        JS: ~parseCJS node:internal/deps/cjs-module-lexer/lexer:40:19
+      1  100.0%          JS: ~cjsPreparseModuleExports node:internal/modules/esm/translators:355:34
+      1  100.0%            JS: ~createCJSModuleWrap node:internal/modules/esm/translators:182:29
+      1    1.1%    JS: ~parseCJS node:internal/deps/cjs-module-lexer/lexer:40:19
+      1  100.0%      JS: ~cjsPreparseModuleExports node:internal/modules/esm/translators:355:34
+      1  100.0%        JS: ~createCJSModuleWrap node:internal/modules/esm/translators:182:29
+      1  100.0%          JS: ~commonjsStrategy node:internal/modules/esm/translators:306:54
+      1  100.0%            JS: ^#translate node:internal/modules/esm/loader:538:13
+      1    1.1%    JS: ~moduleResolve node:internal/modules/esm/resolve:826:23
+      1  100.0%      JS: ~defaultResolve node:internal/modules/esm/resolve:938:24
+      1  100.0%        JS: ~defaultResolve node:internal/modules/esm/loader:791:17
+      1  100.0%          JS: ~#cachedDefaultResolve node:internal/modules/esm/loader:719:24
+      1  100.0%            JS: ~resolve node:internal/modules/esm/loader:699:10
+      1    1.1%    JS: ~getSource node:internal/modules/esm/load:32:25
+      1  100.0%      JS: ~defaultLoad node:internal/modules/esm/load:83:27
+      1  100.0%        JS: ~load node:internal/modules/esm/loader:811:13
+      1  100.0%          JS: ~loadAndTranslate node:internal/modules/esm/loader:591:25
+      1  100.0%            JS: ~#createModuleJob node:internal/modules/esm/loader:609:19
+      1    1.1%    JS: ~createModuleLoader node:internal/modules/esm/loader:959:28
+      1  100.0%      JS: ~getOrInitializeCascadedLoader node:internal/modules/esm/loader:1019:39
+      1  100.0%        JS: ~<anonymous> node:internal/main/run_main_module:1:1
+      1    1.1%    JS: ~__toCommonJS /home/rik/git/routing-game/routing-app/node_modules/tsx/node_modules/esbuild/lib/main.js:28:20
+      1  100.0%      JS: ~<anonymous> /home/rik/git/routing-game/routing-app/node_modules/tsx/node_modules/esbuild/lib/main.js:1:1
+      1  100.0%        JS: ~cjsLoader node:internal/modules/esm/translators:314:38
+      1  100.0%          JS: ~<anonymous> node:internal/modules/esm/translators:204:63
+      1  100.0%            Builtin: CallApiCallbackGeneric
+      1    1.1%    JS: ~WriteStream node:tty:88:21
+      1  100.0%      Script: ~<anonymous> file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/index-gbaejti9.mjs:1:1
+      1  100.0%        Builtin: GeneratorPrototypeNext
+      1  100.0%          Builtin: CallApiCallbackGeneric
+      1  100.0%            JS: ~run node:internal/modules/esm/module_job:348:12
+      1    1.1%    JS: ~<anonymous> node:net:1:1
+      1  100.0%      JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%        JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1  100.0%          JS: ~<anonymous> node:tty:1:1
+      1  100.0%            JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1    1.1%    JS: ~<anonymous> node:internal/streams/destroy:1:1
+      1  100.0%      JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%        JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1  100.0%          JS: ~<anonymous> node:internal/streams/pipeline:1:1
+      1  100.0%            JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1    1.1%    JS: ~<anonymous> node:internal/readline/utils:1:1
+      1  100.0%      JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%        JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1  100.0%          JS: ~<anonymous> node:internal/readline/interface:1:1
+      1  100.0%            JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1    1.1%    JS: ~<anonymous> node:internal/modules/esm/module_job:1:1
+      1  100.0%      JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%        JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1  100.0%          JS: ~#createModuleJob node:internal/modules/esm/loader:609:19
+      1  100.0%            JS: ~#getJobFromResolveResult node:internal/modules/esm/loader:338:27
+      1    1.1%    JS: ~<anonymous> node:internal/fs/streams:1:1
+      1  100.0%      JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%        JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1  100.0%          Builtin: ReflectGet
+      1  100.0%            JS: ^getOwn node:internal/bootstrap/realm:202:16
+      1    1.1%    JS: ~<anonymous> node:internal/crypto/util:1:1
+      1  100.0%      JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%        JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1  100.0%          JS: ~<anonymous> node:internal/crypto/pbkdf2:1:1
+      1  100.0%            JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1    1.1%    JS: ~<anonymous> file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/cli.mjs:53:5643
+      1  100.0%      Script: ~<anonymous> file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/cli.mjs:1:1
+      1  100.0%        Builtin: GeneratorPrototypeNext
+      1  100.0%          Builtin: CallApiCallbackGeneric
+      1  100.0%            JS: ~run node:internal/modules/esm/module_job:348:12
+      1    1.1%    JS: ~<anonymous> file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/cli.mjs:53:31527
+      1  100.0%      Builtin: PromiseConstructor
+      1  100.0%        JS: ~<anonymous> file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/cli.mjs:53:31294
+      1  100.0%          Builtin: AsyncFunctionAwaitResolveClosure
+      1    1.1%    JS: ~<anonymous> file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/cli.mjs:22:8836
+      1  100.0%      JS: ~<anonymous> file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/cli.mjs:53:34862
+      1  100.0%        Builtin: AsyncFunctionAwaitResolveClosure
+      1  100.0%          Builtin: CallApiCallbackGeneric
+      1    1.1%    JS: ~#_instantiate node:internal/modules/esm/module_job:228:22
+      1  100.0%      JS: ~#instantiate node:internal/modules/esm/module_job:221:15
+      1  100.0%        JS: ~run node:internal/modules/esm/module_job:348:12
+      1  100.0%          JS: ~onImport.tracePromise.__proto__ node:internal/modules/esm/loader:658:34
+      1  100.0%            Builtin: AsyncFunctionAwaitResolveClosure
+      1    1.1%    JS: ^nextTick node:internal/process/task_queues:113:18
+      1  100.0%      JS: ^maybeReadMore node:internal/streams/readable:855:23
+      1  100.0%        JS: ^addChunk node:internal/streams/readable:548:18
+      1  100.0%          JS: ^readableAddChunkPushByteMode node:internal/streams/readable:461:38
+      1  100.0%            JS: ^Readable.push node:internal/streams/readable:385:35
+      1    1.1%    JS: ^<anonymous> file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/cli.mjs:53:31347
+      1  100.0%      JS: ^<anonymous> file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/cli.mjs:53:31131
+      1  100.0%        JS: ^emit node:events:454:44
+      1  100.0%          JS: ^addChunk node:internal/streams/readable:548:18
+      1  100.0%            JS: ^readableAddChunkPushByteMode node:internal/streams/readable:461:38
+      1    1.1%    JS: ^#link node:internal/modules/esm/module_job:171:14
+      1  100.0%      Builtin: AsyncFunctionAwaitResolveClosure
+      1    1.1%    Builtin: RegExpPrototypeExec
+      1  100.0%      JS: ~finalizeResolution node:internal/modules/esm/resolve:228:28
+      1  100.0%        JS: ~moduleResolve node:internal/modules/esm/resolve:826:23
+      1  100.0%          JS: ~defaultResolve node:internal/modules/esm/resolve:938:24
+      1  100.0%            JS: ~defaultResolve node:internal/modules/esm/loader:791:17
+      1    1.1%    Builtin: ObjectSetPrototypeOf
+      1  100.0%      JS: ~<anonymous> node:dgram:1:1
+      1  100.0%        JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%          JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1  100.0%            JS: ~<anonymous> node:internal/child_process:1:1
+      1    1.1%    Builtin: MapPrototypeSet
+      1  100.0%      JS: ~set node:internal/modules/esm/module_map:96:6
+      1  100.0%        JS: ~#createModuleJob node:internal/modules/esm/loader:609:19
+      1  100.0%          JS: ~#getJobFromResolveResult node:internal/modules/esm/loader:338:27
+      1  100.0%            JS: ~getModuleJobForImport node:internal/modules/esm/loader:308:30
+      1    1.1%    Builtin: ArrayReduce
+      1  100.0%      JS: ~getValidStdio node:internal/child_process:984:23
+      1  100.0%        JS: ~spawn node:internal/child_process:355:46
+      1  100.0%          JS: ~spawn node:child_process:755:15
+      1  100.0%            JS: ~ns file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/cli.mjs:22:8432
+
+     15    4.6%  node::loader::ModuleWrap::New(v8::FunctionCallbackInfo<v8::Value> const&)
+     15  100.0%    JS: ~moduleStrategy node:internal/modules/esm/translators:101:50
+     15  100.0%      JS: ~#translate node:internal/modules/esm/loader:538:13
+     15  100.0%        JS: ~loadAndTranslate node:internal/modules/esm/loader:591:25
+     15  100.0%          Builtin: AsyncFunctionAwaitResolveClosure
+
+     14    4.3%  fputc@@GLIBC_2.2.5
+      8   57.1%    JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      6   75.0%      JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1   16.7%        JS: ~get BlockList node:net:2480:16
+      1  100.0%          Builtin: ReflectGet
+      1  100.0%            JS: ^getOwn node:internal/bootstrap/realm:202:16
+      1   16.7%        JS: ~defaultResolve node:internal/modules/esm/loader:791:17
+      1  100.0%          JS: ~#cachedDefaultResolve node:internal/modules/esm/loader:719:24
+      1  100.0%            JS: ~resolve node:internal/modules/esm/loader:699:10
+      1   16.7%        JS: ~<anonymous> node:internal/streams/compose:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1   16.7%        JS: ~<anonymous> node:internal/child_process:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1   16.7%        JS: ~<anonymous> node:child_process:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ~builtinStrategy node:internal/modules/esm/translators:413:52
+      1   16.7%        Builtin: ReflectGet
+      1  100.0%          JS: ^getOwn node:internal/bootstrap/realm:202:16
+      1  100.0%            JS: ^syncExports node:internal/bootstrap/realm:371:14
+      2   25.0%      JS: +requireBuiltin node:internal/bootstrap/realm:420:24
+      2  100.0%        JS: ~<anonymous> node:internal/worker:1:1
+      2  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      2  100.0%            JS: +requireBuiltin node:internal/bootstrap/realm:420:24
+      1    7.1%    JS: ~moduleResolve node:internal/modules/esm/resolve:826:23
+      1  100.0%      JS: ~defaultResolve node:internal/modules/esm/resolve:938:24
+      1  100.0%        JS: ~defaultResolve node:internal/modules/esm/loader:791:17
+      1  100.0%          JS: ~#cachedDefaultResolve node:internal/modules/esm/loader:719:24
+      1  100.0%            JS: ~resolve node:internal/modules/esm/loader:699:10
+      1    7.1%    JS: ~detectModuleFormat node:internal/modules/esm/get_format:36:28
+      1  100.0%      JS: ~getFileProtocolModuleFormat node:internal/modules/esm/get_format:111:37
+      1  100.0%        JS: ~defaultGetFormat node:internal/modules/esm/get_format:204:26
+      1  100.0%          JS: ^defaultLoad node:internal/modules/esm/load:83:27
+      1  100.0%            Builtin: AsyncFunctionAwaitResolveClosure
+      1    7.1%    JS: ~<anonymous> node:internal/main/run_main_module:1:1
+      1    7.1%    JS: ~<anonymous> file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/cli.mjs:53:34862
+      1  100.0%      Builtin: AsyncFunctionAwaitResolveClosure
+      1  100.0%        Builtin: CallApiCallbackGeneric
+      1    7.1%    JS: ^onStreamRead node:internal/stream_base_commons:166:22
+
+      8    2.5%  std::ostream::put(char)
+      2   25.0%    JS: ~<anonymous> node:internal/main/run_main_module:1:1
+      2   25.0%    JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1   50.0%      JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1  100.0%        JS: ~<anonymous> node:internal/streams/duplex:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1   50.0%      JS: +requireBuiltin node:internal/bootstrap/realm:420:24
+      1  100.0%        JS: ~<anonymous> node:internal/crypto/hkdf:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: +requireBuiltin node:internal/bootstrap/realm:420:24
+      1   12.5%    JS: ^markTransferMode node:internal/worker/js_transferable:91:26
+      1  100.0%      JS: ^URL node:internal/url:803:14
+      1  100.0%        JS: ^parse node:internal/url:833:15
+      1  100.0%          JS: ^defaultResolve node:internal/modules/esm/resolve:938:24
+      1  100.0%            JS: ^defaultResolve node:internal/modules/esm/loader:791:17
+
+      5    1.5%  std::ostream::sentry::sentry(std::ostream&)
+      3   60.0%    JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      3  100.0%      JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1   33.3%        JS: ~initCJSParseSync node:internal/modules/esm/translators:79:26
+      1  100.0%          JS: ~commonjsStrategy node:internal/modules/esm/translators:306:54
+      1  100.0%            JS: ^#translate node:internal/modules/esm/loader:538:13
+      1   33.3%        JS: ~<anonymous> node:tty:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ~builtinStrategy node:internal/modules/esm/translators:413:52
+      1   33.3%        JS: ~<anonymous> node:internal/modules/esm/resolve:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1   20.0%    JS: ^realpathSync node:fs:2693:22
+      1  100.0%      JS: ~finalizeResolution node:internal/modules/esm/resolve:228:28
+      1  100.0%        JS: ~moduleResolve node:internal/modules/esm/resolve:826:23
+      1  100.0%          JS: ~defaultResolve node:internal/modules/esm/resolve:938:24
+      1  100.0%            JS: ~defaultResolve node:internal/modules/esm/loader:791:17
+      1   20.0%    Builtin: RegExpConstructor
+      1  100.0%      JS: ~e file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/index-gbaejti9.mjs:1:709
+      1  100.0%        Script: ~<anonymous> file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/index-gbaejti9.mjs:1:1
+      1  100.0%          Builtin: GeneratorPrototypeNext
+      1  100.0%            Builtin: CallApiCallbackGeneric
+
+      4    1.2%  syscall@@GLIBC_2.2.5
+      1   25.0%    JS: ~<anonymous> node:internal/main/run_main_module:1:1
+      1   25.0%    JS: ~<anonymous> file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/cli.mjs:55:653
+      1  100.0%      JS: ^emit node:events:454:44
+      1  100.0%        JS: ~maybeClose node:internal/child_process:1097:20
+      1  100.0%          JS: ~ChildProcess._handle.onexit node:internal/child_process:270:25
+      1   25.0%    JS: +wrappedFn node:internal/errors:535:21
+      1  100.0%      JS: ~<anonymous> file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/cli.mjs:53:31595
+      1  100.0%        JS: ^emit node:events:454:44
+      1  100.0%          JS: ~<anonymous> file:///home/rik/git/routing-game/routing-app/node_modules/tsx/dist/cli.mjs:55:653
+      1  100.0%            JS: ^emit node:events:454:44
+
+      4    1.2%  isprint@@GLIBC_2.2.5
+      2   50.0%    JS: ~<anonymous> node:internal/main/run_main_module:1:1
+      2   50.0%    JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1   50.0%      JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1  100.0%        JS: ~<anonymous> node:internal/fs/promises:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ^requireBuiltin node:internal/bootstrap/realm:420:24
+      1   50.0%      JS: +requireBuiltin node:internal/bootstrap/realm:420:24
+      1  100.0%        JS: ~<anonymous> node:worker_threads:1:1
+      1  100.0%          JS: ^compileForInternalLoader node:internal/bootstrap/realm:383:27
+      1  100.0%            JS: ^compileForPublicLoader node:internal/bootstrap/realm:331:25
+

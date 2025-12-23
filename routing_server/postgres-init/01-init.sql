@@ -1,6 +1,9 @@
 -- Create database and user with proper permissions
 -- Note: POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD are already handled by the postgres image
 
+-- Enable PostGIS extension
+CREATE EXTENSION IF NOT EXISTS postgis;
+
 -- Grant all necessary permissions to the routing_user
 GRANT ALL PRIVILEGES ON DATABASE routing_game TO routing_user;
 

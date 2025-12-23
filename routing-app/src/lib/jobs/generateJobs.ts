@@ -1,0 +1,220 @@
+import { type InferSelectModel } from 'drizzle-orm';
+import { addresses, jobs, routes } from '$lib/server/db/schema';
+import { getRandomRouteInAnnulus, type RouteInAnnulus } from '$lib/routes/routing';
+import { type Coordinate } from '$lib/server/db/schema';
+import type { InferInsertModel } from 'drizzle-orm';
+import { db } from '$lib/server/db/standalone';
+import { inArray } from 'drizzle-orm';
+import { distance } from '@turf/turf';
+import { JobCategory } from '$lib/jobs/jobCategories';
+
+type JobInsert = InferInsertModel<typeof jobs>;
+// Constants for job generation
+export const ROUTE_DISTANCES_KM = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+
+export const MAX_TIER = 8; // Cut off at tier 8 for small map
+
+// Category multipliers for value calculation
+const CATEGORY_MULTIPLIERS = {
+	[JobCategory.GROCERIES]: 1,
+	[JobCategory.PACKAGES]: 1,
+	[JobCategory.FOOD]: 1.2,
+	[JobCategory.FURNITURE]: 1.5,
+	[JobCategory.PEOPLE]: 2.0,
+	[JobCategory.FRAGILE_GOODS]: 3.0,
+	[JobCategory.CONSTRUCTION]: 4.0,
+	[JobCategory.LIQUIDS]: 6.0,
+	[JobCategory.TOXIC_GOODS]: 10.0
+};
+
+// Minimum tier requirements for each category
+const CATEGORY_MIN_TIERS = {
+	[JobCategory.GROCERIES]: 1,
+	[JobCategory.PACKAGES]: 1,
+	[JobCategory.FOOD]: 2,
+	[JobCategory.FURNITURE]: 3,
+	[JobCategory.PEOPLE]: 4,
+	[JobCategory.FRAGILE_GOODS]: 5,
+	[JobCategory.CONSTRUCTION]: 6,
+	[JobCategory.LIQUIDS]: 7,
+	[JobCategory.TOXIC_GOODS]: 8
+};
+
+// Value calculation constants
+const DEFAULT_DISTANCE_FACTOR = 1; // 1 euro per kilometer
+const DEFAULT_TIME_FACTOR = 20.0 / 3600; // 20 euros per hour
+
+/**
+ * Gets available job categories for a given tier
+ */
+export function getAvailableCategories(jobTier: number): JobCategory[] {
+	const categories: JobCategory[] = [];
+
+	for (const category of Object.values(JobCategory)) {
+		if (typeof category === 'number' && CATEGORY_MIN_TIERS[category] <= jobTier) {
+			categories.push(category);
+		}
+	}
+
+	return categories;
+}
+
+/**
+ * Computes job tier using probability formula: tier = min(MAX_TIER, ceil(-log2(p)))
+ */
+export function generateJobTier(): number {
+	const p = Math.random();
+	const tier = Math.ceil(-Math.log2(p));
+	return Math.min(MAX_TIER, tier);
+}
+
+/**
+ * Computes job value based on tier, category, distance, and time
+ */
+export function computeApproximateJobValue(
+	jobTier: number,
+	jobCategory: JobCategory,
+	totalDistanceKm: number,
+	totalTimeSeconds: number,
+	distanceFactor: number = DEFAULT_DISTANCE_FACTOR,
+	timeFactor: number = DEFAULT_TIME_FACTOR
+): number {
+	const jobTierMultiplier = Math.pow(1.2, jobTier - 1);
+	const categoryMultiplier = CATEGORY_MULTIPLIERS[jobCategory];
+
+	// Random factor: usually near 1, but can be quite big
+	const randomFactor = Math.max(1.0, -Math.log(1 - Math.random()));
+
+	const totalTimeHours = totalTimeSeconds / 3600;
+	const baseValue = totalDistanceKm * distanceFactor + totalTimeHours * timeFactor;
+
+	return jobTierMultiplier * categoryMultiplier * randomFactor * baseValue;
+}
+
+/**
+ * Generates a single job from a given address
+ */
+export async function generateJobFromAddress(
+	startAddress: InferSelectModel<typeof addresses>
+): Promise<boolean> {
+	try {
+		// Compute job tier
+		const jobTier = generateJobTier();
+
+		// Get distance range for this tier
+		const minDistanceKm = ROUTE_DISTANCES_KM[jobTier - 1] || 0.1;
+		const maxDistanceKm =
+			ROUTE_DISTANCES_KM[jobTier] || ROUTE_DISTANCES_KM[ROUTE_DISTANCES_KM.length - 1];
+
+		// Generate route within the specified annulus
+		const startLocation: Coordinate = {
+			lat: Number(startAddress.lat),
+			lon: Number(startAddress.lon)
+		};
+
+		const routeInAnnulus: RouteInAnnulus = await getRandomRouteInAnnulus(
+			startLocation,
+			minDistanceKm,
+			maxDistanceKm
+		);
+		const routeResult = routeInAnnulus.route;
+		const endAddress = routeInAnnulus.destination;
+
+		// Get available categories for this tier
+		const availableCategories = getAvailableCategories(jobTier);
+
+		if (availableCategories.length === 0) {
+			return false; // No available categories for this tier
+		}
+
+		// Randomly select a category
+		const jobCategory = availableCategories[Math.floor(Math.random() * availableCategories.length)];
+
+		// Calculate total distance and time
+		const totalDistanceKm = routeResult.totalDistanceMeters / 1000;
+		const approximateTimeSeconds = routeResult.travelTimeSeconds;
+
+		// Validate travel time - if it's 0 or invalid, skip this job
+		if (!approximateTimeSeconds || approximateTimeSeconds <= 0) {
+			console.warn(
+				`Invalid travel time for route: ${approximateTimeSeconds} seconds, skipping job`
+			);
+			return false;
+		}
+
+		// Distance validation: check if route distance is suspiciously high
+		// Calculate straight-line distance between start and end using Turf.js
+		const startPoint = [Number(startAddress.lon), Number(startAddress.lat)]; // [longitude, latitude] for Turf
+		const endPoint = [Number(endAddress.lon), Number(endAddress.lat)];
+		const straightLineDistanceKm = distance(startPoint, endPoint, { units: 'kilometers' });
+
+		// Reject if route distance is more than 10x the straight-line distance
+		if (totalDistanceKm > straightLineDistanceKm * 10) {
+			return false; // Suspiciously long route, skip silently
+		}
+
+		// Compute job value
+		const approximateValue = computeApproximateJobValue(
+			jobTier,
+			jobCategory,
+			totalDistanceKm,
+			approximateTimeSeconds
+		);
+
+		// Find end address ID by coordi
+
+		// Create route record with address IDs
+		const routeRecord = {
+			id: crypto.randomUUID(),
+			startAddressId: startAddress.id,
+			endAddressId: endAddress.id,
+			lengthTime: approximateTimeSeconds,
+			routeData: routeResult
+		};
+
+		// Insert route
+		await db.insert(routes).values(routeRecord);
+
+		// Create job record
+		const jobRecord: JobInsert = {
+			location: `SRID=4326;POINT(${startAddress.lon} ${startAddress.lat})`, // PostGIS POINT geometry with SRID
+			startAddressId: startAddress.id,
+			endAddressId: endAddress.id,
+			routeId: routeRecord.id,
+			jobTier,
+			jobCategory,
+			totalDistanceKm,
+			approximateTimeSeconds,
+			approximateValue
+		};
+
+		// Insert job
+		await db.insert(jobs).values(jobRecord);
+
+		return true;
+	} catch (error) {
+		// Re-throw the error so it can be logged by the caller
+		throw new Error(
+			`Job generation failed: ${error instanceof Error ? error.message : String(error)}`
+		);
+	}
+}
+
+/**
+ * Clears all existing jobs and their associated routes
+ */
+export async function clearAllJobs(): Promise<void> {
+	// Get all job route IDs before deletion
+	const jobRoutes = await db.select({ routeId: jobs.routeId }).from(jobs);
+	const routeIds = jobRoutes.map((jr) => jr.routeId);
+
+	// Delete jobs first (foreign key constraint)
+	await db.delete(jobs);
+
+	// Delete associated routes
+	if (routeIds.length > 0) {
+		await db.delete(routes).where(inArray(routes.id, routeIds));
+	}
+
+	console.log(`Cleared ${jobRoutes.length} jobs and their routes`);
+}

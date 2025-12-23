@@ -5,14 +5,14 @@
 	let { children } = $props();
 </script>
 
-<div class="app flex flex-col min-h-screen">
+<div class="app flex min-h-screen flex-col">
 	<Navigation />
 
-	<main class="flex-1 w-full">
+	<main class="w-full flex-1">
 		{@render children()}
 	</main>
 
-	<footer class="bg-base-200 py-6 text-center mt-auto text-base-content/70">
+	<footer class="mt-auto bg-base-200 py-6 text-center text-base-content/70">
 		<p>© {new Date().getFullYear()} Routing App</p>
 	</footer>
 </div>

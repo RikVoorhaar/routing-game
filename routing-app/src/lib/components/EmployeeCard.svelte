@@ -1,456 +1,358 @@
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
-    import { onDestroy } from 'svelte';
-    import { selectedEmployee, selectEmployee } from '$lib/stores/selectedEmployee';
-    import type { Employee, Route, Address } from '$lib/types';
-    import { MIN_ROUTE_REGEN_INTERVAL } from '$lib/types';
-    import { addError } from '$lib/stores/errors';
-    import { selectedRoute, clearSelection } from '$lib/stores/selectedRoute';
-    import { formatMoney, formatAddress, formatTimeFromMs } from '$lib/formatting';
-    import RouteCard from './RouteCard.svelte';
+	import { createEventDispatcher } from 'svelte';
+	import { onDestroy } from 'svelte';
+	import { selectedEmployee, selectEmployee } from '$lib/stores/selectedEmployee';
+	import type { Employee, ActiveJob, Address, UpgradeState } from '$lib/server/db/schema';
+	import { addError } from '$lib/stores/errors';
+	import { selectedRoute, clearSelection } from '$lib/stores/selectedRoute';
+	import { formatMoney, formatAddress, formatTimeFromMs } from '$lib/formatting';
 
-    export let employee: Employee;
-    export let availableRoutes: Route[] = [];
-    export let currentRoute: Route | null = null;
-    export let gameStateId: string;
+	export let employee: Employee;
+	export let availableRoutes: any[] = [];
+	export let activeJob: ActiveJob | null = null;
+	export let gameStateId: string;
 
-    const dispatch = createEventDispatcher<{
-        generateRoutes: { employeeId: string };
-        assignRoute: { employeeId: string; routeId: string };
-        routeCompleted: { employeeId: string; reward: number; newBalance: number };
-    }>();
+	const dispatch = createEventDispatcher<{
+		assignRoute: { employeeId: string; routeId: string };
+		assignJob: { employeeId: string; jobId: string };
+		routeCompleted: { employeeId: string; reward: number; newBalance: number };
+	}>();
 
-    let isGenerating = false;
-    let isAssigning = false;
-    let isCompletingRoute = false;
-    let previouslyCompleted = false; // Track if we've already processed completion
-    let lastCompletedRouteId = ''; // Track which route was last completed
-    let routeCompletionState: 'pending' | 'processing' | 'completed' | 'error' = 'pending';
-    let completionTimeout: any = null;
+	let isAssigning = false;
+	let isCompletingRoute = false;
+	let previouslyCompleted = false; // Track if we've already processed completion
+	let lastCompletedJobId = ''; // Track which job was last completed
+	let jobCompletionState: 'pending' | 'processing' | 'completed' | 'error' = 'pending';
+	let completionTimeout: any = null;
+	let progressUpdateInterval: NodeJS.Timeout | null = null;
 
-    // Cleanup timeout on component destroy
-    onDestroy(() => {
-        if (completionTimeout) {
-            clearTimeout(completionTimeout);
-        }
-    });
+	// Cleanup timeout and interval on component destroy
+	onDestroy(() => {
+		if (completionTimeout) {
+			clearTimeout(completionTimeout);
+		}
+		if (progressUpdateInterval) {
+			clearInterval(progressUpdateInterval);
+		}
+	});
 
-    // Check if the currently selected route belongs to this employee
-    $: selectedRouteIsForThisEmployee = $selectedRoute && availableRoutes.some(route => route.id === $selectedRoute);
+	// Check if the currently selected route belongs to this employee
+	$: selectedRouteIsForThisEmployee =
+		$selectedRoute && availableRoutes.some((route) => route.id === $selectedRoute);
 
-    // Parse employee location - handle both SQLite (string) and PostgreSQL (object) formats
-    $: location = employee.location ? (() => {
-        try {
-            if (typeof employee.location === 'string') {
-                // SQLite format - parse JSON string
-                return JSON.parse(employee.location) as Address;
-            } else if (typeof employee.location === 'object') {
-                // PostgreSQL format - already an object
-                return employee.location as Address;
-            } else {
-                console.warn('Invalid location format for employee:', employee.name);
-                return null;
-            }
-        } catch (e) {
-            console.warn('Error parsing employee location:', employee.name, e);
-            return null;
-        }
-    })() : null;
-    $: upgradeState = (() => {
-        try {
-            if (typeof employee.upgradeState === 'string') {
-                // SQLite format - parse JSON string
-                return JSON.parse(employee.upgradeState) as { vehicleType: string; capacity: number };
-            } else if (typeof employee.upgradeState === 'object') {
-                // PostgreSQL format - already an object
-                return employee.upgradeState as { vehicleType: string; capacity: number };
-            } else {
-                console.warn('Invalid upgradeState format for employee:', employee.name);
-                return { vehicleType: 'bicycle', capacity: 10 };
-            }
-        } catch (e) {
-            console.warn('Error parsing employee upgradeState:', employee.name, e);
-            return { vehicleType: 'bicycle', capacity: 10 };
-        }
-    })();
+	// Job progress calculation - explicitly track activeJob changes for reactivity
+	let jobProgress: ReturnType<typeof calculateJobProgress> = null;
 
-    // Check if routes can be regenerated
-    $: canRegenerateRoutes = !employee.timeRoutesGenerated || 
-        (Date.now() - new Date(employee.timeRoutesGenerated).getTime()) >= MIN_ROUTE_REGEN_INTERVAL;
+	$: {
+		// Force reactivity by explicitly referencing activeJob and its properties
+		// This ensures the component reacts when activeJob prop changes
+		const activeJobId = activeJob?.id;
+		const activeJobStartTime = activeJob?.startTime;
 
-    // Calculate time until routes can be regenerated
-    $: timeUntilRegen = employee.timeRoutesGenerated ? 
-        Math.max(0, MIN_ROUTE_REGEN_INTERVAL - (Date.now() - new Date(employee.timeRoutesGenerated).getTime())) : 0;
-    $: regenWaitMinutes = Math.ceil(timeUntilRegen / 1000 / 60);
+		jobProgress = activeJob ? calculateJobProgress(activeJob) : null;
+	}
 
-    // Route progress calculation
-    $: routeProgress = currentRoute && currentRoute.startTime ? 
-        calculateRouteProgress(currentRoute) : null;
+	// Set up interval to update progress every second when job is active
+	$: if (activeJob && activeJob.startTime) {
+		// Clear any existing interval
+		if (progressUpdateInterval) {
+			clearInterval(progressUpdateInterval);
+		}
+		progressUpdateInterval = setInterval(() => {
+			// Recalculate progress using the current activeJob prop
+			// This will update the ETA every second for smooth animation
+			jobProgress = activeJob ? calculateJobProgress(activeJob) : null;
+		}, 1000);
+	} else {
+		// Clear interval when job is not active
+		if (progressUpdateInterval) {
+			clearInterval(progressUpdateInterval);
+			progressUpdateInterval = null;
+		}
+	}
 
-    // Handle route completion with debouncing and state machine
-    $: {
-        if (currentRoute && routeProgress?.isComplete && 
-            routeCompletionState === 'pending' && 
-            lastCompletedRouteId !== currentRoute.id) {
-            
-            // Set state to processing immediately to prevent multiple triggers
-            routeCompletionState = 'processing';
-            
-            // Clear any existing timeout
-            if (completionTimeout) {
-                clearTimeout(completionTimeout);
-            }
-            
-            // Debounce the completion call
-            completionTimeout = setTimeout(() => {
-                handleRouteCompletion();
-            }, 100); // 100ms debounce
-        }
-    }
+	// Handle job completion with debouncing and state machine
+	$: {
+		if (
+			activeJob &&
+			jobProgress?.isComplete &&
+			jobCompletionState === 'pending' &&
+			lastCompletedJobId !== activeJob.id
+		) {
+			// Set state to processing immediately to prevent multiple triggers
+			jobCompletionState = 'processing';
 
-    // Reset completion state when route changes or is cleared
-    $: if (!currentRoute) {
-        routeCompletionState = 'pending';
-        lastCompletedRouteId = '';
-        if (completionTimeout) {
-            clearTimeout(completionTimeout);
-            completionTimeout = null;
-        }
-    } else if (currentRoute && lastCompletedRouteId !== currentRoute.id) {
-        // New route started, reset completion state
-        routeCompletionState = 'pending';
-        if (completionTimeout) {
-            clearTimeout(completionTimeout);
-            completionTimeout = null;
-        }
-    }
+			// Clear any existing timeout
+			if (completionTimeout) {
+				clearTimeout(completionTimeout);
+			}
 
-    // Clear route selection when this employee's context changes
-    $: {
-        if (selectedRouteIsForThisEmployee) {
-            // Clear selection if this employee goes on a route
-            if (currentRoute) {
-                clearSelection();
-            }
-            // Clear selection if the selected route is no longer available for this employee
-            else if (availableRoutes.length === 0) {
-                clearSelection();
-            }
-        }
-    }
+			// Debounce the completion call
+			completionTimeout = setTimeout(() => {
+				handleJobCompletion();
+			}, 100); // 100ms debounce
+		}
+	}
 
-    // Is this employee selected?
-    $: isSelected = $selectedEmployee === employee.id;
+	// Reset completion state when job changes or is cleared
+	$: if (!activeJob) {
+		jobCompletionState = 'pending';
+		lastCompletedJobId = '';
+		if (completionTimeout) {
+			clearTimeout(completionTimeout);
+			completionTimeout = null;
+		}
+	} else if (activeJob && lastCompletedJobId !== activeJob.id) {
+		// New job started, reset completion state
+		jobCompletionState = 'pending';
+		if (completionTimeout) {
+			clearTimeout(completionTimeout);
+			completionTimeout = null;
+		}
+	}
 
-    // Tailwind class string for the card
-    $: cardClass = [
-        'card bg-base-200 shadow-lg border transition-all duration-150 cursor-pointer',
-        'focus:outline-none focus:ring-2 focus:ring-primary/70',
-        'hover:shadow-xl hover:border-primary/60',
-        isSelected ? 'border-4 border-primary ring-2 ring-primary/30 scale-105' : '',
-        'w-full',
-        'overflow-visible'
-    ].join(' ');
+	// Clear route selection when this employee's context changes
+	$: {
+		if (selectedRouteIsForThisEmployee) {
+			// Clear selection if this employee goes on a job
+			if (activeJob) {
+				clearSelection();
+			}
+			// Clear selection if the selected route is no longer available for this employee
+			else if (availableRoutes.length === 0) {
+				clearSelection();
+			}
+		}
+	}
 
-    function calculateRouteProgress(route: Route) {
-        if (!route.startTime) return null;
-        
-        const startTime = new Date(route.startTime).getTime();
-        const currentTime = Date.now();
-        
-        // Convert lengthTime to number if it's a string (PostgreSQL numeric fields)
-        const routeLengthTime = typeof route.lengthTime === 'string' ? parseFloat(route.lengthTime) : route.lengthTime;
-        const totalDuration = routeLengthTime * 1000; // Convert to milliseconds
-        
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(100, (elapsed / totalDuration) * 100);
-        const remainingTime = Math.max(0, totalDuration - elapsed);
-        
-        return {
-            progress,
-            remainingTimeMs: remainingTime,
-            isComplete: progress >= 100
-        };
-    }
+	// Is this employee selected?
+	$: isSelected = $selectedEmployee === employee.id;
 
-    async function handleGenerateRoutes() {
-        isGenerating = true;
-        
-        try {
-            const response = await fetch('/api/employees', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'generateRoutes',
-                    employeeId: employee.id,
-                    gameStateId
-                })
-            });
+	// Tailwind class string for the card
+	$: cardClass = [
+		'card bg-base-200 shadow cursor-pointer transition-all duration-150',
+		'hover:shadow-lg hover:border-primary/60',
+		isSelected ? 'border-2 border-primary ring-1 ring-primary/30' : 'border border-transparent',
+		'w-full'
+	].join(' ');
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to generate routes');
-            }
+	function calculateJobProgress(activeJob: ActiveJob) {
+		if (!activeJob.startTime) {
+			return null;
+		}
 
-            dispatch('generateRoutes', { employeeId: employee.id });
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to generate routes';
-            addError(`Route generation failed: ${errorMessage}`, 'error');
-        } finally {
-            isGenerating = false;
-        }
-    }
+		const startTime = new Date(activeJob.startTime).getTime();
+		const currentTime = Date.now();
+		const totalDurationMs = activeJob.durationSeconds * 1000;
+		const elapsed = currentTime - startTime;
+		const progress = Math.min(100, (elapsed / totalDurationMs) * 100);
+		const remainingTimeMs = Math.max(0, totalDurationMs - elapsed);
+		const isComplete = progress >= 100;
 
-    async function handleAssignRoute() {
-        if (!$selectedRoute || !selectedRouteIsForThisEmployee) return;
-        
-        isAssigning = true;
-        
-        try {
-            const response = await fetch('/api/employees', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'assignRoute',
-                    employeeId: employee.id,
-                    gameStateId,
-                    routeId: $selectedRoute
-                })
-            });
+		return {
+			progress,
+			remainingTimeMs,
+			isComplete,
+			currentPhase: 'on_job' as const // ActiveJob doesn't have currentPhase, default to 'on_job'
+		};
+	}
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to assign route');
-            }
+	async function handleAssignRoute() {
+		if (!$selectedRoute || !selectedRouteIsForThisEmployee) return;
 
-            dispatch('assignRoute', { employeeId: employee.id, routeId: $selectedRoute });
-            clearSelection(); // Clear selection after successful assignment
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to assign route';
-            addError(`Route assignment failed: ${errorMessage}`, 'error');
-        } finally {
-            isAssigning = false;
-        }
-    }
+		isAssigning = true;
 
-    async function handleRouteCompletion() {
-        if (!currentRoute || routeCompletionState !== 'processing') {
-            console.log('Route completion skipped:', { hasRoute: !!currentRoute, state: routeCompletionState });
-            return;
-        }
-        
-        // Additional safety check
-        if (lastCompletedRouteId === currentRoute.id) {
-            console.log('Route already completed:', currentRoute.id);
-            routeCompletionState = 'completed';
-            return;
-        }
-        
-        try {
-            console.log('Starting route completion for:', currentRoute.id);
-            
-            const response = await fetch('/api/employees', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'completeRoute',
-                    employeeId: employee.id,
-                    gameStateId,
-                    routeId: currentRoute.id
-                })
-            });
+		try {
+			const response = await fetch('/api/employees', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					action: 'assignRoute',
+					employeeId: employee.id,
+					gameStateId,
+					routeId: $selectedRoute
+				})
+			});
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to complete route');
-            }
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.message || 'Failed to assign route');
+			}
 
-            const result = await response.json();
-            console.log(`Route completed successfully! Earned ${result.reward}. New balance: ${result.newBalance}`);
-            
-            // Mark as completed and track the route ID
-            routeCompletionState = 'completed';
-            lastCompletedRouteId = currentRoute.id;
-            
-            // Dispatch event to refresh employee data
-            dispatch('routeCompleted', { employeeId: employee.id, reward: result.reward, newBalance: result.newBalance });
-        } catch (err) {
-            console.error('Error completing route:', err);
-            const errorMessage = err instanceof Error ? err.message : 'Failed to complete route';
-            
-            // Use error store instead of local error state
-            addError(`Route completion failed: ${errorMessage}`, 'error');
-            
-            // Set error state but don't reset to pending - let user handle manually
-            routeCompletionState = 'error';
-        }
-    }
+			dispatch('assignRoute', { employeeId: employee.id, routeId: $selectedRoute });
+			clearSelection(); // Clear selection after successful assignment
+		} catch (err) {
+			const errorMessage = err instanceof Error ? err.message : 'Failed to assign route';
+			addError(`Route assignment failed: ${errorMessage}`, 'error');
+		} finally {
+			isAssigning = false;
+		}
+	}
+
+	async function handleAssignJob(jobId: string) {
+		isAssigning = true;
+
+		try {
+			const response = await fetch('/api/employees', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					action: 'assignJob',
+					employeeId: employee.id,
+					gameStateId,
+					jobId: jobId
+				})
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.message || 'Failed to assign job');
+			}
+
+			dispatch('assignJob', { employeeId: employee.id, jobId: jobId });
+		} catch (err) {
+			const errorMessage = err instanceof Error ? err.message : 'Failed to assign job';
+			addError(`Job assignment failed: ${errorMessage}`, 'error');
+		} finally {
+			isAssigning = false;
+		}
+	}
+
+	async function handleJobCompletion() {
+		if (!activeJob || jobCompletionState !== 'processing') {
+			console.log('Job completion skipped:', {
+				hasActiveJob: !!activeJob,
+				state: jobCompletionState
+			});
+			return;
+		}
+
+		// Additional safety check
+		if (lastCompletedJobId === activeJob.id) {
+			console.log('Job already completed:', activeJob.id);
+			jobCompletionState = 'completed';
+			return;
+		}
+
+		try {
+			console.log('Starting job completion for:', activeJob.id);
+
+			const response = await fetch('/api/employees', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					action: 'completeJob',
+					employeeId: employee.id,
+					gameStateId,
+					activeJobId: activeJob.id
+				})
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.message || 'Failed to complete job');
+			}
+
+			const result = await response.json();
+			console.log(
+				`Job completed successfully! Earned ${result.reward}. New balance: ${result.newBalance}`
+			);
+
+			// Mark as completed and track the job ID
+			jobCompletionState = 'completed';
+			lastCompletedJobId = activeJob.id;
+
+			// Dispatch event to refresh employee data
+			dispatch('routeCompleted', {
+				employeeId: employee.id,
+				reward: result.reward,
+				newBalance: result.newBalance
+			});
+		} catch (err) {
+			console.error('Error completing job:', err);
+			const errorMessage = err instanceof Error ? err.message : 'Failed to complete job';
+
+			// Use error store instead of local error state
+			addError(`Job completion failed: ${errorMessage}`, 'error');
+
+			// Set error state but don't reset to pending - let user handle manually
+			jobCompletionState = 'error';
+		}
+	}
+
+	function handleClick() {
+		if (isSelected) {
+			// If already selected, unselect
+			selectEmployee(null);
+		} else {
+			// Select this employee
+			selectEmployee(employee.id);
+		}
+	}
+
+	function getXPForNextLevel(level: number): number {
+		return level * 100;
+	}
 </script>
 
 <button
-  type="button"
-  class={cardClass}
-  on:click={() => selectEmployee(employee.id)}
-  on:keydown={(e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      selectEmployee(employee.id);
-    }
-  }}
+	type="button"
+	class={cardClass}
+	on:click={handleClick}
+	on:keydown={(e) => {
+		if (e.key === 'Enter' || e.key === ' ') {
+			handleClick();
+		}
+	}}
 >
-    <div class="card-body p-6">
-        <div class="flex justify-between items-start mb-3">
-            <h3 class="card-title text-lg font-bold text-primary">{employee.name}</h3>
-            <div class="badge badge-secondary">{upgradeState.vehicleType}</div>
+	<div class="card-body p-3">
+		<!-- Employee Name -->
+		<h3 class="card-title mb-2 text-base font-semibold">{employee.name}</h3>
+
+		<!-- Current Job Progress -->
+		{#if activeJob && jobProgress}
+			<div class="mb-3">
+				<div class="mb-1 flex items-center justify-between">
+					<span class="text-xs text-base-content/70"> On Job </span>
+					<span class="text-xs text-base-content/70">
+						{Math.round(jobProgress.progress)}%
+					</span>
+				</div>
+
+				<progress
+					class="progress progress-primary h-2 w-full"
+					value={jobProgress.progress}
+					max="100"
+				></progress>
+
+				{#if !jobProgress.isComplete}
+					<div class="mt-1 text-xs text-base-content/60">
+						ETA: {formatTimeFromMs(jobProgress.remainingTimeMs)}
+					</div>
+				{:else}
+					<div class="mt-1 text-xs font-medium text-success">✅ Completed!</div>
+				{/if}
+			</div>
+		{:else}
+			<div class="mb-3">
+				<div class="text-xs italic text-base-content/60">Idle</div>
+			</div>
+		{/if}
+
+		<!-- Driving Level -->
+		<!-- TODO: Re-enable when Employee type is updated with new fields -->
+		<!-- 
+        <div class="space-y-1">
+            <div class="flex justify-between items-center">
+                <span class="text-xs font-medium text-base-content/80">🚗 Driving</span>
+                <span class="text-xs">Level {employee.drivingLevel.level}</span>
+            </div>
+            <progress 
+                class="progress progress-info w-full h-1.5" 
+                value={employee.drivingLevel.xp} 
+                max={getXPForNextLevel(employee.drivingLevel.level)}
+            ></progress>
         </div>
-
-        <!-- Current Status -->
-        {#if currentRoute}
-            <!-- On Route -->
-            <div class="mb-4">
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-sm font-medium">Route Progress</span>
-                    <span class="text-xs text-base-content/70">
-                        {routeProgress ? Math.round(routeProgress.progress) : 0}%
-                    </span>
-                </div>
-                
-                <progress 
-                    class="progress progress-primary w-full" 
-                    value={routeProgress?.progress || 0} 
-                    max="100"
-                ></progress>
-                
-                {#if routeProgress && !routeProgress.isComplete}
-                    <div class="text-xs text-base-content/70 mt-1">
-                        ETA: {formatTimeFromMs(routeProgress.remainingTimeMs)}
-                    </div>
-                {:else if routeProgress && routeProgress.isComplete}
-                    <div class="text-xs text-success mt-1 font-medium">
-                        {#if routeCompletionState === 'processing'}
-                            <span class="loading loading-spinner loading-xs"></span>
-                            Processing completion...
-                        {:else if routeCompletionState === 'completed'}
-                            ✅ Route Completed!
-                        {:else if routeCompletionState === 'error'}
-                            ❌ Completion failed - check errors
-                        {:else}
-                            ✅ Route Completed!
-                        {/if}
-                    </div>
-                {/if}
-
-                <!-- Route Details -->
-                <div class="mt-3 space-y-1 text-xs">
-                    <div><strong>From:</strong> {(() => {
-                        try {
-                            if (typeof currentRoute.startLocation === 'string') {
-                                return formatAddress(JSON.parse(currentRoute.startLocation));
-                            } else if (typeof currentRoute.startLocation === 'object') {
-                                return formatAddress(currentRoute.startLocation as Address);
-                            } else {
-                                return 'Unknown location';
-                            }
-                        } catch (e) {
-                            return 'Unknown location';
-                        }
-                    })()}</div>
-                    <div><strong>To:</strong> {(() => {
-                        try {
-                            if (typeof currentRoute.endLocation === 'string') {
-                                return formatAddress(JSON.parse(currentRoute.endLocation));
-                            } else if (typeof currentRoute.endLocation === 'object') {
-                                return formatAddress(currentRoute.endLocation as Address);
-                            } else {
-                                return 'Unknown location';
-                            }
-                        } catch (e) {
-                            return 'Unknown location';
-                        }
-                    })()}</div>
-                    <div class="flex justify-between">
-                        <span><strong>Goods:</strong> {currentRoute.goodsType}</span>
-                        <span><strong>Reward:</strong> {formatMoney(currentRoute.reward)}</span>
-                    </div>
-                </div>
-            </div>
-        {:else}
-            <!-- Not on Route -->
-            <div class="mb-4">
-                <div class="text-sm mb-2">
-                    <strong>Current Location:</strong>
-                    {#if location}
-                        <div class="text-xs text-base-content/70">{formatAddress(location)}</div>
-                    {:else}
-                        <div class="text-xs text-error">No location set</div>
-                    {/if}
-                </div>
-
-                {#if availableRoutes.length > 0}
-                    <!-- Route Selection -->
-                    <div class="form-control">
-                        <div class="label py-1">
-                            <span class="label-text text-xs">Available Routes</span>
-                        </div>
-                        
-                        <!-- Route Cards -->
-                        <div class="space-y-2 max-h-120 overflow-visible p-2">
-                            {#each availableRoutes as route (route.id)}
-                                <RouteCard {route} />
-                            {/each}
-                        </div>
-                        
-                        <!-- Go Button -->
-                        <div class="mt-3 pl-4">
-                            <button 
-                                class="btn btn-success btn-md max-w-lg"
-                                on:click={handleAssignRoute}
-                                disabled={!selectedRouteIsForThisEmployee || isAssigning}
-                            >
-                                {#if isAssigning}
-                                    <span class="loading loading-spinner loading-xs"></span>
-                                    Assigning...
-                                {:else}
-                                    <svg class="w-4 h-4 mr-2 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                                    </svg>
-                                    Start Route
-                                {/if}
-                            </button>
-                        </div>
-                    </div>
-                {:else}
-                    <!-- Generate Routes -->
-                    <div class="text-center">
-                        <button 
-                            class="btn btn-outline btn-sm"
-                            class:btn-disabled={!canRegenerateRoutes}
-                            on:click={handleGenerateRoutes}
-                            disabled={isGenerating || !canRegenerateRoutes}
-                        >
-                            {#if isGenerating}
-                                <span class="loading loading-spinner loading-xs"></span>
-                                Generating...
-                            {:else if !canRegenerateRoutes}
-                                Routes in {regenWaitMinutes}min
-                            {:else}
-                                Generate Routes
-                            {/if}
-                        </button>
-                    </div>
-                {/if}
-            </div>
-        {/if}
-
-        <!-- Employee Stats -->
-        <div class="stats stats-horizontal shadow bg-base-200">
-            <div class="stat py-2 px-3">
-                <div class="stat-title text-xs">Speed</div>
-                <div class="stat-value text-sm">{employee.speedMultiplier}x</div>
-            </div>
-            <div class="stat py-2 px-3">
-                <div class="stat-title text-xs">Capacity</div>
-                <div class="stat-value text-sm">{upgradeState.capacity}</div>
-            </div>
-        </div>
-    </div>
-</button> 
+        -->
+	</div>
+</button>

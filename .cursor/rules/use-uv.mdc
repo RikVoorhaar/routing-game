@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+use UV for python package management. the environment is already installed, just use `uv` sync whenever in the `osm_utils` folder.
