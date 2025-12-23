@@ -167,9 +167,7 @@
 
 		isLoadingActiveJobs = true;
 		try {
-			const response = await fetch(
-				`/api/active-jobs?jobId=${jobId}&gameStateId=${gameStateId}`
-			);
+			const response = await fetch(`/api/active-jobs?jobId=${jobId}&gameStateId=${gameStateId}`);
 			if (response.ok) {
 				const allActiveJobs = await response.json();
 
