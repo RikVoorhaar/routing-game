@@ -31,10 +31,7 @@
 
 	// Get employee capacity using config values if available
 	$: employeeCapacity = employee
-		? getEmployeeCapacity(
-				employee,
-				$config?.upgrades.effects.FURNITURE.capacityPerLevel ?? 0.05
-		  )
+		? getEmployeeCapacity(employee, $config?.upgrades.effects.FURNITURE.capacityPerLevel ?? 0.05)
 		: 0;
 </script>
 

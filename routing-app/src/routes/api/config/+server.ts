@@ -9,4 +9,3 @@ import { config } from '$lib/server/config';
 export const GET: RequestHandler = async () => {
 	return json(config);
 };
-

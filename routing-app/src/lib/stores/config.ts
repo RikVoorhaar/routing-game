@@ -45,7 +45,7 @@ async function loadConfig(): Promise<void> {
  */
 export const config = {
 	subscribe: configStore.subscribe,
-	
+
 	/**
 	 * Load config from server (idempotent - won't reload if already loaded)
 	 */
@@ -56,7 +56,7 @@ export const config = {
 		}
 		return loadConfig();
 	},
-	
+
 	/**
 	 * Reload config from server (forces reload even if already loaded)
 	 */
@@ -71,4 +71,3 @@ export const config = {
 if (typeof window !== 'undefined') {
 	loadConfig();
 }
-
