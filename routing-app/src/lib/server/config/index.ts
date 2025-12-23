@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { readFileSync, watchFile, unwatchFile } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { load } from 'js-yaml';
@@ -11,14 +11,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
+ * Resolve config path relative to the routing-app root
+ */
+const configPath = join(__dirname, '../../../..', 'game-config.yaml');
+
+/**
  * Loads and validates the game configuration from game-config.yaml
- * This is loaded once at module initialization and cached
  */
 function loadConfig(): GameConfig {
-	// Resolve config path relative to the routing-app root
-	// __dirname is src/lib/server/config, so we go up 4 levels to get to routing-app root
-	const configPath = join(__dirname, '../../../..', 'game-config.yaml');
-
 	try {
 		const fileContents = readFileSync(configPath, 'utf-8');
 		const config = load(fileContents) as GameConfig;
@@ -193,7 +193,7 @@ function validateConfig(config: GameConfig): void {
 	}
 }
 
-// Load config once at module initialization
+// Load config - will be reloaded on file changes in dev mode
 let config: GameConfig;
 try {
 	config = loadConfig();
@@ -203,7 +203,49 @@ try {
 }
 
 /**
+ * Reloads the config from disk
+ */
+function reloadConfig(): void {
+	try {
+		const newConfig = loadConfig();
+		config = newConfig;
+		console.log('[Config] Reloaded game-config.yaml');
+		
+		// Invalidate Vite HMR if available
+		if (import.meta.hot) {
+			import.meta.hot.send('config:reload', { timestamp: Date.now() });
+		}
+	} catch (error) {
+		console.error('[Config] Failed to reload configuration:', error);
+		// Keep using the old config if reload fails
+	}
+}
+
+// Set up file watching in development mode
+if (import.meta.hot || process.env.NODE_ENV !== 'production') {
+	// Watch the config file for changes
+	watchFile(
+		configPath,
+		{ interval: 1000 }, // Check every second
+		(curr, prev) => {
+			// Only reload if the file was actually modified (not just accessed)
+			if (curr.mtimeMs !== prev.mtimeMs) {
+				reloadConfig();
+			}
+		}
+	);
+
+	// Clean up watcher on module unload (for HMR)
+	if (import.meta.hot) {
+		import.meta.hot.on('vite:beforeFullReload', () => {
+			unwatchFile(configPath);
+		});
+	}
+}
+
+/**
  * Exported config store - use this throughout the server-side code
+ * In dev mode, this will automatically reload when game-config.yaml changes
  */
 export { config };
 export type { GameConfig };

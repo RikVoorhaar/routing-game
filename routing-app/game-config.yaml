@@ -2,7 +2,7 @@
 # All monetary values in euros, time values in seconds unless specified
 
 game:
-  startingMoney: 500
+  startingMoney: 0
 
 employees:
   hiring:
