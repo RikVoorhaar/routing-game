@@ -6,3 +6,10 @@ build
 # Log files
 logs/
 *.log
+
+# Profiling artifacts (0x, clinic, v8 profiler logs)
+*.0x/
+*.clinic-*/
+isolate-*.log
+isolate-*.log.json
+isolate-*.log.preprocess-ready
