@@ -56,10 +56,10 @@ export function applyMaxSpeed(
 			const prevOriginalCumulativeTime = i > 0 ? route.path[i - 1].cumulative_time_seconds : 0;
 			const currentOriginalCumulativeTime = route.path[i].cumulative_time_seconds;
 			let segmentTime = currentOriginalCumulativeTime - prevOriginalCumulativeTime;
-			
+
 			// Apply the time multiplier to walking segments as well
 			segmentTime *= timeMultiplier;
-			
+
 			cumulativeTimeSeconds += segmentTime;
 			cumulativeDistanceMeters = point.cumulative_distance_meters;
 			// Update the point's cumulative time to match our calculated value
