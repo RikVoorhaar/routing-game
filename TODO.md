@@ -6,7 +6,7 @@ BUGS:
 - [X] When hiring a new employee, they don't show up on the map until refershing page.
 - [X] After reaching the destination, the marker doesn't update state and should show the 'idle' state.
 - [X] In the employees list, the state doesn't update when a job is started.
-- [ ] When accepting a job we see a 'failed to load active job' error displayed in a notification.
+- [x] When accepting a job we see a 'failed to load active job' error displayed in a notification.
 - [ ] The ETA in the employee card doesn't update every second, only on page refresh or if the state of another employee changes and a refersh is triggered. The ETA should be animated.
 - [ ] Unaivailable employees are still shown in the dropdown for selecting an employee in the job card
 - [ ] The 'complete all active routes cheat' doesn't work, and throws an error:

@@ -161,13 +161,23 @@
 	async function loadActiveJobsForJob() {
 		if (!$selectedJob || !$currentGameState) return;
 
+		// Store the job ID locally to avoid race conditions when $selectedJob becomes null
+		const jobId = $selectedJob.id;
+		const gameStateId = $currentGameState.id;
+
 		isLoadingActiveJobs = true;
 		try {
 			const response = await fetch(
-				`/api/active-jobs?jobId=${$selectedJob.id}&gameStateId=${$currentGameState.id}`
+				`/api/active-jobs?jobId=${jobId}&gameStateId=${gameStateId}`
 			);
 			if (response.ok) {
 				const allActiveJobs = await response.json();
+
+				// Double-check that $selectedJob is still set before processing results
+				// This prevents errors if the job was cleared while the fetch was in progress
+				if (!$selectedJob || $selectedJob.id !== jobId) {
+					return;
+				}
 
 				// Group active jobs by employee ID for this job
 				const jobActiveJobs: Record<
@@ -182,18 +192,24 @@
 				> = {};
 
 				for (const activeJob of allActiveJobs) {
-					if (activeJob.jobId === $selectedJob.id) {
+					if (activeJob.jobId === jobId) {
 						jobActiveJobs[activeJob.employeeId] = { activeJob };
 					}
 				}
 
 				activeJobsByEmployee.set(jobActiveJobs);
 			} else {
-				addError('Failed to load active jobs', 'error');
+				// Only show error if the job is still selected (avoid showing error after clearing)
+				if ($selectedJob && $selectedJob.id === jobId) {
+					addError('Failed to load active jobs', 'error');
+				}
 			}
 		} catch (error) {
 			console.error('Error loading active jobs:', error);
-			addError('Failed to load active jobs', 'error');
+			// Only show error if the job is still selected (avoid showing error after clearing)
+			if ($selectedJob && $selectedJob.id === jobId) {
+				addError('Failed to load active jobs', 'error');
+			}
 		} finally {
 			isLoadingActiveJobs = false;
 		}
