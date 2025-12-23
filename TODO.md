@@ -7,28 +7,9 @@ BUGS:
 - [X] After reaching the destination, the marker doesn't update state and should show the 'idle' state.
 - [X] In the employees list, the state doesn't update when a job is started.
 - [x] When accepting a job we see a 'failed to load active job' error displayed in a notification.
-- [ ] The ETA in the employee card doesn't update every second, only on page refresh or if the state of another employee changes and a refersh is triggered. The ETA should be animated.
+- [x] The ETA in the employee card doesn't update every second, only on page refresh or if the state of another employee changes and a refersh is triggered. The ETA should be animated.
 - [ ] Unaivailable employees are still shown in the dropdown for selecting an employee in the job card
-- [ ] The 'complete all active routes cheat' doesn't work, and throws an error:
-  ```typescript
-  Error completing routes via cheat: PostgresError: syntax error at or near "="
-      at ErrorResponse (file:///home/rik/git/routing-game/routing-app/node_modules/postgres/src/connection.js:794:26)
-      at handle (file:///home/rik/git/routing-game/routing-app/node_modules/postgres/src/connection.js:480:6)
-      at Socket.data (file:///home/rik/git/routing-game/routing-app/node_modules/postgres/src/connection.js:315:9)
-      at Socket.emit (node:events:508:28)
-      at addChunk (node:internal/streams/readable:559:12)
-      at readableAddChunkPushByteMode (node:internal/streams/readable:510:3)
-      at Readable.push (node:internal/streams/readable:390:5)
-      at TCP.onStreamRead (node:internal/stream_base_commons:189:23) {
-    severity_local: 'ERROR',
-    severity: 'ERROR',
-    code: '42601',
-    position: '1046',
-    file: 'scan.l',
-    line: '1244',
-    routine: 'scanner_yyerror'
-  }
-  ```
+- [X] The 'complete all active routes cheat' doesn't work, and throws an error:
 
 ENHANCEMENTS:
 - [ ] When showing a preview of a route, the colors should be different for the route to the start, and the end marker. 

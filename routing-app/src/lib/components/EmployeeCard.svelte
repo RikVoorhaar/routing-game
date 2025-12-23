@@ -10,7 +10,6 @@
 	export let employee: Employee;
 	export let availableRoutes: any[] = [];
 	export let activeJob: ActiveJob | null = null;
-	export let activeRoute: any | null = null; // Add activeRoute prop
 	export let gameStateId: string;
 
 	const dispatch = createEventDispatcher<{
