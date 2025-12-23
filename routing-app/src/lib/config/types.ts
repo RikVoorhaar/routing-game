@@ -96,4 +96,3 @@ export interface GameConfig {
 		moneyMultiplier: number;
 	};
 }
-
