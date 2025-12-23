@@ -74,19 +74,24 @@ export interface GameConfig {
 			};
 		};
 	};
-	vehicles: Record<string, {
-		baseCost: number;
-		capacity: number;
-		maxSpeed: number;
-	}>;
-	licenses: Record<string, {
-		minDrivingLevel: number;
-		cost: number;
-	}>;
+	vehicles: Record<
+		string,
+		{
+			baseCost: number;
+			capacity: number;
+			maxSpeed: number;
+		}
+	>;
+	licenses: Record<
+		string,
+		{
+			minDrivingLevel: number;
+			cost: number;
+		}
+	>;
 	dev: {
 		speedMultiplier: number;
 		xpMultiplier: number;
 		moneyMultiplier: number;
 	};
 }
-

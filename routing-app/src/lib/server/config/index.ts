@@ -59,10 +59,16 @@ function validateConfig(config: GameConfig): void {
 	if (!config.employees?.hiring) {
 		errors.push('employees.hiring section is required');
 	} else {
-		if (typeof config.employees.hiring.baseCost !== 'number' || config.employees.hiring.baseCost < 0) {
+		if (
+			typeof config.employees.hiring.baseCost !== 'number' ||
+			config.employees.hiring.baseCost < 0
+		) {
 			errors.push('employees.hiring.baseCost must be a non-negative number');
 		}
-		if (typeof config.employees.hiring.exponent !== 'number' || config.employees.hiring.exponent < 0) {
+		if (
+			typeof config.employees.hiring.exponent !== 'number' ||
+			config.employees.hiring.exponent < 0
+		) {
 			errors.push('employees.hiring.exponent must be a non-negative number');
 		}
 		if (typeof config.employees.hiring.firstEmployeeFree !== 'boolean') {
@@ -89,16 +95,25 @@ function validateConfig(config: GameConfig): void {
 		if (!config.jobs.value) {
 			errors.push('jobs.value section is required');
 		} else {
-			if (typeof config.jobs.value.distanceFactor !== 'number' || config.jobs.value.distanceFactor < 0) {
+			if (
+				typeof config.jobs.value.distanceFactor !== 'number' ||
+				config.jobs.value.distanceFactor < 0
+			) {
 				errors.push('jobs.value.distanceFactor must be a non-negative number');
 			}
 			if (typeof config.jobs.value.timeFactor !== 'number' || config.jobs.value.timeFactor < 0) {
 				errors.push('jobs.value.timeFactor must be a non-negative number');
 			}
-			if (typeof config.jobs.value.tierMultiplier !== 'number' || config.jobs.value.tierMultiplier <= 0) {
+			if (
+				typeof config.jobs.value.tierMultiplier !== 'number' ||
+				config.jobs.value.tierMultiplier <= 0
+			) {
 				errors.push('jobs.value.tierMultiplier must be a positive number');
 			}
-			if (typeof config.jobs.value.randomFactorMax !== 'number' || config.jobs.value.randomFactorMax <= 0) {
+			if (
+				typeof config.jobs.value.randomFactorMax !== 'number' ||
+				config.jobs.value.randomFactorMax <= 0
+			) {
 				errors.push('jobs.value.randomFactorMax must be a positive number');
 			}
 		}
@@ -106,13 +121,22 @@ function validateConfig(config: GameConfig): void {
 		if (!config.jobs.generation) {
 			errors.push('jobs.generation section is required');
 		} else {
-			if (typeof config.jobs.generation.maxTier !== 'number' || config.jobs.generation.maxTier < 1) {
+			if (
+				typeof config.jobs.generation.maxTier !== 'number' ||
+				config.jobs.generation.maxTier < 1
+			) {
 				errors.push('jobs.generation.maxTier must be >= 1');
 			}
-			if (typeof config.jobs.generation.maxJobsPerTile !== 'number' || config.jobs.generation.maxJobsPerTile < 1) {
+			if (
+				typeof config.jobs.generation.maxJobsPerTile !== 'number' ||
+				config.jobs.generation.maxJobsPerTile < 1
+			) {
 				errors.push('jobs.generation.maxJobsPerTile must be >= 1');
 			}
-			if (typeof config.jobs.generation.minTileLevel !== 'number' || config.jobs.generation.minTileLevel < 0) {
+			if (
+				typeof config.jobs.generation.minTileLevel !== 'number' ||
+				config.jobs.generation.minTileLevel < 0
+			) {
 				errors.push('jobs.generation.minTileLevel must be >= 0');
 			}
 		}
@@ -163,7 +187,9 @@ function validateConfig(config: GameConfig): void {
 	}
 
 	if (errors.length > 0) {
-		throw new Error(`Configuration validation failed:\n${errors.map((e) => `  - ${e}`).join('\n')}`);
+		throw new Error(
+			`Configuration validation failed:\n${errors.map((e) => `  - ${e}`).join('\n')}`
+		);
 	}
 }
 
@@ -181,4 +207,3 @@ try {
  */
 export { config };
 export type { GameConfig };
-

@@ -28,7 +28,7 @@ function getCategoryMultipliers(): Record<JobCategory, number> {
 		[JobCategory.LIQUIDS]: 'LIQUIDS',
 		[JobCategory.TOXIC_GOODS]: 'TOXIC_GOODS'
 	};
-	
+
 	const multipliers = {} as Record<JobCategory, number>;
 	for (const [category, key] of Object.entries(categoryKeys) as [JobCategory, string][]) {
 		multipliers[category] = config.jobs.categories.multipliers[key];
@@ -51,7 +51,7 @@ function getCategoryMinTiers(): Record<JobCategory, number> {
 		[JobCategory.LIQUIDS]: 'LIQUIDS',
 		[JobCategory.TOXIC_GOODS]: 'TOXIC_GOODS'
 	};
-	
+
 	const minTiers = {} as Record<JobCategory, number>;
 	for (const [category, key] of Object.entries(categoryKeys) as [JobCategory, string][]) {
 		minTiers[category] = config.jobs.categories.minTiers[key];

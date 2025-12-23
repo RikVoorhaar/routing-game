@@ -65,7 +65,8 @@ export function canEmployeeDoJobCategory(employee: Employee, jobCategory: JobCat
 export function getEmployeeCapacity(employee: Employee): number {
 	const baseCapacity = getVehicleConfig(employee.vehicleLevel).capacity;
 	const furnitureUpgradeLevel = employee.upgradeState[JobCategory.FURNITURE];
-	const furnitureCapacityBonus = furnitureUpgradeLevel * config.upgrades.effects.FURNITURE.capacityPerLevel;
+	const furnitureCapacityBonus =
+		furnitureUpgradeLevel * config.upgrades.effects.FURNITURE.capacityPerLevel;
 
 	return Math.floor(baseCapacity * (1 + furnitureCapacityBonus));
 }
@@ -76,7 +77,8 @@ export function getEmployeeCapacity(employee: Employee): number {
 export function getEmployeeMaxSpeed(employee: Employee): number {
 	const baseMaxSpeed = getVehicleConfig(employee.vehicleLevel).maxSpeed;
 	const fragileGoodsUpgradeLevel = employee.upgradeState[JobCategory.FRAGILE_GOODS];
-	const speedBonus = fragileGoodsUpgradeLevel * config.upgrades.effects.FRAGILE_GOODS.maxSpeedPerLevel;
+	const speedBonus =
+		fragileGoodsUpgradeLevel * config.upgrades.effects.FRAGILE_GOODS.maxSpeedPerLevel;
 
 	return baseMaxSpeed + speedBonus;
 }
@@ -118,7 +120,9 @@ export function getRouteTimeMultiplier(employee: Employee): number {
  */
 export function getNodeToAddressTimeMultiplier(employee: Employee): number {
 	const packagesUpgradeLevel = employee.upgradeState[JobCategory.PACKAGES];
-	return 1 - packagesUpgradeLevel * config.upgrades.effects.PACKAGES.nodeToAddressTimeReductionPerLevel;
+	return (
+		1 - packagesUpgradeLevel * config.upgrades.effects.PACKAGES.nodeToAddressTimeReductionPerLevel
+	);
 }
 
 /**
@@ -126,7 +130,9 @@ export function getNodeToAddressTimeMultiplier(employee: Employee): number {
  */
 export function getUpgradeCostMultiplier(employee: Employee): number {
 	const toxicGoodsUpgradeLevel = employee.upgradeState[JobCategory.TOXIC_GOODS];
-	return 1 - toxicGoodsUpgradeLevel * config.upgrades.effects.TOXIC_GOODS.upgradeCostReductionPerLevel;
+	return (
+		1 - toxicGoodsUpgradeLevel * config.upgrades.effects.TOXIC_GOODS.upgradeCostReductionPerLevel
+	);
 }
 
 /**
@@ -168,7 +174,10 @@ export function computeEmployeeCosts(existingEmployeeCount: number): number {
 	if (existingEmployeeCount === 0 && config.employees.hiring.firstEmployeeFree) {
 		return 0; // First employee is free
 	}
-	return config.employees.hiring.baseCost * Math.pow(existingEmployeeCount, config.employees.hiring.exponent);
+	return (
+		config.employees.hiring.baseCost *
+		Math.pow(existingEmployeeCount, config.employees.hiring.exponent)
+	);
 }
 
 export const DEFAULT_EMPLOYEE_LOCATION = {

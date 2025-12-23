@@ -22,10 +22,10 @@ xp:
 jobs:
   value:
     # Base value calculation factors
-    distanceFactor: 1.0  # euros per kilometer
-    timeFactor: 0.005556  # euros per second (20 euros/hour = 20/3600)
-    tierMultiplier: 1.2  # multiplier per tier level
-    randomFactorMax: 10.0  # max random factor multiplier (from -log(1-random))
+    distanceFactor: 1.0 # euros per kilometer
+    timeFactor: 0.005556 # euros per second (20 euros/hour = 20/3600)
+    tierMultiplier: 1.2 # multiplier per tier level
+    randomFactorMax: 10.0 # max random factor multiplier (from -log(1-random))
 
   generation:
     maxTier: 8
@@ -57,7 +57,7 @@ jobs:
 
 upgrades:
   baseCost: 50
-  costExponent: 2  # cost = baseCost * (costExponent ^ (level - 1))
+  costExponent: 2 # cost = baseCost * (costExponent ^ (level - 1))
 
   effects:
     GROCERIES:
@@ -179,7 +179,7 @@ licenses:
 
 dev:
   # Global multipliers for development/testing
-  speedMultiplier: 1.0  # Multiply all route times by this (0.1 = 10x faster)
-  xpMultiplier: 1.0  # Multiply all XP gains by this
-  moneyMultiplier: 1.0  # Multiply all money gains by this
+  speedMultiplier: 1.0 # Multiply all route times by this (0.1 = 10x faster)
+  xpMultiplier: 1.0 # Multiply all XP gains by this
+  moneyMultiplier: 1.0 # Multiply all money gains by this
 

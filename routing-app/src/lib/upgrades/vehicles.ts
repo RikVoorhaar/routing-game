@@ -57,7 +57,10 @@ export interface LicenseConfig {
 }
 
 // Vehicle metadata (not in config - these are structural)
-const VEHICLE_METADATA: Record<VehicleType, { name: string; minLicenseLevel: LicenseType; vehicleClass: VehicleClass }> = {
+const VEHICLE_METADATA: Record<
+	VehicleType,
+	{ name: string; minLicenseLevel: LicenseType; vehicleClass: VehicleClass }
+> = {
 	[VehicleType.BIKE]: {
 		name: 'Bike',
 		minLicenseLevel: LicenseType.UNLICENSED,
@@ -133,7 +136,7 @@ const VEHICLE_METADATA: Record<VehicleType, { name: string; minLicenseLevel: Lic
 // Build vehicle configs from YAML config and metadata
 function buildVehicleConfigs(): Record<VehicleType, VehicleConfig> {
 	const configs = {} as Record<VehicleType, VehicleConfig>;
-	
+
 	// Map enum values to their string keys
 	const vehicleTypeKeys: Record<VehicleType, keyof typeof VehicleType> = {
 		[VehicleType.BIKE]: 'BIKE',
@@ -151,16 +154,18 @@ function buildVehicleConfigs(): Record<VehicleType, VehicleConfig> {
 		[VehicleType.SINGLE_TRAILER_TRUCK]: 'SINGLE_TRAILER_TRUCK',
 		[VehicleType.DOUBLE_TRAILER_TRUCK]: 'DOUBLE_TRAILER_TRUCK'
 	};
-	
-	for (const vehicleType of Object.values(VehicleType).filter((v) => typeof v === 'number') as VehicleType[]) {
+
+	for (const vehicleType of Object.values(VehicleType).filter(
+		(v) => typeof v === 'number'
+	) as VehicleType[]) {
 		const typeKey = vehicleTypeKeys[vehicleType];
 		const metadata = VEHICLE_METADATA[vehicleType];
 		const vehicleConfig = config.vehicles[typeKey];
-		
+
 		if (!vehicleConfig) {
 			throw new Error(`Vehicle config not found for ${typeKey}`);
 		}
-		
+
 		configs[vehicleType] = {
 			name: metadata.name,
 			baseCost: vehicleConfig.baseCost,
@@ -170,7 +175,7 @@ function buildVehicleConfigs(): Record<VehicleType, VehicleConfig> {
 			vehicleClass: metadata.vehicleClass
 		};
 	}
-	
+
 	return configs;
 }
 
@@ -213,7 +218,7 @@ const LICENSE_METADATA: Record<LicenseType, { name: string }> = {
 // Build license configs from YAML config and metadata
 function buildLicenseConfigs(): Record<LicenseType, LicenseConfig> {
 	const configs = {} as Record<LicenseType, LicenseConfig>;
-	
+
 	// Map enum values to their string keys
 	const licenseTypeKeys: Record<LicenseType, keyof typeof LicenseType> = {
 		[LicenseType.UNLICENSED]: 'UNLICENSED',
@@ -226,23 +231,25 @@ function buildLicenseConfigs(): Record<LicenseType, LicenseConfig> {
 		[LicenseType.LIQUID_GOODS]: 'LIQUID_GOODS',
 		[LicenseType.TOXIC_GOODS]: 'TOXIC_GOODS'
 	};
-	
-	for (const licenseType of Object.values(LicenseType).filter((v) => typeof v === 'number') as LicenseType[]) {
+
+	for (const licenseType of Object.values(LicenseType).filter(
+		(v) => typeof v === 'number'
+	) as LicenseType[]) {
 		const typeKey = licenseTypeKeys[licenseType];
 		const metadata = LICENSE_METADATA[licenseType];
 		const licenseConfig = config.licenses[typeKey];
-		
+
 		if (!licenseConfig) {
 			throw new Error(`License config not found for ${typeKey}`);
 		}
-		
+
 		configs[licenseType] = {
 			name: metadata.name,
 			minDrivingLevel: licenseConfig.minDrivingLevel,
 			cost: licenseConfig.cost
 		};
 	}
-	
+
 	return configs;
 }
 
