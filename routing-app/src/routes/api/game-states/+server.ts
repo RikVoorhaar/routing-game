@@ -4,6 +4,7 @@ import { db } from '$lib/server/db';
 import { gameStates, users } from '$lib/server/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
+import { config } from '$lib/server/config';
 
 // GET /api/game-states - Get all game states for the current user
 export const GET: RequestHandler = async ({ locals }) => {
@@ -63,7 +64,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			name: name.trim(),
 			userId: session.user.id,
 			createdAt: new Date(Date.now()),
-			money: '500',
+			money: config.game.startingMoney.toString(),
 			routeLevel: 3
 		};
 

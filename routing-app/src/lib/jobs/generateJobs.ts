@@ -7,42 +7,63 @@ import { db } from '$lib/server/db/standalone';
 import { inArray } from 'drizzle-orm';
 import { distance } from '@turf/turf';
 import { JobCategory } from '$lib/jobs/jobCategories';
+import { config } from '$lib/server/config';
 
 type JobInsert = InferInsertModel<typeof jobs>;
 // Constants for job generation
 export const ROUTE_DISTANCES_KM = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
 
-export const MAX_TIER = 8; // Cut off at tier 8 for small map
+export const MAX_TIER = config.jobs.generation.maxTier;
 
-// Category multipliers for value calculation
-const CATEGORY_MULTIPLIERS = {
-	[JobCategory.GROCERIES]: 1,
-	[JobCategory.PACKAGES]: 1,
-	[JobCategory.FOOD]: 1.2,
-	[JobCategory.FURNITURE]: 1.5,
-	[JobCategory.PEOPLE]: 2.0,
-	[JobCategory.FRAGILE_GOODS]: 3.0,
-	[JobCategory.CONSTRUCTION]: 4.0,
-	[JobCategory.LIQUIDS]: 6.0,
-	[JobCategory.TOXIC_GOODS]: 10.0
-};
+// Category multipliers for value calculation - loaded from config
+function getCategoryMultipliers(): Record<JobCategory, number> {
+	const categoryKeys: Record<JobCategory, string> = {
+		[JobCategory.GROCERIES]: 'GROCERIES',
+		[JobCategory.PACKAGES]: 'PACKAGES',
+		[JobCategory.FOOD]: 'FOOD',
+		[JobCategory.FURNITURE]: 'FURNITURE',
+		[JobCategory.PEOPLE]: 'PEOPLE',
+		[JobCategory.FRAGILE_GOODS]: 'FRAGILE_GOODS',
+		[JobCategory.CONSTRUCTION]: 'CONSTRUCTION',
+		[JobCategory.LIQUIDS]: 'LIQUIDS',
+		[JobCategory.TOXIC_GOODS]: 'TOXIC_GOODS'
+	};
+	
+	const multipliers = {} as Record<JobCategory, number>;
+	for (const [category, key] of Object.entries(categoryKeys) as [JobCategory, string][]) {
+		multipliers[category] = config.jobs.categories.multipliers[key];
+	}
+	return multipliers;
+}
 
-// Minimum tier requirements for each category
-const CATEGORY_MIN_TIERS = {
-	[JobCategory.GROCERIES]: 1,
-	[JobCategory.PACKAGES]: 1,
-	[JobCategory.FOOD]: 2,
-	[JobCategory.FURNITURE]: 3,
-	[JobCategory.PEOPLE]: 4,
-	[JobCategory.FRAGILE_GOODS]: 5,
-	[JobCategory.CONSTRUCTION]: 6,
-	[JobCategory.LIQUIDS]: 7,
-	[JobCategory.TOXIC_GOODS]: 8
-};
+const CATEGORY_MULTIPLIERS = getCategoryMultipliers();
 
-// Value calculation constants
-const DEFAULT_DISTANCE_FACTOR = 1; // 1 euro per kilometer
-const DEFAULT_TIME_FACTOR = 20.0 / 3600; // 20 euros per hour
+// Minimum tier requirements for each category - loaded from config
+function getCategoryMinTiers(): Record<JobCategory, number> {
+	const categoryKeys: Record<JobCategory, string> = {
+		[JobCategory.GROCERIES]: 'GROCERIES',
+		[JobCategory.PACKAGES]: 'PACKAGES',
+		[JobCategory.FOOD]: 'FOOD',
+		[JobCategory.FURNITURE]: 'FURNITURE',
+		[JobCategory.PEOPLE]: 'PEOPLE',
+		[JobCategory.FRAGILE_GOODS]: 'FRAGILE_GOODS',
+		[JobCategory.CONSTRUCTION]: 'CONSTRUCTION',
+		[JobCategory.LIQUIDS]: 'LIQUIDS',
+		[JobCategory.TOXIC_GOODS]: 'TOXIC_GOODS'
+	};
+	
+	const minTiers = {} as Record<JobCategory, number>;
+	for (const [category, key] of Object.entries(categoryKeys) as [JobCategory, string][]) {
+		minTiers[category] = config.jobs.categories.minTiers[key];
+	}
+	return minTiers;
+}
+
+const CATEGORY_MIN_TIERS = getCategoryMinTiers();
+
+// Value calculation constants - loaded from config
+const DEFAULT_DISTANCE_FACTOR = config.jobs.value.distanceFactor;
+const DEFAULT_TIME_FACTOR = config.jobs.value.timeFactor;
 
 /**
  * Gets available job categories for a given tier
@@ -60,12 +81,12 @@ export function getAvailableCategories(jobTier: number): JobCategory[] {
 }
 
 /**
- * Computes job tier using probability formula: tier = min(MAX_TIER, ceil(-log2(p)))
+ * Computes job tier using probability formula: tier = min(maxTier, ceil(-log2(p)))
  */
 export function generateJobTier(): number {
 	const p = Math.random();
 	const tier = Math.ceil(-Math.log2(p));
-	return Math.min(MAX_TIER, tier);
+	return Math.min(config.jobs.generation.maxTier, tier);
 }
 
 /**
@@ -79,16 +100,17 @@ export function computeApproximateJobValue(
 	distanceFactor: number = DEFAULT_DISTANCE_FACTOR,
 	timeFactor: number = DEFAULT_TIME_FACTOR
 ): number {
-	const jobTierMultiplier = Math.pow(1.2, jobTier - 1);
+	const jobTierMultiplier = Math.pow(config.jobs.value.tierMultiplier, jobTier - 1);
 	const categoryMultiplier = CATEGORY_MULTIPLIERS[jobCategory];
 
-	// Random factor: usually near 1, but can be quite big
+	// Random factor: usually near 1, but can be quite big (capped by randomFactorMax)
 	const randomFactor = Math.max(1.0, -Math.log(1 - Math.random()));
+	const cappedRandomFactor = Math.min(randomFactor, config.jobs.value.randomFactorMax);
 
 	const totalTimeHours = totalTimeSeconds / 3600;
 	const baseValue = totalDistanceKm * distanceFactor + totalTimeHours * timeFactor;
 
-	return jobTierMultiplier * categoryMultiplier * randomFactor * baseValue;
+	return jobTierMultiplier * categoryMultiplier * cappedRandomFactor * baseValue;
 }
 
 /**

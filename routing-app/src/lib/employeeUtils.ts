@@ -11,6 +11,7 @@ import {
 	getDefaultDrivingLevel,
 	canDoJobCategory
 } from './upgrades/upgrades';
+import { config } from '$lib/server/config';
 
 export interface NewEmployeeData {
 	gameId: string;
@@ -64,7 +65,7 @@ export function canEmployeeDoJobCategory(employee: Employee, jobCategory: JobCat
 export function getEmployeeCapacity(employee: Employee): number {
 	const baseCapacity = getVehicleConfig(employee.vehicleLevel).capacity;
 	const furnitureUpgradeLevel = employee.upgradeState[JobCategory.FURNITURE];
-	const furnitureCapacityBonus = furnitureUpgradeLevel * 0.05; // 5% per level
+	const furnitureCapacityBonus = furnitureUpgradeLevel * config.upgrades.effects.FURNITURE.capacityPerLevel;
 
 	return Math.floor(baseCapacity * (1 + furnitureCapacityBonus));
 }
@@ -75,7 +76,7 @@ export function getEmployeeCapacity(employee: Employee): number {
 export function getEmployeeMaxSpeed(employee: Employee): number {
 	const baseMaxSpeed = getVehicleConfig(employee.vehicleLevel).maxSpeed;
 	const fragileGoodsUpgradeLevel = employee.upgradeState[JobCategory.FRAGILE_GOODS];
-	const speedBonus = fragileGoodsUpgradeLevel * 5; // +5 km/h per level
+	const speedBonus = fragileGoodsUpgradeLevel * config.upgrades.effects.FRAGILE_GOODS.maxSpeedPerLevel;
 
 	return baseMaxSpeed + speedBonus;
 }
@@ -85,7 +86,7 @@ export function getEmployeeMaxSpeed(employee: Employee): number {
  */
 export function getDistanceEarningsMultiplier(employee: Employee): number {
 	const groceriesUpgradeLevel = employee.upgradeState[JobCategory.GROCERIES];
-	return 1 + groceriesUpgradeLevel * 0.05; // +5% per level
+	return 1 + groceriesUpgradeLevel * config.upgrades.effects.GROCERIES.distanceEarningsPerLevel;
 }
 
 /**
@@ -93,7 +94,7 @@ export function getDistanceEarningsMultiplier(employee: Employee): number {
  */
 export function getTimeEarningsMultiplier(employee: Employee): number {
 	const foodUpgradeLevel = employee.upgradeState[JobCategory.FOOD];
-	return 1 + foodUpgradeLevel * 0.05; // +5% per level
+	return 1 + foodUpgradeLevel * config.upgrades.effects.FOOD.timeEarningsPerLevel;
 }
 
 /**
@@ -101,7 +102,7 @@ export function getTimeEarningsMultiplier(employee: Employee): number {
  */
 export function getXPGainMultiplier(employee: Employee): number {
 	const peopleUpgradeLevel = employee.upgradeState[JobCategory.PEOPLE];
-	return 1 + peopleUpgradeLevel * 0.1; // +10% per level
+	return 1 + peopleUpgradeLevel * config.upgrades.effects.PEOPLE.xpGainPerLevel;
 }
 
 /**
@@ -109,7 +110,7 @@ export function getXPGainMultiplier(employee: Employee): number {
  */
 export function getRouteTimeMultiplier(employee: Employee): number {
 	const liquidsUpgradeLevel = employee.upgradeState[JobCategory.LIQUIDS];
-	return 1 - liquidsUpgradeLevel * 0.05; // -5% per level (capped at reasonable minimum)
+	return 1 - liquidsUpgradeLevel * config.upgrades.effects.LIQUIDS.routeTimeReductionPerLevel;
 }
 
 /**
@@ -117,7 +118,7 @@ export function getRouteTimeMultiplier(employee: Employee): number {
  */
 export function getNodeToAddressTimeMultiplier(employee: Employee): number {
 	const packagesUpgradeLevel = employee.upgradeState[JobCategory.PACKAGES];
-	return 1 - packagesUpgradeLevel * 0.2; // -20% per level (capped at reasonable minimum)
+	return 1 - packagesUpgradeLevel * config.upgrades.effects.PACKAGES.nodeToAddressTimeReductionPerLevel;
 }
 
 /**
@@ -125,7 +126,7 @@ export function getNodeToAddressTimeMultiplier(employee: Employee): number {
  */
 export function getUpgradeCostMultiplier(employee: Employee): number {
 	const toxicGoodsUpgradeLevel = employee.upgradeState[JobCategory.TOXIC_GOODS];
-	return 1 - toxicGoodsUpgradeLevel * 0.1; // -10% per level
+	return 1 - toxicGoodsUpgradeLevel * config.upgrades.effects.TOXIC_GOODS.upgradeCostReductionPerLevel;
 }
 
 /**
@@ -133,7 +134,7 @@ export function getUpgradeCostMultiplier(employee: Employee): number {
  */
 export function getMaxJobCapacityMultiplier(employee: Employee): number {
 	const constructionUpgradeLevel = employee.upgradeState[JobCategory.CONSTRUCTION];
-	return 1 + constructionUpgradeLevel * 0.2; // +20% per level
+	return 1 + constructionUpgradeLevel * config.upgrades.effects.CONSTRUCTION.maxJobCapacityPerLevel;
 }
 
 /**
@@ -160,14 +161,14 @@ export function formatEmployeeSummary(employee: Employee): string {
 
 /**
  * Computes the cost of hiring a new employee based on the number of existing employees
- * Formula: €100 * i^2 where i is the number of existing employees
- * The first employee is free (cost is 0 when i = 0)
+ * Formula: baseCost * (employeeCount ^ exponent)
+ * The first employee is free if configured
  */
 export function computeEmployeeCosts(existingEmployeeCount: number): number {
-	if (existingEmployeeCount === 0) {
+	if (existingEmployeeCount === 0 && config.employees.hiring.firstEmployeeFree) {
 		return 0; // First employee is free
 	}
-	return 100 * Math.pow(existingEmployeeCount, 2);
+	return config.employees.hiring.baseCost * Math.pow(existingEmployeeCount, config.employees.hiring.exponent);
 }
 
 export const DEFAULT_EMPLOYEE_LOCATION = {
