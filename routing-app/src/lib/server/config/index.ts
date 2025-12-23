@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { load } from 'js-yaml';
-import type { GameConfig } from './types';
+import type { GameConfig } from '$lib/config/types';
 
 /**
  * Get the directory of the current file (for resolving config path)
@@ -206,4 +206,5 @@ try {
  * Exported config store - use this throughout the server-side code
  */
 export { config };
-export type { GameConfig };
+// Re-export type from shared location for backward compatibility
+export type { GameConfig } from '$lib/config/types';

@@ -1,17 +1,8 @@
 BUGS:
-- [x] Routes are not displayed on the map after accepting a job
-  - **Fixed**: Added reactive dependency for routes in RouteRenderer, added routeData parsing consistency, and added validation
-- [X] Employee marker position doesn't update during active job (animation)
-  - **Fixed**: Added proper reactivity, and fixed a bug in the cumulative time calulation for concatenating routes.
-- [X] When hiring a new employee, they don't show up on the map until refershing page.
-- [X] After reaching the destination, the marker doesn't update state and should show the 'idle' state.
-- [X] In the employees list, the state doesn't update when a job is started.
-- [x] When accepting a job we see a 'failed to load active job' error displayed in a notification.
-- [x] The ETA in the employee card doesn't update every second, only on page refresh or if the state of another employee changes and a refersh is triggered. The ETA should be animated.
-- [x] Unaivailable employees are still shown in the dropdown for selecting an employee in the job card. Selecting other employees doesn't work, and only whichever option happened to be active when clicking on the job works, even if the employee is already on a job and thus unavailable.
-- [X] The 'complete all active routes cheat' doesn't work, and throws an error:
+- The global speedup multiplier is not working.
 
 ENHANCEMENTS:
+- [ ] Allow a 'cancel job' button that just stops the job, doesn't award money and leaves the employee wherever they happen to be. 
 - [ ] When showing a preview of a route, the colors should be different for the route to the start, and the end marker. 
 - [ ] The distance shown in the job detail card uses the wrong unit (km) instead of meters, and isn't properly formatted (big distances should switch to km). 
 - [ ] The notification bubbles appear behind the map.

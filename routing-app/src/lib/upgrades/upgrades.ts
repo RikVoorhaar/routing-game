@@ -4,7 +4,6 @@
 
 import { JobCategory } from '../jobs/jobCategories';
 import { LicenseType, VehicleClass } from './vehicles';
-import { config } from '$lib/server/config';
 
 export interface UpgradeInfo {
 	name: string;
@@ -125,10 +124,16 @@ export const JOB_CATEGORY_RESTRICTIONS: Record<JobCategory, JobCategoryRestricti
 /**
  * Compute upgrade cost for a given category and level
  * Formula: baseCost * (costExponent ^ (level - 1))
+ * Uses default values (can be overridden server-side)
  */
-export function computeUpgradeCost(jobCategory: JobCategory, level: number): number {
-	if (level <= 0) return config.upgrades.baseCost;
-	return config.upgrades.baseCost * Math.pow(config.upgrades.costExponent, level - 1);
+export function computeUpgradeCost(
+	jobCategory: JobCategory,
+	level: number,
+	baseCost: number = 50,
+	costExponent: number = 2
+): number {
+	if (level <= 0) return baseCost;
+	return baseCost * Math.pow(costExponent, level - 1);
 }
 
 /**

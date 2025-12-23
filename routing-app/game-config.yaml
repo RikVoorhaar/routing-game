@@ -179,7 +179,7 @@ licenses:
 
 dev:
   # Global multipliers for development/testing
-  speedMultiplier: 1.0 # Multiply all route times by this (0.1 = 10x faster)
+  speedMultiplier: 0.1 # Multiply all route times by this (0.1 = 10x faster)
   xpMultiplier: 1.0 # Multiply all XP gains by this
   moneyMultiplier: 1.0 # Multiply all money gains by this
 

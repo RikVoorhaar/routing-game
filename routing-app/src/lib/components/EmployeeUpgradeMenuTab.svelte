@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { formatMoney } from '$lib/formatting';
 	import { getEmployeeCapacity } from '$lib/employeeUtils';
 	import {
@@ -101,7 +100,12 @@
 				{@const upgradeInfo = getUpgradeInfo(category)}
 				{@const currentLevel = employee.upgradeState[category]}
 				{@const categoryLevel = employee.categoryLevel[category]}
-				{@const upgradeCost = computeUpgradeCost(category, currentLevel + 1)}
+				{@const upgradeCost = computeUpgradeCost(
+					category,
+					currentLevel + 1,
+					$config?.upgrades.baseCost ?? 50,
+					$config?.upgrades.costExponent ?? 2
+				)}
 				{@const canUpgrade = categoryLevel.level > currentLevel}
 				{@const categoryName = CATEGORY_NAMES[category]}
 				{@const categoryIcon = CATEGORY_ICONS[category]}

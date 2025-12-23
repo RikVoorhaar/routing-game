@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store';
-import type { GameConfig } from '$lib/server/config';
+import type { GameConfig } from '$lib/config/types';
 
 /**
  * Client-side config store
