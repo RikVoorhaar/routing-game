@@ -564,46 +564,46 @@
 <div class="map-container">
 	<div bind:this={mapElement} class="map-element"></div>
 
-		<!-- Render markers and routes -->
-		{#if leafletMap && L}
-			<MarkerRenderer
-				bind:this={markerRenderer}
-				map={leafletMap}
-				{L}
-				employees={$fullEmployeeData.map((fed) => fed.employee)}
-				activeJobsByEmployee={$fullEmployeeData.reduce(
-					(acc, fed) => {
-						if (fed.activeJob) {
-							acc[fed.employee.id] = fed.activeJob;
-						}
-						return acc;
-					},
-					{} as Record<string, any>
-				)}
-				routesByEmployee={$fullEmployeeData.reduce(
-					(acc, fed) => {
-						if (fed.activeRoute?.routeData) {
-							const routeData = fed.activeRoute.routeData;
-							// Handle string parsing if needed
-							let parsedRouteData = routeData;
-							if (typeof routeData === 'string') {
-								try {
-									parsedRouteData = JSON.parse(routeData);
-								} catch (e) {
-									log.error('[RouteMap] Failed to parse routeData for employee:', fed.employee.id, e);
-									return acc;
-								}
-							}
-							if (parsedRouteData?.path && Array.isArray(parsedRouteData.path)) {
-								acc[fed.employee.id] = parsedRouteData.path;
+	<!-- Render markers and routes -->
+	{#if leafletMap && L}
+		<MarkerRenderer
+			bind:this={markerRenderer}
+			map={leafletMap}
+			{L}
+			employees={$fullEmployeeData.map((fed) => fed.employee)}
+			activeJobsByEmployee={$fullEmployeeData.reduce(
+				(acc, fed) => {
+					if (fed.activeJob) {
+						acc[fed.employee.id] = fed.activeJob;
+					}
+					return acc;
+				},
+				{} as Record<string, any>
+			)}
+			routesByEmployee={$fullEmployeeData.reduce(
+				(acc, fed) => {
+					if (fed.activeRoute?.routeData) {
+						const routeData = fed.activeRoute.routeData;
+						// Handle string parsing if needed
+						let parsedRouteData = routeData;
+						if (typeof routeData === 'string') {
+							try {
+								parsedRouteData = JSON.parse(routeData);
+							} catch (e) {
+								log.error('[RouteMap] Failed to parse routeData for employee:', fed.employee.id, e);
+								return acc;
 							}
 						}
-						return acc;
-					},
-					{} as Record<string, PathPoint[]>
-				)}
-				{animationTimestamp}
-			/>
+						if (parsedRouteData?.path && Array.isArray(parsedRouteData.path)) {
+							acc[fed.employee.id] = parsedRouteData.path;
+						}
+					}
+					return acc;
+				},
+				{} as Record<string, PathPoint[]>
+			)}
+			{animationTimestamp}
+		/>
 
 		<RouteRenderer map={leafletMap} {L} routes={$displayedRoutes} />
 	{/if}

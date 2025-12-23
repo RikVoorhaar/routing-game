@@ -108,22 +108,16 @@
 					if (interpolatedPosition) {
 						// Update marker position
 						marker.setLatLng([interpolatedPosition.lat, interpolatedPosition.lon]);
-						
+
 						// Update progress and ETA for marker title
 						const progress = Math.min((elapsedSeconds / activeJob.durationSeconds) * 100, 100);
 						const remainingSeconds = Math.max(0, activeJob.durationSeconds - elapsedSeconds);
 						const eta = formatTimeRemaining(remainingSeconds);
-						
+
 						// Update marker icon with new progress
 						const isSelected = employee.id === $selectedEmployee;
 						const markerIcon = L.divIcon({
-							html: createEmployeeMarkerHTML(
-								employee.name,
-								true,
-								progress,
-								eta,
-								isSelected
-							),
+							html: createEmployeeMarkerHTML(employee.name, true, progress, eta, isSelected),
 							className: 'custom-employee-marker',
 							iconSize: [140, 80],
 							iconAnchor: [70, 40]
