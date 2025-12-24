@@ -1,21 +1,19 @@
 BUGS:
-- The global speedup multiplier is not working.
+- [ ] Only one marker is animated at the same time, the others are frozen.
+- [ ] The notification bubbles appear behind the map.
+- [ ] The route end icon should be consistent between the preview and the active route. (home icon vs. finish icon.)
 
 ENHANCEMENTS:
+- [ ] Make job-progress smooth (use css animations, not per second updates)
 - [ ] Allow a 'cancel job' button that just stops the job, doesn't award money and leaves the employee wherever they happen to be. 
 - [ ] When showing a preview of a route, the colors should be different for the route to the start, and the end marker. 
 - [ ] The distance shown in the job detail card uses the wrong unit (km) instead of meters, and isn't properly formatted (big distances should switch to km). 
-- [ ] The notification bubbles appear behind the map.
-- [ ] Add a cheat to increase speedup by an arbitrary factor
-- [ ] Moving employee markers should be a simple pin, not teh whole box with eta and progress (that belongs in a different list)
-- [ ] The route end icon should be consistent between the preview and the active route. (home icon vs. finish icon.)
+- [x] Add a cheat to increase speedup by an arbitrary factor
+- [ ] Moving employee markers should be a simple pin, not teh whole box with eta and progress (that belongs in a different list). Perhaps just a simple circular progress bar, and inside there is an ETA number. 
+- [ ] When receiving money, notification should appear in appropriate place (e.g. floating on top of the interface, animated and fading up)
 - [ ] When clicking on an employee it is highlighted, and highlighted employees are stored in a store. 
 - [ ] When an employee is selected, the route map should pan to the employee's location. If the employee is on a route, the zoom should be such that the entire route is visible. If no route is active, just pan and don't change the zoom. If there are available routes, then show the available routes on the map and zoom/pan to make sure all routes are visible.
 - [ ] When selecting a route, pan and zoom on the route. When starting a route, the pan/zoom shouldn't change because it already shows the route.
-
-Contrary to what LLM claims, the routes aren't displayed, and clicking on an employee doesn't pan / zoom to the employee. 
-
-- [ ] The map markers should also show the ETA, and not just a progress bar
 
 
 LOGGING:
@@ -28,7 +26,7 @@ LOGGING:
 DEV / NEW FEATURES:
 - [x] The UI is pretty bad for the employee card
 - [x] Once a route is finished, it doesn't mark as completed
-- [ ] Rebalancing of all rewards and costs
+- [x] Rebalancing of all rewards and costs
 - [x] Currency should be a float
 - [x] end address is formatted as coords, but start is a string
 - [ ] Add batched API endpoint to routing server for processing multiple routing requests in one call (performance optimization)
@@ -48,4 +46,4 @@ DEV / NEW FEATURES:
 - [ ] The init db script hangs on `creating schema using drizzle kit push`.  (is this still true?)
 - [x] When the user clicks on a job, do stuff 
 - [x] The routing server is constantly using 100% CPU
-- [ ] Make a config system for the game: upgrades, scaling for costs, distances, number of jobs per tile, etc.
+- [x] Make a config system for the game: upgrades, scaling for costs, distances, number of jobs per tile, etc.

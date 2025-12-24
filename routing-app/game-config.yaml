@@ -7,29 +7,29 @@ game:
 employees:
   hiring:
     # Formula: baseCost * (employeeCount ^ exponent)
-    baseCost: 100
-    exponent: 2
+    baseCost: 1
+    exponent: 1.25
     firstEmployeeFree: true
 
 xp:
   driving:
     # XP per second of job time (current: floor(timeSeconds / 100))
-    perSecond: 0.01
+    perSecond: 0.1
   category:
     # XP per euro of job value (current: floor(value / 20))
-    perEuro: 0.05
+    perEuro: 0.5
 
 jobs:
   value:
     # Base value calculation factors
     distanceFactor: 1.0 # euros per kilometer
-    timeFactor: 0.005556 # euros per second (20 euros/hour = 20/3600)
-    tierMultiplier: 1.2 # multiplier per tier level
+    timeFactor: 0.05556 # euros per second (200 euros/hour = 200/3600)
+    tierMultiplier: 1.7 # multiplier per tier level
     randomFactorMax: 10.0 # max random factor multiplier (from -log(1-random))
 
   generation:
     maxTier: 8
-    maxJobsPerTile: 25
+    maxJobsPerTile: 10
     minTileLevel: 12
 
   categories:
