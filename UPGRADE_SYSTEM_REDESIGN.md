@@ -245,40 +245,52 @@ The following steps can be taken (mostly) independently:
      - Level 120: Calculated 104,273,196 vs Runescape 104,273,167 (29 XP difference, ~0.00003% error)
    - Tests use relative tolerance of 1e-4 (0.01%) to account for this floating point discrepancy
 
-2. **Define TypeScript Interfaces for New Game State**
-   - Create interfaces for `gameState` XP structure (category XP object)
-   - Create interfaces for `upgradeEffects` structure
-   - Create interfaces for upgrade configuration (YAML structure)
-   - Create interfaces for vehicle configuration
-   - Update existing type definitions
+2. **Define TypeScript Interfaces for New Game State** ✅ DONE
+   - ✅ Create interfaces for `gameState` XP structure (category XP object)
+   - ✅ Create interfaces for `upgradeEffects` structure
+   - ✅ Create interfaces for upgrade configuration (YAML structure)
+   - ✅ Create interfaces for vehicle configuration
+   - ✅ Update existing type definitions
+   - ✅ Create minimal `config/upgrades.yaml` file with basic upgrades
+   - ✅ Create minimal `config/vehicles.yaml` file with basic vehicles
+   - ✅ Implement config loaders for upgrades.yaml and vehicles.yaml
+   - ✅ Add validation for config structures and vehicle-upgrade relationships
+   - **Note:** Each vehicle level (except 0) must have a corresponding upgrade that unlocks it by incrementing `vehicleLevelMax`. Comprehensive configs will be populated in steps 10-11.
 
-3. **Update Database Schema**
+3. **Migrate game-config.yaml to config folder**
+   - Move `game-config.yaml` from routing-app root to `config/game-config.yaml`
+   - Update config loader path in `src/lib/server/config/index.ts` to point to `config/game-config.yaml`
+   - Update Vite file watcher in `vite.config.ts` to watch the entire `config/` folder instead of just `game-config.yaml`
+   - Update any documentation/comments that reference the old location
+   - Verify that hot reloading still works for config changes
+
+4. **Update Database Schema**
    - Modify `gameState` table: add `xp` (JSONB), `upgradesPurchased` (text[]), `upgradeEffects` (JSONB)
    - Simplify `employee` table: remove `categoryLevel`, `drivingLevel`, `upgradeState`, `licenseLevel`; add single `xp` field
    - Create migration or rebuild database (no data worth keeping per notes)
    - Update TypeScript types to match new schema
 
-4. **Implement XP System Backend**
+5. **Implement XP System Backend**
    - Create functions to update employee XP and category XP atomically
    - Implement XP multiplier application from `upgradeEffects`
    - Update job completion logic to award XP correctly
    - Handle race conditions using database transactions or JSONB updates
    - Add unit tests for XP updates
 
-5. **Create Global XP Display Tab/Component**
+6. **Create Global XP Display Tab/Component**
    - Build UI component showing total XP and per-category XP
    - Display current level per category using LOT
    - Show progress bars toward next level
    - Integrate into existing game UI
 
-6. **Implement Upgrade System Backend**
+7. **Implement Upgrade System Backend**
    - Create upgrade configuration loader for `config/upgrades.yaml` (YAML parser)
    - Implement upgrade purchase logic (check requirements, deduct money, apply effects)
    - Create effect application functions (`multiply`, `increment`)
    - Implement requirement checking (upgrade dependencies + level requirements calculated from global XP)
    - Add unit tests for upgrade system
 
-7. **Build Upgrade Purchase UI**
+8. **Build Upgrade Purchase UI**
    - Create upgrade card component
    - Filter upgrades to show only available ones (requirements met)
    - Display upgrade details (money cost, description, effects, level requirements)
@@ -286,28 +298,28 @@ The following steps can be taken (mostly) independently:
    - Add visual feedback for purchased vs available vs locked upgrades
    - Show level requirement status (met/not met) for each upgrade
 
-8. **Implement Vehicle Upgrade System**
+9. **Implement Vehicle Upgrade System**
    - Create vehicle configuration loader for `config/vehicles.yaml` (YAML parser)
    - Create vehicle upgrade purchase logic (costs money, checks unlock requirements)
    - Update employee vehicle level assignment
    - Update vehicle stats calculation (capacity, speed, tier from config)
    - Add unit tests for vehicle upgrades
 
-9. **Revamp Employee Character Cards**
+10. **Revamp Employee Character Cards**
    - Update employee card UI to show new structure (single XP, vehicle level)
    - Add vehicle upgrade purchase interface to employee cards
    - Display vehicle stats based on current vehicle level
    - Update XP display to use LOT for level calculation
    - Remove old category/upgrade displays
 
-10. **Populate Upgrade Configuration**
+11. **Populate Upgrade Configuration**
     - Create `config/upgrades.yaml` with comprehensive upgrade list
     - Design tech tree with meaningful dependencies
     - Balance upgrade costs and effects
     - Ensure upgrades cover all effect types
     - Test upgrade progression flow
 
-11. **Create Vehicle Configuration File**
+12. **Create Vehicle Configuration File**
     - Create `config/vehicles.yaml` with vehicle definitions
     - Structure vehicles by level (capacity, roadSpeed, tier, name)
     - Refactor existing vehicle definitions from `game-config.yaml` to new structure
@@ -323,6 +335,6 @@ The following steps can be taken (mostly) independently:
 - Use JSONB fields for easier migrations
 - Balance exponential formulas through playtesting
 - XP multipliers should scale significantly to allow fast early progression for new employees
-- Configuration files: All three YAML config files (`game-config.yaml`, `upgrades.yaml`, `vehicles.yaml`) are located in the `config` directory
+- Configuration files: All three YAML config files (`game-config.yaml`, `upgrades.yaml`, `vehicles.yaml`) are located in the `config` directory (see step 3 for migration)
 - Vehicle definitions will be moved from `game-config.yaml` to the new `vehicles.yaml` file
 

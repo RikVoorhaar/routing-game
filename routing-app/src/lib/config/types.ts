@@ -6,6 +6,67 @@ import { JobCategory } from '$lib/jobs/jobCategories';
  * This file is shared between server and client code
  */
 
+/**
+ * Level requirements for upgrades
+ * Can specify total level requirement and/or category-specific requirements
+ */
+export interface LevelRequirements {
+	total?: number;
+	[key: string]: number | undefined; // For category-specific requirements
+}
+
+/**
+ * Upgrade effect type - either multiply or increment
+ */
+export type UpgradeEffectType = 'multiply' | 'increment';
+
+/**
+ * Arguments for upgrade effects
+ */
+export interface UpgradeEffectArguments {
+	name: string;
+	amount: number;
+}
+
+/**
+ * Single upgrade configuration
+ */
+export interface UpgradeConfig {
+	id: string;
+	name: string;
+	upgradeRequirements: string[];
+	levelRequirements: LevelRequirements;
+	description: string;
+	cost: number;
+	effect: UpgradeEffectType;
+	effectArguments: UpgradeEffectArguments;
+}
+
+/**
+ * Root upgrades configuration structure
+ */
+export interface UpgradesConfig {
+	upgrades: UpgradeConfig[];
+}
+
+/**
+ * Single vehicle configuration
+ */
+export interface VehicleConfig {
+	level: number;
+	name: string;
+	capacity: number;
+	roadSpeed: number;
+	tier: number;
+}
+
+/**
+ * Root vehicles configuration structure
+ */
+export interface VehiclesConfig {
+	vehicles: VehicleConfig[];
+}
+
 export interface GameConfig {
 	game: {
 		startingMoney: number;

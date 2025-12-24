@@ -1,0 +1,19 @@
+vehicles:
+  - level: 0
+    name: "Bike"
+    capacity: 10
+    roadSpeed: 15
+    tier: 1
+  
+  - level: 1
+    name: "Cargo Bike"
+    capacity: 40
+    roadSpeed: 20
+    tier: 2
+  
+  - level: 1  # Duplicate level
+    name: "Another Bike"
+    capacity: 30
+    roadSpeed: 18
+    tier: 2
+

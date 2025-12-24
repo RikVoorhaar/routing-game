@@ -1,0 +1,37 @@
+upgrades:
+  - id: "unlock_cargo_bike"
+    name: "Cargo Bike"
+    upgradeRequirements: []
+    levelRequirements:
+      total: 1
+    description: "Unlocks cargo bike upgrade for all employees"
+    cost: 10
+    effect: increment
+    effectArguments:
+      name: vehicleLevelMax
+      amount: 1
+  
+  - id: "unlock_electric_bike"
+    name: "Electric Bike"
+    upgradeRequirements: ["unlock_cargo_bike"]
+    levelRequirements:
+      total: 3
+    description: "Unlocks electric bike upgrade for all employees"
+    cost: 25
+    effect: increment
+    effectArguments:
+      name: vehicleLevelMax
+      amount: 1
+  
+  - id: "careful_driver"
+    name: "Careful Driver"
+    upgradeRequirements: []
+    levelRequirements:
+      total: 5
+    description: "Increase speed of all jobs by 20%"
+    cost: 20
+    effect: multiply
+    effectArguments:
+      name: speed
+      amount: 1.2
+

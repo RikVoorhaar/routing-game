@@ -16,11 +16,18 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { JobCategory } from '../../jobs/jobCategories';
 
 // JSONB Type Interfaces
+
+/**
+ * @deprecated This interface is being replaced by CategoryXp in the new upgrade system
+ */
 export interface LevelXP {
 	level: number;
 	xp: number;
 }
 
+/**
+ * @deprecated This interface is being replaced by CategoryXp in the new upgrade system
+ */
 export interface CategoryLevels {
 	[JobCategory.GROCERIES]: LevelXP;
 	[JobCategory.PACKAGES]: LevelXP;
@@ -33,6 +40,9 @@ export interface CategoryLevels {
 	[JobCategory.TOXIC_GOODS]: LevelXP;
 }
 
+/**
+ * @deprecated This interface is being replaced by UpgradeEffects in the new upgrade system
+ */
 export interface UpgradeState {
 	[JobCategory.GROCERIES]: number;
 	[JobCategory.PACKAGES]: number;
@@ -43,6 +53,28 @@ export interface UpgradeState {
 	[JobCategory.CONSTRUCTION]: number;
 	[JobCategory.LIQUIDS]: number;
 	[JobCategory.TOXIC_GOODS]: number;
+}
+
+/**
+ * Category XP structure - maps each job category to its XP value
+ * Used in gameState.xp JSONB field
+ */
+export interface CategoryXp extends Record<JobCategory, number> {}
+
+/**
+ * Upgrade effects structure - maps effect names to their current values
+ * Used in gameState.upgradeEffects JSONB field
+ */
+export interface UpgradeEffects {
+	speed?: number;
+	vehicleLevelMax?: number;
+	vehicleLevelMin?: number;
+	employeeLevelStart?: number;
+	xpMultiplier?: number;
+	moneyTimeFactor?: number;
+	moneyDistanceFactor?: number;
+	capacity?: number;
+	upgradeDiscount?: number;
 }
 
 // Users table - core user data

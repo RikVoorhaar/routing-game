@@ -1,0 +1,13 @@
+upgrades:
+  - id: "test_upgrade"
+    # Missing name field
+    upgradeRequirements: []
+    levelRequirements:
+      total: 1
+    description: "Test upgrade"
+    cost: 10
+    effect: increment
+    effectArguments:
+      name: vehicleLevelMax
+      amount: 1
+
