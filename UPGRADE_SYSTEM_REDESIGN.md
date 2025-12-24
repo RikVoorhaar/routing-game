@@ -1,0 +1,324 @@
+# Upgrade System Redesign Feature
+
+## Feature Overview
+
+This document describes the architecture and design of the redesigned upgrade system. The new system simplifies employee progression by separating global upgrades (using money) from employee-specific upgrades (using money), while maintaining a tech tree structure for strategic progression. XP is used indirectly to determine level requirements for upgrades.
+
+## Final Architecture
+
+### Core Concepts
+
+#### 1. Experience Points (XP) System
+
+**Global XP:**
+- Stored in `gameState` as a JSONB field containing XP values for each job category
+- Total XP is calculated as the sum of all category XP values
+- Uses Runescape-style leveling formula: XP required to go from level `n` to `n+1` is `floor((n + 300 * 2^(n/7)) / 4)`
+- A lookup table (LOT) pre-calculates XP requirements up to level 120
+
+**Employee XP:**
+- Each employee has a single XP value (not per-category)
+- Used for vehicle upgrade unlocks and progression
+- Employees gain XP when completing jobs
+- Higher tier vehicle upgrades remain expensive due to exponential cost scaling
+- Global XP multipliers increase significantly, allowing new employees to progress quickly through early levels
+
+#### 2. Upgrade System
+
+**Global Upgrades:**
+- Tech tree structure with dependencies
+- Each upgrade has:
+  - `id`: Unique identifier (snake_case string)
+  - `name`: Display name
+  - `upgradeRequirements`: List of upgrade IDs that must be purchased first
+  - `levelRequirements`: Object specifying required levels (e.g., `{ total: 5, groceries: 3 }`) - checked against global XP levels
+  - `description`: User-facing description
+  - `cost`: Money cost (in euros) - deducted from `gameState.money`
+  - `effect`: Effect type (`multiply` or `increment`)
+  - `effectArguments`: Parameters for the effect (e.g., `{ name: "speed", amount: 1.2 }`)
+
+**Upgrade Effects:**
+Effects modify game state through functions with signature `(gameState, args) -> gameState`. Available effects:
+- `speed`: Multiplier governing speed of all deliveries (default ~5x)
+- `vehicleLevelMax`: Maximum vehicle level available
+- `vehicleLevelMin`: Starting vehicle level for new employees
+- `employeeLevelStart`: Starting level for new employees
+- `xpMultiplier`: Global XP multiplier
+- `moneyTimeFactor`: Multiplier for money earned from time
+- `moneyDistanceFactor`: Multiplier for money earned per distance traveled
+- `capacity`: Multiplier for capacity of all vehicles
+- `upgradeDiscount`: Discount on employee upgrades
+
+**Employee Upgrades:**
+- Vehicle upgrades only (tier, max speed, max weight/capacity)
+- Cost money (not XP)
+- May require global upgrades to be unlocked
+- Progressively more expensive (exponential scaling)
+- Vehicle level determines which vehicle type an employee can use
+
+#### 3. Vehicle System
+
+**Vehicle Configuration:**
+- Defined in separate YAML config file (`vehicles.yaml`) in the config directory
+- Each vehicle has a level
+- Properties per vehicle level:
+  - `capacity`: Maximum weight/cargo capacity
+  - `roadSpeed`: Maximum speed on roads (km/h)
+  - `tier`: Vehicle tier (affects job eligibility)
+  - `name`: Display name
+
+**Vehicle Progression:**
+- Vehicles come in levels (0, 1, 2, ...)
+- Cost scales exponentially according to a formula (to be balanced)
+- Higher level vehicles unlock through global upgrades
+- Employee vehicle level determines which vehicle they can use
+
+#### 4. Database Schema
+
+**gameState Table:**
+```typescript
+{
+  id: string
+  name: string
+  userId: string
+  createdAt: timestamp
+  money: number
+  xp: JSONB  // { [JobCategory]: number } - XP per category
+  upgradesPurchased: string[]  // List of upgrade IDs
+  upgradeEffects: JSONB  // { [effectName]: number } - Current effect values
+}
+```
+
+**employee Table:**
+```typescript
+{
+  id: string
+  gameId: string
+  name: string
+  vehicleLevel: number  // VehicleType level (0-based)
+  xp: number  // Single XP value for employee
+  location: JSONB  // Address
+}
+```
+
+#### 5. Configuration Files
+
+All configuration files are stored in a `config` directory. There are three YAML config files:
+
+1. **`config/game-config.yaml`** - Existing game configuration (jobs, employees, etc.)
+2. **`config/upgrades.yaml`** - Global upgrade definitions (new file)
+3. **`config/vehicles.yaml`** - Vehicle definitions (new file)
+
+**Upgrade Configuration:**
+
+Upgrades are defined in `config/upgrades.yaml` with the following structure:
+
+```yaml
+upgrades:
+  - id: "cargo_bike"
+    name: "Cargo Bike"
+    upgradeRequirements: ["backpack"]
+    levelRequirements:
+      total: 5  # Requires total level 5 (calculated from global XP)
+    description: "Unlocks cargo bike upgrade for all employees"
+    cost: 100  # Money cost in euros
+    effect: increment
+    effectArguments:
+      name: vehicleLevelMax
+      amount: 1
+  
+  - id: "careful_driver"
+    name: "Careful Driver"
+    upgradeRequirements: []
+    levelRequirements:
+      groceries: 5  # Requires groceries category level 5
+      total: 10  # Requires total level 10
+    description: "Increase speed of all jobs by 20%"
+    cost: 20  # Money cost in euros
+    effect: multiply
+    effectArguments:
+      name: speed
+      amount: 1.2
+```
+
+**Vehicle Configuration:**
+
+Vehicles are defined in `config/vehicles.yaml` with the following structure:
+
+```yaml
+vehicles:
+  - level: 0
+    name: "Bike"
+    capacity: 10
+    roadSpeed: 15
+    tier: 1
+  
+  - level: 1
+    name: "Cargo Bike"
+    capacity: 40
+    roadSpeed: 20
+    tier: 2
+  
+  - level: 2
+    name: "Electric Bike"
+    capacity: 40
+    roadSpeed: 25
+    tier: 2
+  
+  # ... more vehicle levels
+```
+
+### User Experience
+
+**Global Upgrades Tab:**
+- Displays available upgrades as cards
+- Only shows upgrades where all requirements are met (both upgrade dependencies and level requirements)
+- Shows upgrade cost (money), description, and effects
+- Purchasing an upgrade:
+  - Checks level requirements (calculated from global XP using LOT)
+  - Checks upgrade dependencies (previous upgrades purchased)
+  - Deducts money cost from `gameState.money`
+  - Adds upgrade ID to `upgradesPurchased` list
+  - Applies effect to `upgradeEffects` JSONB field
+  - Updates game state
+
+**Employee Cards:**
+- Display employee name, current vehicle level, and XP
+- Show vehicle upgrade options (if unlocked via global upgrades). This is a single button that shows the cost of the next upgrade. The card should also show the current roadspeed, vehicle capacity and vehicle tier. Overall the card should be compact.
+- Vehicle upgrades cost money
+- XP display shows progress toward next level (using LOT)
+
+**XP Display:**
+- Global XP tab shows:
+  - Total XP (sum of all categories)
+  - XP per category
+  - Current level per category (calculated from LOT)
+  - Progress bars toward next level
+
+### Technical Implementation Details
+
+**XP Calculation:**
+- When a job is completed:
+  - Employee gains XP (single value, not per-category)
+  - Category gains XP (added to global category XP)
+  - Both updates happen atomically to avoid race conditions
+  - XP multipliers from `upgradeEffects` are applied
+
+**Level Calculation:**
+- Uses pre-calculated lookup table (LOT) for performance
+- LOT contains XP requirements for levels 0-120
+- Level is calculated by finding the highest level where cumulative XP requirement <= current XP
+
+**Upgrade Purchase Flow:**
+- When purchasing an upgrade:
+  1. Check `upgradeRequirements`: all listed upgrade IDs must be in `upgradesPurchased`
+  2. Check `levelRequirements`: calculate current levels from global XP using LOT, verify all requirements met
+  3. Verify sufficient money: `gameState.money >= upgrade.cost`
+  4. Deduct money: `gameState.money -= upgrade.cost`
+  5. Add upgrade ID to `upgradesPurchased` array
+  6. Apply effect to `upgradeEffects` JSONB field
+- XP is used indirectly: level requirements are checked by calculating levels from global XP, but XP itself is not spent
+
+**Upgrade Effect Application:**
+- Effects are applied when upgrades are purchased
+- `multiply` effects multiply the current value
+- `increment` effects add to the current value
+- Effects are stored in `upgradeEffects` JSONB field
+- Game logic reads from `upgradeEffects` to apply multipliers
+
+**Vehicle Upgrade Cost:**
+- Exponential formula: `baseCost * (costExponent ^ vehicleLevel)`
+- Base cost and exponent are configurable
+- Higher tier vehicles remain expensive until end game
+
+## Implementation Todo List
+
+The following steps can be taken (mostly) independently:
+
+1. **Create XP Lookup Table (LOT)**
+   - Implement Runescape formula: `floor((n + 300 * 2^(n/7)) / 4)`
+   - Generate lookup table for levels 0-120
+   - Create utility functions to calculate level from XP and XP required for next level
+   - Add unit tests for XP calculations
+
+2. **Define TypeScript Interfaces for New Game State**
+   - Create interfaces for `gameState` XP structure (category XP object)
+   - Create interfaces for `upgradeEffects` structure
+   - Create interfaces for upgrade configuration (YAML structure)
+   - Create interfaces for vehicle configuration
+   - Update existing type definitions
+
+3. **Update Database Schema**
+   - Modify `gameState` table: add `xp` (JSONB), `upgradesPurchased` (text[]), `upgradeEffects` (JSONB)
+   - Simplify `employee` table: remove `categoryLevel`, `drivingLevel`, `upgradeState`, `licenseLevel`; add single `xp` field
+   - Create migration or rebuild database (no data worth keeping per notes)
+   - Update TypeScript types to match new schema
+
+4. **Implement XP System Backend**
+   - Create functions to update employee XP and category XP atomically
+   - Implement XP multiplier application from `upgradeEffects`
+   - Update job completion logic to award XP correctly
+   - Handle race conditions using database transactions or JSONB updates
+   - Add unit tests for XP updates
+
+5. **Create Global XP Display Tab/Component**
+   - Build UI component showing total XP and per-category XP
+   - Display current level per category using LOT
+   - Show progress bars toward next level
+   - Integrate into existing game UI
+
+6. **Implement Upgrade System Backend**
+   - Create upgrade configuration loader for `config/upgrades.yaml` (YAML parser)
+   - Implement upgrade purchase logic (check requirements, deduct money, apply effects)
+   - Create effect application functions (`multiply`, `increment`)
+   - Implement requirement checking (upgrade dependencies + level requirements calculated from global XP)
+   - Add unit tests for upgrade system
+
+7. **Build Upgrade Purchase UI**
+   - Create upgrade card component
+   - Filter upgrades to show only available ones (requirements met)
+   - Display upgrade details (money cost, description, effects, level requirements)
+   - Implement purchase flow (API call, state update)
+   - Add visual feedback for purchased vs available vs locked upgrades
+   - Show level requirement status (met/not met) for each upgrade
+
+8. **Implement Vehicle Upgrade System**
+   - Create vehicle configuration loader for `config/vehicles.yaml` (YAML parser)
+   - Create vehicle upgrade purchase logic (costs money, checks unlock requirements)
+   - Update employee vehicle level assignment
+   - Update vehicle stats calculation (capacity, speed, tier from config)
+   - Add unit tests for vehicle upgrades
+
+9. **Revamp Employee Character Cards**
+   - Update employee card UI to show new structure (single XP, vehicle level)
+   - Add vehicle upgrade purchase interface to employee cards
+   - Display vehicle stats based on current vehicle level
+   - Update XP display to use LOT for level calculation
+   - Remove old category/upgrade displays
+
+10. **Populate Upgrade Configuration**
+    - Create `config/upgrades.yaml` with comprehensive upgrade list
+    - Design tech tree with meaningful dependencies
+    - Balance upgrade costs and effects
+    - Ensure upgrades cover all effect types
+    - Test upgrade progression flow
+
+11. **Create Vehicle Configuration File**
+    - Create `config/vehicles.yaml` with vehicle definitions
+    - Structure vehicles by level (capacity, roadSpeed, tier, name)
+    - Refactor existing vehicle definitions from `game-config.yaml` to new structure
+    - Ensure vehicle progression makes sense (exponential costs)
+    - Update vehicle-related game logic to use new config structure
+    - Test vehicle upgrades and unlocks
+
+## Notes
+
+- This feature will be implemented across multiple commits
+- Database can be rebuilt (no data worth keeping)
+- Focus on using ORM (Drizzle) rather than raw SQL
+- Use JSONB fields for easier migrations
+- Balance exponential formulas through playtesting
+- XP multipliers should scale significantly to allow fast early progression for new employees
+- Configuration files: All three YAML config files (`game-config.yaml`, `upgrades.yaml`, `vehicles.yaml`) are located in the `config` directory
+- Vehicle definitions will be moved from `game-config.yaml` to the new `vehicles.yaml` file
+
