@@ -1,14 +1,13 @@
 vehicles:
   # Missing level 0 vehicle
   - level: 1
-    name: "Cargo Bike"
+    name: 'Cargo Bike'
     capacity: 40
     roadSpeed: 20
     tier: 2
-  
+
   - level: 2
-    name: "Electric Bike"
+    name: 'Electric Bike'
     capacity: 40
     roadSpeed: 25
     tier: 2
-

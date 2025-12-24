@@ -253,17 +253,19 @@ describe('Config Loading and Validation', () => {
 			const upgradesConfig = loadTestYaml(
 				'invalid-relationship-insufficient-upgrades.yaml'
 			) as UpgradesConfig;
-			expect(() =>
-				validateVehicleUpgradeRelationship(vehiclesConfig, upgradesConfig)
-			).toThrow(/Need at least 2 vehicle unlock upgrades/);
+			expect(() => validateVehicleUpgradeRelationship(vehiclesConfig, upgradesConfig)).toThrow(
+				/Need at least 2 vehicle unlock upgrades/
+			);
 		});
 
 		it('should reject when level 0 vehicle is missing', () => {
-			const vehiclesConfig = loadTestYaml('invalid-vehicles-missing-level-zero.yaml') as VehiclesConfig;
+			const vehiclesConfig = loadTestYaml(
+				'invalid-vehicles-missing-level-zero.yaml'
+			) as VehiclesConfig;
 			const upgradesConfig = loadTestYaml('valid-upgrades.yaml') as UpgradesConfig;
-			expect(() =>
-				validateVehicleUpgradeRelationship(vehiclesConfig, upgradesConfig)
-			).toThrow(/Vehicle level 0 must exist/);
+			expect(() => validateVehicleUpgradeRelationship(vehiclesConfig, upgradesConfig)).toThrow(
+				/Vehicle level 0 must exist/
+			);
 		});
 
 		it('should accept config with exact number of unlock upgrades needed', () => {
@@ -370,10 +372,9 @@ describe('Config Loading and Validation', () => {
 				]
 			};
 			// None of these upgrades count as vehicle unlock upgrades
-			expect(() =>
-				validateVehicleUpgradeRelationship(vehiclesConfig, upgradesConfig)
-			).toThrow(/Need at least 1 vehicle unlock upgrades/);
+			expect(() => validateVehicleUpgradeRelationship(vehiclesConfig, upgradesConfig)).toThrow(
+				/Need at least 1 vehicle unlock upgrades/
+			);
 		});
 	});
 });
-

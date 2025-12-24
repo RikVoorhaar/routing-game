@@ -1,13 +1,12 @@
 upgrades:
-  - id: "test_upgrade"
-    name: "Test Upgrade"
+  - id: 'test_upgrade'
+    name: 'Test Upgrade'
     upgradeRequirements: []
     levelRequirements:
       total: 1
-    description: "Test upgrade"
-    cost: "not a number"  # Should be a number
+    description: 'Test upgrade'
+    cost: 'not a number' # Should be a number
     effect: increment
     effectArguments:
       name: vehicleLevelMax
       amount: 1
-
