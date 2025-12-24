@@ -11,3 +11,6 @@ export * from './upgrades/upgrades';
 
 // Export employee utilities
 export * from './employeeUtils';
+
+// Export XP utilities
+export * from './xp/xpUtils';
