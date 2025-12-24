@@ -1,6 +1,6 @@
 /**
  * XP Utilities - Runescape-style leveling system
- * 
+ *
  * Uses the formula: XP(n → n+1) = floor((n + 300 * 2^(n/7)) / 4)
  * Pre-calculates a lookup table (LOT) for levels 0-120 for performance.
  */
@@ -8,12 +8,12 @@
 /**
  * Calculate XP required to go from level n to n+1
  * Formula: floor((n + 300 * 2^(n/7)) / 4)
- * 
+ *
  * Parameters
  * ----------
  * level: number
  *     The current level (n)
- * 
+ *
  * Returns
  * -------
  * number
@@ -31,13 +31,13 @@ function calculateXpForNextLevel(level: number): number {
 const XP_LOOKUP_TABLE: readonly number[] = (() => {
 	const table: number[] = [0]; // Level 0 requires 0 XP
 	let cumulativeXp = 0;
-	
+
 	for (let level = 0; level < 120; level++) {
 		const xpForNextLevel = calculateXpForNextLevel(level);
 		cumulativeXp += xpForNextLevel;
 		table.push(cumulativeXp);
 	}
-	
+
 	return Object.freeze(table);
 })();
 
@@ -48,17 +48,17 @@ export const MAX_LEVEL = 120;
 
 /**
  * Get cumulative XP required to reach a specific level
- * 
+ *
  * Parameters
  * ----------
  * level: number
  *     The target level (0-120)
- * 
+ *
  * Returns
  * -------
  * number
  *     Cumulative XP required to reach the level
- * 
+ *
  * Throws
  * ------
  * Error if level is out of range
@@ -72,17 +72,17 @@ export function getXpForLevel(level: number): number {
 
 /**
  * Get XP needed to go from currentLevel to currentLevel+1
- * 
+ *
  * Parameters
  * ----------
  * currentLevel: number
  *     The current level (0-119)
- * 
+ *
  * Returns
  * -------
  * number
  *     XP needed to reach the next level
- * 
+ *
  * Throws
  * ------
  * Error if currentLevel is out of range
@@ -96,12 +96,12 @@ export function getXpForNextLevel(currentLevel: number): number {
 
 /**
  * Calculate current level from total XP using binary search on lookup table
- * 
+ *
  * Parameters
  * ----------
  * xp: number
  *     Total XP amount
- * 
+ *
  * Returns
  * -------
  * number
@@ -111,16 +111,16 @@ export function getLevelFromXp(xp: number): number {
 	if (xp < 0) {
 		return 0;
 	}
-	
+
 	// If XP exceeds max level, return max level
 	if (xp >= XP_LOOKUP_TABLE[MAX_LEVEL]) {
 		return MAX_LEVEL;
 	}
-	
+
 	// Binary search for the correct level
 	let left = 0;
 	let right = MAX_LEVEL;
-	
+
 	while (left < right) {
 		const mid = Math.floor((left + right + 1) / 2);
 		if (XP_LOOKUP_TABLE[mid] <= xp) {
@@ -129,20 +129,20 @@ export function getLevelFromXp(xp: number): number {
 			right = mid - 1;
 		}
 	}
-	
+
 	return left;
 }
 
 /**
  * Calculate remaining XP needed to reach the next level
- * 
+ *
  * Parameters
  * ----------
  * currentXp: number
  *     Current total XP
  * currentLevel: number
  *     Current level (optional, will be calculated if not provided)
- * 
+ *
  * Returns
  * -------
  * number
@@ -150,11 +150,11 @@ export function getLevelFromXp(xp: number): number {
  */
 export function getXpToNextLevel(currentXp: number, currentLevel?: number): number {
 	const level = currentLevel ?? getLevelFromXp(currentXp);
-	
+
 	if (level >= MAX_LEVEL) {
 		return 0; // Already at max level
 	}
-	
+
 	const xpForNextLevel = getXpForLevel(level + 1);
 	return Math.max(0, xpForNextLevel - currentXp);
 }
@@ -162,7 +162,7 @@ export function getXpToNextLevel(currentXp: number, currentLevel?: number): numb
 /**
  * Get the lookup table (read-only access)
  * Mainly for testing purposes
- * 
+ *
  * Returns
  * -------
  * readonly number[]
@@ -171,4 +171,3 @@ export function getXpToNextLevel(currentXp: number, currentLevel?: number): numb
 export function getLookupTable(): readonly number[] {
 	return XP_LOOKUP_TABLE;
 }
-
