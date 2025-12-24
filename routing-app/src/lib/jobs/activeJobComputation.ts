@@ -7,6 +7,7 @@ import { getShortestPath } from '$lib/routes/routing';
 import type { Employee, Job, GameState, RoutingResult } from '$lib/server/db/schema';
 import { getEmployeeMaxSpeed } from '$lib/employeeUtils';
 import { concatenateRoutes, applyMaxSpeed } from '$lib/routes/route-utils';
+import { config } from '$lib/server/config';
 
 type ActiveJobInsert = InferInsertModel<typeof activeJobs>;
 type ActiveRouteInsert = InferInsertModel<typeof activeRoutes>;
@@ -15,10 +16,8 @@ type ActiveRouteInsert = InferInsertModel<typeof activeRoutes>;
  * Computes the value/payout for a given job based on employee skills and game state
  */
 function computeJobValue(job: Job, _employee: Employee, _gameState: GameState): number {
-	// TODO: Implement job value computation
-	const baseReward = job.approximateValue;
-
-	return baseReward;
+	// Apply dev money multiplier
+	return job.approximateValue * config.dev.moneyMultiplier;
 }
 
 /**
@@ -67,24 +66,30 @@ function modifyRoute(
 ): RoutingResult {
 	const concatRoute = concatenateRoutes(routeToJob, jobRoute);
 
-	// Get employee's max speed including upgrades
-	const maxSpeedKmh = getEmployeeMaxSpeed(employee);
+	// Get employee's max speed including upgrades (using config values server-side)
+	const maxSpeedKmh = getEmployeeMaxSpeed(
+		employee,
+		config.upgrades.effects.FRAGILE_GOODS.maxSpeedPerLevel
+	);
 
 	const multiplier = getMultiplier(employee, gameState, job);
 
-	const modifiedRoute = applyMaxSpeed(concatRoute, maxSpeedKmh, multiplier);
+	// Apply dev speed multiplier to route times
+	const speedMultiplier = multiplier * config.dev.speedMultiplier;
+
+	const modifiedRoute = applyMaxSpeed(concatRoute, maxSpeedKmh, speedMultiplier);
 
 	return modifiedRoute;
 }
 
 function computeDrivingXp(job: Job, _employee: Employee, _gameState: GameState): number {
-	// TODO: implement this logic
-	return Math.floor(job.approximateTimeSeconds / 100);
+	const baseXp = job.approximateTimeSeconds * config.xp.driving.perSecond;
+	return Math.floor(baseXp * config.dev.xpMultiplier);
 }
 
 function computeCategoryXp(job: Job, _employee: Employee, _gameState: GameState): number {
-	// TODO: implement this logic
-	return Math.floor(job.approximateValue / 20);
+	const baseXp = job.approximateValue * config.xp.category.perEuro;
+	return Math.floor(baseXp * config.dev.xpMultiplier);
 }
 
 /**

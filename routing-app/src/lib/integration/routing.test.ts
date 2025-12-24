@@ -351,18 +351,19 @@ describe('routing functions (integration)', () => {
 			const minDistance = 0.5; // 500m
 			const maxDistance = 1.0; // 1km
 
-			const route = await getRandomRouteInAnnulus(from, minDistance, maxDistance);
+			const routeInAnnulus = await getRandomRouteInAnnulus(from, minDistance, maxDistance);
 
 			// Check route structure
-			expect(route).toHaveProperty('path');
-			expect(route).toHaveProperty('travelTimeSeconds');
-			expect(route).toHaveProperty('totalDistanceMeters');
-			expect(route).toHaveProperty('destination');
+			expect(routeInAnnulus).toHaveProperty('route');
+			expect(routeInAnnulus).toHaveProperty('destination');
+			expect(routeInAnnulus.route).toHaveProperty('path');
+			expect(routeInAnnulus.route).toHaveProperty('travelTimeSeconds');
+			expect(routeInAnnulus.route).toHaveProperty('totalDistanceMeters');
 
 			// Check path
-			expect(Array.isArray(route.path)).toBe(true);
-			expect(route.path.length).toBeGreaterThan(0);
-			route.path.forEach((point) => {
+			expect(Array.isArray(routeInAnnulus.route.path)).toBe(true);
+			expect(routeInAnnulus.route.path.length).toBeGreaterThan(0);
+			routeInAnnulus.route.path.forEach((point) => {
 				expect(point).toHaveProperty('coordinates');
 				expect(point.coordinates).toHaveProperty('lat');
 				expect(point.coordinates).toHaveProperty('lon');
@@ -379,23 +380,23 @@ describe('routing functions (integration)', () => {
 			});
 
 			// Check travel time
-			expect(typeof route.travelTimeSeconds).toBe('number');
-			expect(route.travelTimeSeconds).toBeGreaterThan(0);
+			expect(typeof routeInAnnulus.route.travelTimeSeconds).toBe('number');
+			expect(routeInAnnulus.route.travelTimeSeconds).toBeGreaterThan(0);
 
 			// Check total distance
-			expect(typeof route.totalDistanceMeters).toBe('number');
-			expect(route.totalDistanceMeters).toBeGreaterThan(0);
+			expect(typeof routeInAnnulus.route.totalDistanceMeters).toBe('number');
+			expect(routeInAnnulus.route.totalDistanceMeters).toBeGreaterThan(0);
 
 			// Check destination
-			expect(route.destination).toHaveProperty('id');
-			expect(route.destination).toHaveProperty('lat');
-			expect(route.destination).toHaveProperty('lon');
+			expect(routeInAnnulus.destination).toHaveProperty('id');
+			expect(routeInAnnulus.destination).toHaveProperty('lat');
+			expect(routeInAnnulus.destination).toHaveProperty('lon');
 
 			// Check that destination is within reasonable bounds
-			expect(route.destination.lat).toBeGreaterThan(from.lat - 0.1);
-			expect(route.destination.lat).toBeLessThan(from.lat + 0.1);
-			expect(route.destination.lon).toBeGreaterThan(from.lon - 0.1);
-			expect(route.destination.lon).toBeLessThan(from.lon + 0.1);
+			expect(routeInAnnulus.destination.lat).toBeGreaterThan(from.lat - 0.1);
+			expect(routeInAnnulus.destination.lat).toBeLessThan(from.lat + 0.1);
+			expect(routeInAnnulus.destination.lon).toBeGreaterThan(from.lon - 0.1);
+			expect(routeInAnnulus.destination.lon).toBeLessThan(from.lon + 0.1);
 		});
 
 		it('handles larger distances', async () => {
@@ -403,13 +404,14 @@ describe('routing functions (integration)', () => {
 			const minDistance = 2.0; // 2km
 			const maxDistance = 3.0; // 3km
 
-			const route = await getRandomRouteInAnnulus(from, minDistance, maxDistance);
+			const routeInAnnulus = await getRandomRouteInAnnulus(from, minDistance, maxDistance);
 
-			expect(route).toHaveProperty('path');
-			expect(route).toHaveProperty('travelTimeSeconds');
-			expect(route).toHaveProperty('totalDistanceMeters');
-			expect(route).toHaveProperty('destination');
-			expect(route.path.length).toBeGreaterThan(0);
+			expect(routeInAnnulus).toHaveProperty('route');
+			expect(routeInAnnulus).toHaveProperty('destination');
+			expect(routeInAnnulus.route).toHaveProperty('path');
+			expect(routeInAnnulus.route).toHaveProperty('travelTimeSeconds');
+			expect(routeInAnnulus.route).toHaveProperty('totalDistanceMeters');
+			expect(routeInAnnulus.route.path.length).toBeGreaterThan(0);
 		});
 
 		it('respects max speed parameter', async () => {
@@ -418,13 +420,19 @@ describe('routing functions (integration)', () => {
 			const maxDistance = 1.0; // 1km
 			const maxSpeed = 20; // 20 km/h
 
-			const route = await getRandomRouteInAnnulus(from, minDistance, maxDistance, maxSpeed);
+			const routeInAnnulus = await getRandomRouteInAnnulus(
+				from,
+				minDistance,
+				maxDistance,
+				maxSpeed
+			);
 
-			expect(route).toHaveProperty('path');
-			expect(route.path.length).toBeGreaterThan(0);
+			expect(routeInAnnulus).toHaveProperty('route');
+			expect(routeInAnnulus.route).toHaveProperty('path');
+			expect(routeInAnnulus.route.path.length).toBeGreaterThan(0);
 
 			// Check that all max_speed_kmh values are at or below the limit (except for walking segments and starting point)
-			route.path.forEach((point, index) => {
+			routeInAnnulus.route.path.forEach((point, index) => {
 				if (point.is_walking_segment) {
 					expect(point.max_speed_kmh).toBe(6); // Walking segments are always 6 km/h
 				} else if (index === 0 && !point.is_walking_segment) {

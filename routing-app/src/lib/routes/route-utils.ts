@@ -50,11 +50,16 @@ export function applyMaxSpeed(
 	for (let i = 0; i < modifiedRoute.path.length; i++) {
 		const point = modifiedRoute.path[i];
 
-		// Handle walking segments - they are not affected by max speed or multiplier
+		// Handle walking segments - apply multiplier but not max speed limits
 		if (point.is_walking_segment) {
 			// Use original cumulative times to calculate segment time
 			const prevOriginalCumulativeTime = i > 0 ? route.path[i - 1].cumulative_time_seconds : 0;
-			const segmentTime = point.cumulative_time_seconds - prevOriginalCumulativeTime;
+			const currentOriginalCumulativeTime = route.path[i].cumulative_time_seconds;
+			let segmentTime = currentOriginalCumulativeTime - prevOriginalCumulativeTime;
+
+			// Apply the time multiplier to walking segments as well
+			segmentTime *= timeMultiplier;
+
 			cumulativeTimeSeconds += segmentTime;
 			cumulativeDistanceMeters = point.cumulative_distance_meters;
 			// Update the point's cumulative time to match our calculated value
@@ -66,16 +71,18 @@ export function applyMaxSpeed(
 		const originalSpeedKmh = point.max_speed_kmh;
 		const effectiveSpeedKmh = Math.min(originalSpeedKmh, maxSpeedKmh);
 
-		// Calculate the time for this segment
-		const prevCumulativeTime = i > 0 ? modifiedRoute.path[i - 1].cumulative_time_seconds : 0;
-		let segmentTime = point.cumulative_time_seconds - prevCumulativeTime;
+		// Calculate the time for this segment using ORIGINAL route cumulative times
+		// This ensures we get the correct segment duration before applying modifications
+		const prevOriginalCumulativeTime = i > 0 ? route.path[i - 1].cumulative_time_seconds : 0;
+		const currentOriginalCumulativeTime = route.path[i].cumulative_time_seconds;
+		let segmentTime = currentOriginalCumulativeTime - prevOriginalCumulativeTime;
 
 		// If we need to limit the speed, scale the time accordingly
 		if (effectiveSpeedKmh < originalSpeedKmh) {
 			segmentTime = segmentTime * (originalSpeedKmh / effectiveSpeedKmh);
 		}
 
-		// Apply the time multiplier
+		// Apply the time multiplier (e.g., 0.1 = 10x faster)
 		segmentTime *= timeMultiplier;
 
 		// Update cumulative values

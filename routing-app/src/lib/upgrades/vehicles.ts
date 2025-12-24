@@ -1,5 +1,6 @@
 /**
  * Vehicle system configuration
+ * Client-safe - uses static configs that can be overridden server-side
  */
 
 export enum VehicleType {
@@ -54,120 +55,148 @@ export interface LicenseConfig {
 	cost: number;
 }
 
-export const VEHICLE_CONFIGS: Record<VehicleType, VehicleConfig> = {
+// Vehicle metadata (not in config - these are structural)
+const VEHICLE_METADATA: Record<
+	VehicleType,
+	{ name: string; minLicenseLevel: LicenseType; vehicleClass: VehicleClass }
+> = {
 	[VehicleType.BIKE]: {
 		name: 'Bike',
-		baseCost: 0,
-		capacity: 10,
-		maxSpeed: 15,
 		minLicenseLevel: LicenseType.UNLICENSED,
 		vehicleClass: VehicleClass.BIKE
 	},
 	[VehicleType.BACKPACK]: {
 		name: 'Backpack',
-		baseCost: 10,
-		capacity: 20,
-		maxSpeed: 15,
 		minLicenseLevel: LicenseType.UNLICENSED,
 		vehicleClass: VehicleClass.BIKE
 	},
 	[VehicleType.SADDLEBAGS]: {
 		name: 'Saddlebags',
-		baseCost: 15,
-		capacity: 40,
-		maxSpeed: 15,
 		minLicenseLevel: LicenseType.UNLICENSED,
 		vehicleClass: VehicleClass.BIKE
 	},
 	[VehicleType.ELECTRIC_BIKE]: {
 		name: 'Electric bike',
-		baseCost: 30,
-		capacity: 40,
-		maxSpeed: 25,
 		minLicenseLevel: LicenseType.UNLICENSED,
 		vehicleClass: VehicleClass.BIKE
 	},
 	[VehicleType.SCOOTER]: {
 		name: 'Scooter',
-		baseCost: 100,
-		capacity: 50,
-		maxSpeed: 45,
 		minLicenseLevel: LicenseType.SCOOTER,
 		vehicleClass: VehicleClass.SCOOTER
 	},
 	[VehicleType.MICRO_CAR]: {
 		name: 'Micro car',
-		baseCost: 200,
-		capacity: 100,
-		maxSpeed: 100,
 		minLicenseLevel: LicenseType.CAR,
 		vehicleClass: VehicleClass.CAR
 	},
 	[VehicleType.SEDAN]: {
 		name: 'Sedan',
-		baseCost: 300,
-		capacity: 200,
-		maxSpeed: 130,
 		minLicenseLevel: LicenseType.CAR,
 		vehicleClass: VehicleClass.CAR
 	},
 	[VehicleType.HATCHBACK]: {
 		name: 'Hatchback',
-		baseCost: 400,
-		capacity: 300,
-		maxSpeed: 130,
 		minLicenseLevel: LicenseType.CAR,
 		vehicleClass: VehicleClass.CAR
 	},
 	[VehicleType.SMALL_VAN]: {
 		name: 'Small van',
-		baseCost: 500,
-		capacity: 500,
-		maxSpeed: 120,
 		minLicenseLevel: LicenseType.CONSTRUCTION,
 		vehicleClass: VehicleClass.VAN
 	},
 	[VehicleType.BIG_VAN]: {
 		name: 'Big van',
-		baseCost: 750,
-		capacity: 1000,
-		maxSpeed: 120,
 		minLicenseLevel: LicenseType.CONSTRUCTION,
 		vehicleClass: VehicleClass.VAN
 	},
 	[VehicleType.TRAILER]: {
 		name: 'Trailer',
-		baseCost: 1000,
-		capacity: 2000,
-		maxSpeed: 100,
 		minLicenseLevel: LicenseType.TRUCKING,
 		vehicleClass: VehicleClass.TRUCK
 	},
 	[VehicleType.TRUCK]: {
 		name: 'Truck',
-		baseCost: 3000,
-		capacity: 5000,
-		maxSpeed: 100,
 		minLicenseLevel: LicenseType.TRUCKING,
 		vehicleClass: VehicleClass.TRUCK
 	},
 	[VehicleType.SINGLE_TRAILER_TRUCK]: {
 		name: 'Single trailer truck',
-		baseCost: 10000,
-		capacity: 10000,
-		maxSpeed: 90,
 		minLicenseLevel: LicenseType.TRUCKING,
 		vehicleClass: VehicleClass.TRUCK
 	},
 	[VehicleType.DOUBLE_TRAILER_TRUCK]: {
 		name: 'Double trailer truck',
-		baseCost: 20000,
-		capacity: 15000,
-		maxSpeed: 90,
 		minLicenseLevel: LicenseType.TRUCKING,
 		vehicleClass: VehicleClass.TRUCK
 	}
 };
+
+// Build vehicle configs - use static defaults, can be overridden server-side
+function buildVehicleConfigs(): Record<VehicleType, VehicleConfig> {
+	const configs = {} as Record<VehicleType, VehicleConfig>;
+
+	// Static default values (matching current config.yaml)
+	// Server-side code can override these using the config system
+	const staticVehicleData: Record<
+		keyof typeof VehicleType,
+		{ baseCost: number; capacity: number; maxSpeed: number }
+	> = {
+		BIKE: { baseCost: 0, capacity: 10, maxSpeed: 15 },
+		BACKPACK: { baseCost: 10, capacity: 20, maxSpeed: 15 },
+		SADDLEBAGS: { baseCost: 15, capacity: 40, maxSpeed: 15 },
+		ELECTRIC_BIKE: { baseCost: 30, capacity: 40, maxSpeed: 25 },
+		SCOOTER: { baseCost: 100, capacity: 50, maxSpeed: 45 },
+		MICRO_CAR: { baseCost: 200, capacity: 100, maxSpeed: 100 },
+		SEDAN: { baseCost: 300, capacity: 200, maxSpeed: 130 },
+		HATCHBACK: { baseCost: 400, capacity: 300, maxSpeed: 130 },
+		SMALL_VAN: { baseCost: 500, capacity: 500, maxSpeed: 120 },
+		BIG_VAN: { baseCost: 750, capacity: 1000, maxSpeed: 120 },
+		TRAILER: { baseCost: 1000, capacity: 2000, maxSpeed: 100 },
+		TRUCK: { baseCost: 3000, capacity: 5000, maxSpeed: 100 },
+		SINGLE_TRAILER_TRUCK: { baseCost: 10000, capacity: 10000, maxSpeed: 90 },
+		DOUBLE_TRAILER_TRUCK: { baseCost: 20000, capacity: 15000, maxSpeed: 90 }
+	};
+
+	// Map enum values to their string keys
+	const vehicleTypeKeys: Record<VehicleType, keyof typeof VehicleType> = {
+		[VehicleType.BIKE]: 'BIKE',
+		[VehicleType.BACKPACK]: 'BACKPACK',
+		[VehicleType.SADDLEBAGS]: 'SADDLEBAGS',
+		[VehicleType.ELECTRIC_BIKE]: 'ELECTRIC_BIKE',
+		[VehicleType.SCOOTER]: 'SCOOTER',
+		[VehicleType.MICRO_CAR]: 'MICRO_CAR',
+		[VehicleType.SEDAN]: 'SEDAN',
+		[VehicleType.HATCHBACK]: 'HATCHBACK',
+		[VehicleType.SMALL_VAN]: 'SMALL_VAN',
+		[VehicleType.BIG_VAN]: 'BIG_VAN',
+		[VehicleType.TRAILER]: 'TRAILER',
+		[VehicleType.TRUCK]: 'TRUCK',
+		[VehicleType.SINGLE_TRAILER_TRUCK]: 'SINGLE_TRAILER_TRUCK',
+		[VehicleType.DOUBLE_TRAILER_TRUCK]: 'DOUBLE_TRAILER_TRUCK'
+	};
+
+	for (const vehicleType of Object.values(VehicleType).filter(
+		(v) => typeof v === 'number'
+	) as VehicleType[]) {
+		const typeKey = vehicleTypeKeys[vehicleType];
+		const metadata = VEHICLE_METADATA[vehicleType];
+		const staticData = staticVehicleData[typeKey];
+
+		configs[vehicleType] = {
+			name: metadata.name,
+			baseCost: staticData.baseCost,
+			capacity: staticData.capacity,
+			maxSpeed: staticData.maxSpeed,
+			minLicenseLevel: metadata.minLicenseLevel,
+			vehicleClass: metadata.vehicleClass
+		};
+	}
+
+	return configs;
+}
+
+export const VEHICLE_CONFIGS: Record<VehicleType, VehicleConfig> = buildVehicleConfigs();
 
 export function getNextVehicle(
 	currentVehicle: VehicleType,
@@ -190,53 +219,70 @@ export function getNextLicense(currentLicense: LicenseType): LicenseType | null 
 	return nextLevel <= LicenseType.TOXIC_GOODS ? (nextLevel as LicenseType) : null;
 }
 
-export const LICENSE_CONFIGS: Record<LicenseType, LicenseConfig> = {
-	[LicenseType.UNLICENSED]: {
-		name: 'Unlicensed',
-		minDrivingLevel: 0,
-		cost: 0
-	},
-	[LicenseType.SCOOTER]: {
-		name: 'Scooter',
-		minDrivingLevel: 1,
-		cost: 50
-	},
-	[LicenseType.CAR]: {
-		name: 'Car',
-		minDrivingLevel: 2,
-		cost: 100
-	},
-	[LicenseType.TAXI]: {
-		name: 'Taxi',
-		minDrivingLevel: 3,
-		cost: 500
-	},
-	[LicenseType.FRAGILE_GOODS]: {
-		name: 'Fragile goods',
-		minDrivingLevel: 4,
-		cost: 500
-	},
-	[LicenseType.CONSTRUCTION]: {
-		name: 'Construction',
-		minDrivingLevel: 5,
-		cost: 500
-	},
-	[LicenseType.TRUCKING]: {
-		name: 'Trucking',
-		minDrivingLevel: 6,
-		cost: 1000
-	},
-	[LicenseType.LIQUID_GOODS]: {
-		name: 'Liquid goods',
-		minDrivingLevel: 7,
-		cost: 2000
-	},
-	[LicenseType.TOXIC_GOODS]: {
-		name: 'Toxic goods',
-		minDrivingLevel: 8,
-		cost: 3000
-	}
+// License metadata (not in config - these are structural)
+const LICENSE_METADATA: Record<LicenseType, { name: string }> = {
+	[LicenseType.UNLICENSED]: { name: 'Unlicensed' },
+	[LicenseType.SCOOTER]: { name: 'Scooter' },
+	[LicenseType.CAR]: { name: 'Car' },
+	[LicenseType.TAXI]: { name: 'Taxi' },
+	[LicenseType.FRAGILE_GOODS]: { name: 'Fragile goods' },
+	[LicenseType.CONSTRUCTION]: { name: 'Construction' },
+	[LicenseType.TRUCKING]: { name: 'Trucking' },
+	[LicenseType.LIQUID_GOODS]: { name: 'Liquid goods' },
+	[LicenseType.TOXIC_GOODS]: { name: 'Toxic goods' }
 };
+
+// Build license configs - use static defaults, can be overridden server-side
+function buildLicenseConfigs(): Record<LicenseType, LicenseConfig> {
+	const configs = {} as Record<LicenseType, LicenseConfig>;
+
+	// Static default values (matching current config.yaml)
+	const staticLicenseData: Record<
+		keyof typeof LicenseType,
+		{ minDrivingLevel: number; cost: number }
+	> = {
+		UNLICENSED: { minDrivingLevel: 0, cost: 0 },
+		SCOOTER: { minDrivingLevel: 1, cost: 50 },
+		CAR: { minDrivingLevel: 2, cost: 100 },
+		TAXI: { minDrivingLevel: 3, cost: 500 },
+		FRAGILE_GOODS: { minDrivingLevel: 4, cost: 500 },
+		CONSTRUCTION: { minDrivingLevel: 5, cost: 500 },
+		TRUCKING: { minDrivingLevel: 6, cost: 1000 },
+		LIQUID_GOODS: { minDrivingLevel: 7, cost: 2000 },
+		TOXIC_GOODS: { minDrivingLevel: 8, cost: 3000 }
+	};
+
+	// Map enum values to their string keys
+	const licenseTypeKeys: Record<LicenseType, keyof typeof LicenseType> = {
+		[LicenseType.UNLICENSED]: 'UNLICENSED',
+		[LicenseType.SCOOTER]: 'SCOOTER',
+		[LicenseType.CAR]: 'CAR',
+		[LicenseType.TAXI]: 'TAXI',
+		[LicenseType.FRAGILE_GOODS]: 'FRAGILE_GOODS',
+		[LicenseType.CONSTRUCTION]: 'CONSTRUCTION',
+		[LicenseType.TRUCKING]: 'TRUCKING',
+		[LicenseType.LIQUID_GOODS]: 'LIQUID_GOODS',
+		[LicenseType.TOXIC_GOODS]: 'TOXIC_GOODS'
+	};
+
+	for (const licenseType of Object.values(LicenseType).filter(
+		(v) => typeof v === 'number'
+	) as LicenseType[]) {
+		const typeKey = licenseTypeKeys[licenseType];
+		const metadata = LICENSE_METADATA[licenseType];
+		const staticData = staticLicenseData[typeKey];
+
+		configs[licenseType] = {
+			name: metadata.name,
+			minDrivingLevel: staticData.minDrivingLevel,
+			cost: staticData.cost
+		};
+	}
+
+	return configs;
+}
+
+export const LICENSE_CONFIGS: Record<LicenseType, LicenseConfig> = buildLicenseConfigs();
 
 /**
  * Get vehicle configuration by type

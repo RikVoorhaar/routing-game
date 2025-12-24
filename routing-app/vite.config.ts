@@ -4,6 +4,12 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [sveltekit()],
+	server: {
+		watch: {
+			// Watch the config file for changes
+			ignored: ['!**/game-config.yaml']
+		}
+	},
 	test: {
 		workspace: [
 			{

@@ -12,6 +12,7 @@
 	import { computeUpgradeCost, getUpgradeInfo } from '$lib/upgrades/upgrades';
 	import { JobCategory, CATEGORY_NAMES, CATEGORY_ICONS } from '$lib/jobs/jobCategories';
 	import type { Employee } from '$lib/server/db/schema';
+	import { config } from '$lib/stores/config';
 
 	export let employee: Employee | null = null;
 
@@ -26,6 +27,11 @@
 	function handlePurchaseUpgrade(category: JobCategory) {
 		// TODO: Implement upgrade purchase
 	}
+
+	// Get employee capacity using config values if available
+	$: employeeCapacity = employee
+		? getEmployeeCapacity(employee, $config?.upgrades.effects.FURNITURE.capacityPerLevel ?? 0.05)
+		: 0;
 </script>
 
 {#if employee}
@@ -68,7 +74,7 @@
 			<div class="rounded-lg bg-base-200 p-3">
 				<div class="mb-2 flex items-center justify-between">
 					<span>Current: {currentVehicleConfig.name}</span>
-					<div class="badge badge-accent">{getEmployeeCapacity(employee)} capacity</div>
+					<div class="badge badge-accent">{employeeCapacity} capacity</div>
 				</div>
 
 				{#if getNextVehicle(employee.vehicleLevel, employee.licenseLevel) !== null}
@@ -94,7 +100,12 @@
 				{@const upgradeInfo = getUpgradeInfo(category)}
 				{@const currentLevel = employee.upgradeState[category]}
 				{@const categoryLevel = employee.categoryLevel[category]}
-				{@const upgradeCost = computeUpgradeCost(category, currentLevel + 1)}
+				{@const upgradeCost = computeUpgradeCost(
+					category,
+					currentLevel + 1,
+					$config?.upgrades.baseCost ?? 50,
+					$config?.upgrades.costExponent ?? 2
+				)}
 				{@const canUpgrade = categoryLevel.level > currentLevel}
 				{@const categoryName = CATEGORY_NAMES[category]}
 				{@const categoryIcon = CATEGORY_ICONS[category]}

@@ -60,80 +60,89 @@ export function canEmployeeDoJobCategory(employee: Employee, jobCategory: JobCat
 
 /**
  * Get employee's capacity including upgrades
+ * Uses default upgrade values (can be overridden server-side)
  */
-export function getEmployeeCapacity(employee: Employee): number {
+export function getEmployeeCapacity(employee: Employee, capacityPerLevel: number = 0.05): number {
 	const baseCapacity = getVehicleConfig(employee.vehicleLevel).capacity;
 	const furnitureUpgradeLevel = employee.upgradeState[JobCategory.FURNITURE];
-	const furnitureCapacityBonus = furnitureUpgradeLevel * 0.05; // 5% per level
+	const furnitureCapacityBonus = furnitureUpgradeLevel * capacityPerLevel;
 
 	return Math.floor(baseCapacity * (1 + furnitureCapacityBonus));
 }
 
 /**
  * Get employee's effective max speed including upgrades
+ * Uses default upgrade values (can be overridden server-side)
  */
-export function getEmployeeMaxSpeed(employee: Employee): number {
+export function getEmployeeMaxSpeed(employee: Employee, maxSpeedPerLevel: number = 5): number {
 	const baseMaxSpeed = getVehicleConfig(employee.vehicleLevel).maxSpeed;
 	const fragileGoodsUpgradeLevel = employee.upgradeState[JobCategory.FRAGILE_GOODS];
-	const speedBonus = fragileGoodsUpgradeLevel * 5; // +5 km/h per level
+	const speedBonus = fragileGoodsUpgradeLevel * maxSpeedPerLevel;
 
 	return baseMaxSpeed + speedBonus;
 }
 
 /**
  * Get employee's distance-based earnings multiplier
+ * Uses default upgrade values (can be overridden server-side)
  */
-export function getDistanceEarningsMultiplier(employee: Employee): number {
+export function getDistanceEarningsMultiplier(employee: Employee, perLevel: number = 0.05): number {
 	const groceriesUpgradeLevel = employee.upgradeState[JobCategory.GROCERIES];
-	return 1 + groceriesUpgradeLevel * 0.05; // +5% per level
+	return 1 + groceriesUpgradeLevel * perLevel;
 }
 
 /**
  * Get employee's time-based earnings multiplier
+ * Uses default upgrade values (can be overridden server-side)
  */
-export function getTimeEarningsMultiplier(employee: Employee): number {
+export function getTimeEarningsMultiplier(employee: Employee, perLevel: number = 0.05): number {
 	const foodUpgradeLevel = employee.upgradeState[JobCategory.FOOD];
-	return 1 + foodUpgradeLevel * 0.05; // +5% per level
+	return 1 + foodUpgradeLevel * perLevel;
 }
 
 /**
  * Get employee's XP gain multiplier
+ * Uses default upgrade values (can be overridden server-side)
  */
-export function getXPGainMultiplier(employee: Employee): number {
+export function getXPGainMultiplier(employee: Employee, perLevel: number = 0.1): number {
 	const peopleUpgradeLevel = employee.upgradeState[JobCategory.PEOPLE];
-	return 1 + peopleUpgradeLevel * 0.1; // +10% per level
+	return 1 + peopleUpgradeLevel * perLevel;
 }
 
 /**
  * Get employee's route time reduction multiplier
+ * Uses default upgrade values (can be overridden server-side)
  */
-export function getRouteTimeMultiplier(employee: Employee): number {
+export function getRouteTimeMultiplier(employee: Employee, perLevel: number = 0.05): number {
 	const liquidsUpgradeLevel = employee.upgradeState[JobCategory.LIQUIDS];
-	return 1 - liquidsUpgradeLevel * 0.05; // -5% per level (capped at reasonable minimum)
+	return 1 - liquidsUpgradeLevel * perLevel;
 }
 
 /**
  * Get employee's node-to-address time reduction multiplier
+ * Uses default upgrade values (can be overridden server-side)
  */
-export function getNodeToAddressTimeMultiplier(employee: Employee): number {
+export function getNodeToAddressTimeMultiplier(employee: Employee, perLevel: number = 0.2): number {
 	const packagesUpgradeLevel = employee.upgradeState[JobCategory.PACKAGES];
-	return 1 - packagesUpgradeLevel * 0.2; // -20% per level (capped at reasonable minimum)
+	return 1 - packagesUpgradeLevel * perLevel;
 }
 
 /**
  * Get employee's upgrade cost reduction multiplier
+ * Uses default upgrade values (can be overridden server-side)
  */
-export function getUpgradeCostMultiplier(employee: Employee): number {
+export function getUpgradeCostMultiplier(employee: Employee, perLevel: number = 0.1): number {
 	const toxicGoodsUpgradeLevel = employee.upgradeState[JobCategory.TOXIC_GOODS];
-	return 1 - toxicGoodsUpgradeLevel * 0.1; // -10% per level
+	return 1 - toxicGoodsUpgradeLevel * perLevel;
 }
 
 /**
  * Get employee's maximum job capacity multiplier (for job eligibility)
+ * Uses default upgrade values (can be overridden server-side)
  */
-export function getMaxJobCapacityMultiplier(employee: Employee): number {
+export function getMaxJobCapacityMultiplier(employee: Employee, perLevel: number = 0.2): number {
 	const constructionUpgradeLevel = employee.upgradeState[JobCategory.CONSTRUCTION];
-	return 1 + constructionUpgradeLevel * 0.2; // +20% per level
+	return 1 + constructionUpgradeLevel * perLevel;
 }
 
 /**
@@ -160,14 +169,22 @@ export function formatEmployeeSummary(employee: Employee): string {
 
 /**
  * Computes the cost of hiring a new employee based on the number of existing employees
- * Formula: €100 * i^2 where i is the number of existing employees
- * The first employee is free (cost is 0 when i = 0)
+ * Formula: baseCost * (employeeCount ^ exponent)
+ * The first employee is free if configured
+ *
+ * This is a client-safe version that uses default values.
+ * Server-side code should use the config values directly.
  */
-export function computeEmployeeCosts(existingEmployeeCount: number): number {
-	if (existingEmployeeCount === 0) {
+export function computeEmployeeCosts(
+	existingEmployeeCount: number,
+	baseCost: number = 100,
+	exponent: number = 2,
+	firstEmployeeFree: boolean = true
+): number {
+	if (existingEmployeeCount === 0 && firstEmployeeFree) {
 		return 0; // First employee is free
 	}
-	return 100 * Math.pow(existingEmployeeCount, 2);
+	return baseCost * Math.pow(existingEmployeeCount, exponent);
 }
 
 export const DEFAULT_EMPLOYEE_LOCATION = {

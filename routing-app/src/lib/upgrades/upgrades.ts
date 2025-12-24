@@ -123,11 +123,17 @@ export const JOB_CATEGORY_RESTRICTIONS: Record<JobCategory, JobCategoryRestricti
 
 /**
  * Compute upgrade cost for a given category and level
- * Base cost is €50, doubles for every level invested
+ * Formula: baseCost * (costExponent ^ (level - 1))
+ * Uses default values (can be overridden server-side)
  */
-export function computeUpgradeCost(jobCategory: JobCategory, level: number): number {
-	if (level <= 0) return 50;
-	return 50 * Math.pow(2, level - 1);
+export function computeUpgradeCost(
+	jobCategory: JobCategory,
+	level: number,
+	baseCost: number = 50,
+	costExponent: number = 2
+): number {
+	if (level <= 0) return baseCost;
+	return baseCost * Math.pow(costExponent, level - 1);
 }
 
 /**
