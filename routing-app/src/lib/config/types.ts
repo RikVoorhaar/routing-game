@@ -2,7 +2,7 @@ import { JobCategory } from '$lib/jobs/jobCategories';
 
 /**
  * Type definitions for game configuration
- * These types match the structure of game-config.yaml
+ * These types match the structure of config/game-config.yaml
  * This file is shared between server and client code
  */
 

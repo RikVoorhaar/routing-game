@@ -19,12 +19,12 @@ const __dirname = dirname(__filename);
 /**
  * Resolve config path relative to the routing-app root
  */
-const configPath = join(__dirname, '../../../..', 'game-config.yaml');
+const configPath = join(__dirname, '../../../..', 'config', 'game-config.yaml');
 const upgradesConfigPath = join(__dirname, '../../../..', 'config', 'upgrades.yaml');
 const vehiclesConfigPath = join(__dirname, '../../../..', 'config', 'vehicles.yaml');
 
 /**
- * Loads and validates the game configuration from game-config.yaml
+ * Loads and validates the game configuration from config/game-config.yaml
  */
 function loadConfig(): GameConfig {
 	try {
@@ -40,7 +40,7 @@ function loadConfig(): GameConfig {
 			if ('code' in error && error.code === 'ENOENT') {
 				throw new Error(
 					`Configuration file not found: ${configPath}\n` +
-						'Please create game-config.yaml in the routing-app root directory.'
+						'Please create config/game-config.yaml in the routing-app root directory.'
 				);
 			}
 			throw new Error(`Failed to load configuration: ${error.message}`);
