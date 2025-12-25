@@ -70,12 +70,12 @@ export function formatDuration(timeSeconds: string | number | null | undefined):
 	if (timeSeconds == null) return '0:00';
 	const numValue = typeof timeSeconds === 'string' ? parseFloat(timeSeconds) : timeSeconds;
 	if (isNaN(numValue)) return '0:00';
-	
+
 	const totalSeconds = Math.floor(numValue);
 	const hours = Math.floor(totalSeconds / 3600);
 	const minutes = Math.floor((totalSeconds % 3600) / 60);
 	const seconds = totalSeconds % 60;
-	
+
 	// Format without leading zeros: show hours only if > 0
 	if (hours > 0) {
 		return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;

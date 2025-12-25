@@ -423,13 +423,11 @@
 				<div class="text-center">
 					<div class="text-xs font-medium text-base-content/60">Duration</div>
 					{#if $selectedEmployeeActiveJobData?.activeJob?.durationSeconds !== undefined && $selectedEmployeeActiveJobData.activeJob.durationSeconds !== null}
-						<div class="text-lg font-bold text-warning font-mono">
+						<div class="font-mono text-lg font-bold text-warning">
 							{formatDuration($selectedEmployeeActiveJobData.activeJob.durationSeconds)}
 						</div>
 					{:else}
-						<div class="text-lg font-bold text-warning opacity-50">
-							Computing...
-						</div>
+						<div class="text-lg font-bold text-warning opacity-50">Computing...</div>
 					{/if}
 				</div>
 

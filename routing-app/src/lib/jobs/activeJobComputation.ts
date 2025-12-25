@@ -83,7 +83,6 @@ function modifyRoute(
 	return modifiedRoute;
 }
 
-
 /**
  * Main function to compute all aspects of an active job
  */

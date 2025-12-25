@@ -31,11 +31,11 @@ export function computeJobXp(job: Job, config: GameConfig, gameState: GameState)
 	const valueComponent = job.approximateValue * config.xp.category.perEuro;
 	const combined = timeComponent + valueComponent;
 	const baseXp = Math.floor((combined * config.dev.xpMultiplier) / 2);
-	
+
 	// Apply upgrade multiplier from gameState
 	const xpMultiplier = gameState.upgradeEffects?.xpMultiplier ?? 1;
 	const finalXp = Math.floor(baseXp * xpMultiplier);
-	
+
 	return finalXp;
 }
 
