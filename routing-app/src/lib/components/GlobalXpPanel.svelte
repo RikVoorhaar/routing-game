@@ -16,8 +16,7 @@
 
 	// Calculate progress to next level for total
 	$: totalLevelXp = getXpForLevel(totalLevel);
-	$: totalNextLevelXp =
-		totalLevel < MAX_LEVEL ? getXpForLevel(totalLevel + 1) : totalLevelXp;
+	$: totalNextLevelXp = totalLevel < MAX_LEVEL ? getXpForLevel(totalLevel + 1) : totalLevelXp;
 	$: totalProgress =
 		totalLevel >= MAX_LEVEL
 			? 100
@@ -63,7 +62,7 @@
 				</div>
 			</div>
 			<div class="mt-2">
-				<div class="text-xs text-base-content/70 mb-1">Progress to Level {totalLevel + 1}</div>
+				<div class="mb-1 text-xs text-base-content/70">Progress to Level {totalLevel + 1}</div>
 				<progress class="progress progress-primary" value={totalProgress} max="100"></progress>
 			</div>
 		</div>
@@ -72,31 +71,28 @@
 	<!-- Category XP List -->
 	<div class="card bg-base-100 shadow">
 		<div class="card-body p-4">
-			<h3 class="card-title text-lg mb-4">Category Levels</h3>
+			<h3 class="card-title mb-4 text-lg">Category Levels</h3>
 			<div class="space-y-3">
 				{#each categories as category}
 					{@const stats = getCategoryStats(category)}
 					<div class="flex items-center gap-3 rounded-lg bg-base-200 p-3">
 						<div class="text-2xl">{CATEGORY_ICONS[category]}</div>
 						<div class="flex-1">
-							<div class="flex items-center justify-between mb-1">
+							<div class="mb-1 flex items-center justify-between">
 								<span class="font-semibold">{CATEGORY_NAMES[category]}</span>
 								<div class="text-sm text-base-content/70">
 									Level {stats.level} • {stats.xp.toLocaleString()} XP
 								</div>
 							</div>
 							<div class="flex items-center gap-2">
-								<progress
-									class="progress progress-primary flex-1"
-									value={stats.progress}
-									max="100"
+								<progress class="progress progress-primary flex-1" value={stats.progress} max="100"
 								></progress>
 								{#if stats.xpToNext > 0}
-									<span class="text-xs text-base-content/60 w-20 text-right">
+									<span class="w-20 text-right text-xs text-base-content/60">
 										{stats.xpToNext.toLocaleString()} to {stats.level + 1}
 									</span>
 								{:else}
-									<span class="text-xs text-base-content/60 w-20 text-right">Max</span>
+									<span class="w-20 text-right text-xs text-base-content/60">Max</span>
 								{/if}
 							</div>
 						</div>
@@ -106,4 +102,3 @@
 		</div>
 	</div>
 </div>
-

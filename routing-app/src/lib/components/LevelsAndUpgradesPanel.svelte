@@ -5,8 +5,8 @@
 	let activeTab: 'levels' | 'upgrades' = 'levels';
 </script>
 
-<div class="card h-[700px] bg-base-100 shadow-lg flex flex-col">
-	<div class="card-body p-2 flex flex-col">
+<div class="card flex h-[700px] flex-col bg-base-100 shadow-lg">
+	<div class="card-body flex flex-col p-2">
 		<!-- Tab Navigation -->
 		<div class="tabs-boxed tabs mb-4 px-4 pt-2">
 			<button
@@ -35,4 +35,3 @@
 		</div>
 	</div>
 </div>
-
