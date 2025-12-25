@@ -312,6 +312,7 @@ The following steps can be taken (mostly) independently:
      - employee XP
      - global category XP bucket (for leveling requirements)
    - ✅ Ensure ORM schema and runtime payloads use the new field
+   - ✅ Generated and applied migration `0002_active_job_single_xp.sql` (preserves existing address data)
 
 8. **Fix Job Selection UI: show XP and correct time estimate**
    - Update the job selection UI to display the job's XP reward
