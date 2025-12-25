@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { computeXpGain, buildCategoryXpIncrementExpr, buildMultiCategoryXpIncrementExpr } from './xpUpdates';
+import {
+	computeXpGain,
+	buildCategoryXpIncrementExpr,
+	buildMultiCategoryXpIncrementExpr
+} from './xpUpdates';
 
 describe('XP Update Utilities', () => {
 	describe('computeXpGain', () => {
@@ -146,4 +150,3 @@ describe('XP Update Utilities', () => {
 		});
 	});
 });
-
