@@ -183,9 +183,9 @@ export const activeJobs = pgTable(
 		),
 		durationSeconds: doublePrecision('duration_seconds').notNull(),
 		reward: doublePrecision('reward').notNull(),
-		drivingXp: integer('driving_xp').notNull(),
+		// Single XP value for the job (awarded to both employee XP and global category XP)
+		xp: integer('xp').notNull(),
 		jobCategory: integer('job_category').notNull(),
-		categoryXp: integer('category_xp').notNull(),
 		employeeStartAddressId: varchar('employee_start_address_id')
 			.notNull()
 			.references(() => addresses.id, { onDelete: 'cascade' }),

@@ -305,12 +305,13 @@ The following steps can be taken (mostly) independently:
    - ✅ Integrate into existing game UI
    - ✅ Add placeholder Upgrades UI panel
 
-7. **Unify Job XP (single xp field)**
-   - Update job interfaces/types so each job has a single `xp` value (remove `drivingXp` and `categoryXp`)
-   - Update job generation logic to produce a single XP value per job (determine appropriate scaling/balance)
-   - Update job completion logic to award XP correctly using the single job XP (still split employee XP vs global category XP as needed)
-   - Ensure persistence/DB schema and API payloads match the new job structure
-   - Update/repair relevant unit tests and fixtures
+7. **Unify Job XP (single xp field)** ✅ DONE
+   - ✅ Replace `active_job.drivingXp` + `active_job.categoryXp` with a single `active_job.xp`
+   - ✅ Compute the single XP value when accepting a job and persist it on the active job (job market can compute XP on the fly until we persist it on `job`)
+   - ✅ On completion, award the same XP amount to both:
+     - employee XP
+     - global category XP bucket (for leveling requirements)
+   - ✅ Ensure ORM schema and runtime payloads use the new field
 
 8. **Fix Job Selection UI: show XP and correct time estimate**
    - Update the job selection UI to display the job's XP reward

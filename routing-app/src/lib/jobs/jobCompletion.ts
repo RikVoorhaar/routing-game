@@ -2,7 +2,7 @@ import { db } from '../server/db';
 import { employees, activeJobs, gameStates, addresses } from '../server/db/schema';
 import { eq, and, isNotNull, sql } from 'drizzle-orm';
 import { log } from '$lib/logger';
-import type { Employee, ActiveJob, GameState, Address } from '../server/db/schema';
+import type { Employee, ActiveJob, GameState } from '../server/db/schema';
 import { JobCategory } from '../jobs/jobCategories';
 import {
 	computeXpGain,
@@ -56,8 +56,8 @@ export async function completeActiveJob(
 	const xpMultiplier = gameState.upgradeEffects?.xpMultiplier ?? 1;
 
 	// Calculate XP gains with multiplier applied
-	const employeeXpGained = computeXpGain(activeJob.drivingXp, xpMultiplier);
-	const categoryXpGained = computeXpGain(activeJob.categoryXp, xpMultiplier);
+	const employeeXpGained = computeXpGain(activeJob.xp, xpMultiplier);
+	const categoryXpGained = computeXpGain(activeJob.xp, xpMultiplier);
 	const jobCategory = activeJob.jobCategory as JobCategory;
 
 	// Get the job end location for updating employee position

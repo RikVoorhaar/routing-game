@@ -73,7 +73,7 @@
 		<div class="card-body p-4">
 			<h3 class="card-title mb-4 text-lg">Category Levels</h3>
 			<div class="space-y-3">
-				{#each categories as category}
+				{#each categories as category (category)}
 					{@const stats = getCategoryStats(category)}
 					<div class="flex items-center gap-3 rounded-lg bg-base-200 p-3">
 						<div class="text-2xl">{CATEGORY_ICONS[category]}</div>

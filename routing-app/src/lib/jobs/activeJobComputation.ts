@@ -82,14 +82,19 @@ function modifyRoute(
 	return modifiedRoute;
 }
 
-function computeDrivingXp(job: Job, _employee: Employee, _gameState: GameState): number {
-	const baseXp = job.approximateTimeSeconds * config.xp.driving.perSecond;
-	return Math.floor(baseXp * config.dev.xpMultiplier);
-}
-
-function computeCategoryXp(job: Job, _employee: Employee, _gameState: GameState): number {
-	const baseXp = job.approximateValue * config.xp.category.perEuro;
-	return Math.floor(baseXp * config.dev.xpMultiplier);
+function computeJobXp(job: Job, _employee: Employee, _gameState: GameState): number {
+	// Previously we had two XP values:
+	// - drivingXp: based on time
+	// - categoryXp: based on value
+	//
+	// We now store a single XP value on the active job. To keep overall progression
+	// roughly stable (total XP across employee+category), we use the *average* of the
+	// two previous components and then award that same XP to both employee XP and
+	// global category XP on completion.
+	const baseDrivingXp = job.approximateTimeSeconds * config.xp.driving.perSecond;
+	const baseCategoryXp = job.approximateValue * config.xp.category.perEuro;
+	const combined = baseDrivingXp + baseCategoryXp;
+	return Math.floor((combined * config.dev.xpMultiplier) / 2);
 }
 
 /**
@@ -127,8 +132,7 @@ export async function computeActiveJob(
 	// Compute payout
 	const computedPayout = computeJobValue(job, employee, gameState);
 
-	const drivingXp = computeDrivingXp(job, employee, gameState);
-	const categoryXp = computeCategoryXp(job, employee, gameState);
+	const xp = computeJobXp(job, employee, gameState);
 
 	// Create the active job data structure
 	const activeJob = {
@@ -139,9 +143,8 @@ export async function computeActiveJob(
 		activeJobRouteId: activeRouteId,
 		durationSeconds: modifiedRoute.travelTimeSeconds,
 		reward: computedPayout,
-		drivingXp: drivingXp,
+		xp,
 		jobCategory: job.jobCategory,
-		categoryXp: categoryXp,
 		employeeStartAddressId: employee.location.id,
 		jobAddressId: job.startAddressId,
 		employeeEndAddressId: job.endAddressId

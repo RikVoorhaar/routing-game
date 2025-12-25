@@ -99,9 +99,7 @@
 			</div>
 			<div class="flex justify-between">
 				<span><strong>Duration:</strong> {formatTime(jobDetails.duration)}</span>
-				<span
-					><strong>XP:</strong> {activeJob.drivingXp} driving, {activeJob.categoryXp} category</span
-				>
+				<span><strong>XP:</strong> {activeJob.xp}</span>
 			</div>
 			{#if jobDetails.distance > 0}
 				<div>
