@@ -291,12 +291,12 @@ The following steps can be taken (mostly) independently:
    - ✅ Deleted YAML files (`config/upgrades.yaml`, `config/vehicles.yaml`)
    - This simplifies the codebase and makes subsequent steps easier
 
-5. **Implement XP System Backend**
-   - Create functions to update employee XP and category XP atomically
-   - Implement XP multiplier application from `upgradeEffects`
-   - Update job completion logic to award XP correctly
-   - Handle race conditions using database transactions or JSONB updates
-   - Add unit tests for XP updates
+5. **Implement XP System Backend** ✅ DONE
+   - ✅ Create functions to update employee XP and category XP atomically
+   - ✅ Implement XP multiplier application from `upgradeEffects`
+   - ✅ Update job completion logic to award XP correctly
+   - ✅ Handle race conditions using database transactions or JSONB updates
+   - ✅ Add unit tests for XP updates
 
 6. **Create Global XP Display Tab/Component**
    - Build UI component showing total XP and per-category XP
