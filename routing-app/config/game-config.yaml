@@ -14,10 +14,10 @@ employees:
 xp:
   driving:
     # XP per second of job time (current: floor(timeSeconds / 100))
-    perSecond: 0.1
+    perSecond: 10
   category:
     # XP per euro of job value (current: floor(value / 20))
-    perEuro: 0.5
+    perEuro: 100
 
 jobs:
   value:

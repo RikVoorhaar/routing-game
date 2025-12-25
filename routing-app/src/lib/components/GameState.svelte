@@ -8,6 +8,7 @@
 	import Cheats from './Cheats.svelte';
 	import RouteMap from './RouteMap.svelte';
 	import JobCard from './JobCard.svelte';
+	import LevelsAndUpgradesPanel from './LevelsAndUpgradesPanel.svelte';
 	import { faker } from '@faker-js/faker';
 	import { addError } from '$lib/stores/errors';
 	import {
@@ -34,6 +35,7 @@
 	let hireError = '';
 
 	let configLoaded = false;
+	let activeRightTab: 'map' | 'levelsUpgrades' = 'map';
 
 	// Initialize stores with props data
 	onMount(async () => {
@@ -308,11 +310,9 @@
 							<div class="max-h-80 space-y-2 overflow-y-auto pr-2">
 								{#each $fullEmployeeData as fed (fed.employee.id)}
 									{@const activeJob = fed.activeJob}
-									{@const activeRoute = fed.activeRoute}
 									<EmployeeCard
 										employee={fed.employee}
 										{activeJob}
-										{activeRoute}
 										gameStateId={$currentGameState?.id || ''}
 									/>
 								{/each}
@@ -321,16 +321,39 @@
 					</div>
 				</div>
 
-				<!-- Right Panel - Map -->
+				<!-- Right Panel - Map or Levels & Upgrades -->
 				<div class="lg:col-span-2">
-					<div class="card h-[700px] bg-base-100 shadow-lg">
-						<div class="card-body p-2">
-							<h3 class="card-title px-4 py-2">Route Map</h3>
-							<div class="flex-1">
-								<RouteMap />
+					<!-- Tab Navigation -->
+					<div class="tabs-boxed tabs mb-4">
+						<button
+							class="tab"
+							class:tab-active={activeRightTab === 'map'}
+							on:click={() => (activeRightTab = 'map')}
+						>
+							Map
+						</button>
+						<button
+							class="tab"
+							class:tab-active={activeRightTab === 'levelsUpgrades'}
+							on:click={() => (activeRightTab = 'levelsUpgrades')}
+						>
+							Levels & Upgrades
+						</button>
+					</div>
+
+					<!-- Tab Content -->
+					{#if activeRightTab === 'map'}
+						<div class="card h-[700px] bg-base-100 shadow-lg">
+							<div class="card-body p-2">
+								<h3 class="card-title px-4 py-2">Route Map</h3>
+								<div class="flex-1">
+									<RouteMap />
+								</div>
 							</div>
 						</div>
-					</div>
+					{:else}
+						<LevelsAndUpgradesPanel />
+					{/if}
 				</div>
 			</div>
 		</div>
