@@ -2,6 +2,7 @@ BUGS:
 - [ ] Only one marker is animated at the same time, the others are frozen.
 - [ ] The notification bubbles appear behind the map.
 - [ ] The route end icon should be consistent between the preview and the active route. (home icon vs. finish icon.)
+- [ ] When accepting a job, it still displays the route in orange from another employee to the job's start location.
 
 ENHANCEMENTS:
 - [ ] Make job-progress smooth (use css animations, not per second updates)
