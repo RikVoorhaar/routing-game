@@ -31,6 +31,7 @@ DEV / NEW FEATURES:
 - [x] end address is formatted as coords, but start is a string
 - [ ] Add batched API endpoint to routing server for processing multiple routing requests in one call (performance optimization)
 - [ ] Many (1-2%) jobs fail to generate and are skipped. What are the causes of these skips, and are they necessary?
+- [ ] Reform the job generation system. Probably jobs should be generated per employee, and not on the whole map. Then the DB should not ingest _all_ the addresses, but rather a fraction of addresses. 
 - [x] ALl the jobs show up as not costing anything
 - [x] There are issue with the routes schema that I have notes on
 - [ ] The current max of 100 jobs per tile is too large, reduce to like 25

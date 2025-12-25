@@ -55,7 +55,7 @@ export function getEmployeeVehicleConfig(employee: Employee) {
 			// Fall through to fallback
 		}
 	}
-	
+
 	// Fallback: Cast vehicle level to VehicleType enum for compatibility
 	// This works because VehicleType enum values match vehicle levels (0=BIKE, 1=BACKPACK, etc.)
 	const vehicleType = employee.vehicleLevel as VehicleType;
@@ -84,7 +84,7 @@ export function getEmployeeVehicleClass(employee: Employee): VehicleClass {
 			// Fall through to fallback
 		}
 	}
-	
+
 	// Fallback: Cast vehicle level to VehicleType enum
 	const vehicleType = employee.vehicleLevel as VehicleType;
 	return getVehicleConfig(vehicleType).vehicleClass;
@@ -120,7 +120,7 @@ export function getEmployeeCapacity(employee: Employee, _capacityPerLevel: numbe
 			// Fall through to fallback
 		}
 	}
-	
+
 	// Fallback: Cast vehicle level to VehicleType enum
 	const vehicleType = employee.vehicleLevel as VehicleType;
 	return getVehicleConfig(vehicleType).capacity;
@@ -143,7 +143,7 @@ export function getEmployeeMaxSpeed(employee: Employee, _maxSpeedPerLevel: numbe
 			// Fall through to fallback
 		}
 	}
-	
+
 	// Fallback: Cast vehicle level to VehicleType enum
 	const vehicleType = employee.vehicleLevel as VehicleType;
 	return getVehicleConfig(vehicleType).maxSpeed;
@@ -154,7 +154,10 @@ export function getEmployeeMaxSpeed(employee: Employee, _maxSpeedPerLevel: numbe
  * Note: In the new upgrade system, upgrades are global (in gameState.upgradeEffects)
  * For now, returns 1.0 (no multiplier)
  */
-export function getDistanceEarningsMultiplier(_employee: Employee, _perLevel: number = 0.05): number {
+export function getDistanceEarningsMultiplier(
+	_employee: Employee,
+	_perLevel: number = 0.05
+): number {
 	return 1.0;
 }
 
@@ -190,7 +193,10 @@ export function getRouteTimeMultiplier(_employee: Employee, _perLevel: number = 
  * Note: In the new upgrade system, upgrades are global (in gameState.upgradeEffects)
  * For now, returns 1.0 (no reduction)
  */
-export function getNodeToAddressTimeMultiplier(_employee: Employee, _perLevel: number = 0.2): number {
+export function getNodeToAddressTimeMultiplier(
+	_employee: Employee,
+	_perLevel: number = 0.2
+): number {
 	return 1.0;
 }
 

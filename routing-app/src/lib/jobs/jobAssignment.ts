@@ -14,11 +14,11 @@ function getEmployeeVehicleTier(employee: Employee): number {
 	if (config?.vehicles) {
 		return getVehicleTierByLevel(employee.vehicleLevel, config.vehicles);
 	}
-	
+
 	// Fallback: Should not happen in production
 	console.warn(
 		`Could not get vehicle tier for employee with vehicleLevel ${employee.vehicleLevel}. ` +
-		`Using default tier 1. Make sure vehicles config is loaded.`
+			`Using default tier 1. Make sure vehicles config is loaded.`
 	);
 	return 1;
 }

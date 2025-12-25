@@ -154,7 +154,8 @@ export async function processCompletedJobs(gameStateId: string): Promise<{
 	const categoryXpUpdates: Record<JobCategory, number> = {} as Record<JobCategory, number>;
 	successfulResults.forEach((result) => {
 		const category = result.completedActiveJob.jobCategory as JobCategory;
-		categoryXpUpdates[category] = (categoryXpUpdates[category] || 0) + result.completedActiveJob.categoryXp;
+		categoryXpUpdates[category] =
+			(categoryXpUpdates[category] || 0) + result.completedActiveJob.categoryXp;
 	});
 
 	// Get current game state to update XP
