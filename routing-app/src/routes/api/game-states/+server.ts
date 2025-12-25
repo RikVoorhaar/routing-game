@@ -64,8 +64,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			name: name.trim(),
 			userId: session.user.id,
 			createdAt: new Date(Date.now()),
-			money: config.game.startingMoney.toString(),
-			routeLevel: 3
+			money: config.game.startingMoney.toString()
 		};
 
 		const [created] = await db.insert(gameStates).values(newGameState).returning();

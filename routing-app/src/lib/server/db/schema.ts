@@ -59,7 +59,7 @@ export interface UpgradeState {
  * Category XP structure - maps each job category to its XP value
  * Used in gameState.xp JSONB field
  */
-export interface CategoryXp extends Record<JobCategory, number> {}
+export type CategoryXp = Record<JobCategory, number>;
 
 /**
  * Upgrade effects structure - maps effect names to their current values
@@ -127,7 +127,9 @@ export const gameStates = pgTable(
 			.notNull()
 			.default(sql`CURRENT_TIMESTAMP`),
 		money: doublePrecision('money').notNull().default(0),
-		routeLevel: integer('route_level').notNull().default(3)
+		xp: jsonb('xp').$type<CategoryXp>().notNull().default(sql`'{}'::jsonb`),
+		upgradesPurchased: text('upgrades_purchased').array().notNull().default(sql`'{}'::text[]`),
+		upgradeEffects: jsonb('upgrade_effects').$type<UpgradeEffects>().notNull().default(sql`'{}'::jsonb`)
 	},
 	(table) => [index('game_states_user_id_idx').on(table.userId)]
 );
@@ -217,10 +219,7 @@ export const employees = pgTable(
 			.references(() => gameStates.id, { onDelete: 'cascade' }),
 		name: text('name').notNull(),
 		vehicleLevel: integer('vehicle_level').notNull().default(0), // VehicleType enum
-		licenseLevel: integer('license_level').notNull().default(0), // LicenseType enum
-		categoryLevel: jsonb('category_level').$type<CategoryLevels>().notNull(), // JSONB: Record<JobCategory, { level: number, xp: number }>
-		drivingLevel: jsonb('driving_level').$type<LevelXP>().notNull(), // JSONB: { level: number, xp: number }
-		upgradeState: jsonb('upgrade_state').$type<UpgradeState>().notNull(), // JSONB: Record<JobCategory, number> (upgrade levels)
+		xp: integer('xp').notNull().default(0), // Single XP value for employee
 		location: jsonb('location').$type<Address>().notNull() // JSONB: Address
 	},
 	(table) => [index('employees_game_id_idx').on(table.gameId)]

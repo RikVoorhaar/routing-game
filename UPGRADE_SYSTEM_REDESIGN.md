@@ -261,11 +261,12 @@ The following steps can be taken (mostly) independently:
    - ✅ Update documentation/comments that reference the old location
    - **Note:** Each vehicle level (except 0) must have a corresponding upgrade that unlocks it by incrementing `vehicleLevelMax`. Comprehensive configs will be populated in steps 10-11.
 
-3. **Update Database Schema**
-   - Modify `gameState` table: add `xp` (JSONB), `upgradesPurchased` (text[]), `upgradeEffects` (JSONB)
-   - Simplify `employee` table: remove `categoryLevel`, `drivingLevel`, `upgradeState`, `licenseLevel`; add single `xp` field
-   - Create migration or rebuild database (no data worth keeping per notes)
-   - Update TypeScript types to match new schema
+3. **Update Database Schema** ✅ DONE
+   - ✅ Modify `gameState` table: add `xp` (JSONB), `upgradesPurchased` (text[]), `upgradeEffects` (JSONB)
+   - ✅ Simplify `employee` table: remove `categoryLevel`, `drivingLevel`, `upgradeState`, `licenseLevel`; add single `xp` field
+   - ✅ Generate migration file using `drizzle-kit generate` (created `drizzle/0000_upgrade_system_redesign.sql`)
+   - ✅ Update TypeScript types to match new schema (types automatically inferred from schema)
+   - **Note:** Migration file generated. To apply: run `npm run db:migrate` or `npm run init-db:force` (rebuilds entire database, no data worth keeping per notes)
 
 4. **Implement XP System Backend**
    - Create functions to update employee XP and category XP atomically

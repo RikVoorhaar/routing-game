@@ -231,10 +231,6 @@
 						<div class="stat-title">Money</div>
 						<div class="stat-value text-success">{formatMoney($currentGameState?.money || 0)}</div>
 					</div>
-					<div class="stat">
-						<div class="stat-title">Route Level</div>
-						<div class="stat-value text-info">{$currentGameState?.routeLevel || 0}</div>
-					</div>
 				</div>
 			</div>
 		</div>
