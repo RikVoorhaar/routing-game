@@ -8,6 +8,7 @@ import type { Employee, Job, GameState, RoutingResult } from '$lib/server/db/sch
 import { getEmployeeMaxSpeed } from '$lib/employeeUtils';
 import { concatenateRoutes, applyMaxSpeed } from '$lib/routes/route-utils';
 import { config } from '$lib/server/config';
+import { computeJobXp } from '$lib/jobs/jobUtils';
 
 type ActiveJobInsert = InferInsertModel<typeof activeJobs>;
 type ActiveRouteInsert = InferInsertModel<typeof activeRoutes>;
@@ -82,20 +83,6 @@ function modifyRoute(
 	return modifiedRoute;
 }
 
-function computeJobXp(job: Job, _employee: Employee, _gameState: GameState): number {
-	// Previously we had two XP values:
-	// - drivingXp: based on time
-	// - categoryXp: based on value
-	//
-	// We now store a single XP value on the active job. To keep overall progression
-	// roughly stable (total XP across employee+category), we use the *average* of the
-	// two previous components and then award that same XP to both employee XP and
-	// global category XP on completion.
-	const baseDrivingXp = job.approximateTimeSeconds * config.xp.driving.perSecond;
-	const baseCategoryXp = job.approximateValue * config.xp.category.perEuro;
-	const combined = baseDrivingXp + baseCategoryXp;
-	return Math.floor((combined * config.dev.xpMultiplier) / 2);
-}
 
 /**
  * Main function to compute all aspects of an active job
@@ -132,7 +119,7 @@ export async function computeActiveJob(
 	// Compute payout
 	const computedPayout = computeJobValue(job, employee, gameState);
 
-	const xp = computeJobXp(job, employee, gameState);
+	const xp = computeJobXp(job, config, gameState);
 
 	// Create the active job data structure
 	const activeJob = {

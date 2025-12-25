@@ -314,11 +314,14 @@ The following steps can be taken (mostly) independently:
    - ✅ Ensure ORM schema and runtime payloads use the new field
    - ✅ Generated and applied migration `0002_active_job_single_xp.sql` (preserves existing address data)
 
-8. **Fix Job Selection UI: show XP and correct time estimate**
-   - Update the job selection UI to display the job's XP reward
-   - Fix the time estimate calculation/display (currently always shows 1m)
-   - Ensure time estimate uses the same underlying duration logic as job assignment/completion (including speed multipliers if applicable)
-   - Add small UI affordances: XP label + duration formatting consistency
+8. **Fix Job Selection UI: show XP and correct time estimate** ✅ DONE
+   - ✅ Update the job selection UI to display the job's XP reward
+   - ✅ Fix the time estimate calculation/display (currently always shows 1m)
+   - ✅ Ensure time estimate uses the same underlying duration logic as job assignment/completion (including speed multipliers if applicable)
+   - ✅ Add small UI affordances: XP label + duration formatting consistency
+   - ✅ Extracted `computeJobXp` to shared utility (`jobUtils.ts`) that accepts `GameConfig` and `GameState` for future extensibility
+   - ✅ Updated server-side `activeJobComputation.ts` to use shared function
+   - ✅ Updated `JobCard.svelte` to display XP computed with upgrade multipliers and show computed duration in hh:mm:ss format (or error state when route not computed)
 
 9. **Implement Upgrade System Backend**
    - Create upgrade configuration loader for `config/upgrades.yaml` (YAML parser)
