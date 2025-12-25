@@ -1,20 +1,20 @@
 {
-  "version": "7",
-  "dialect": "postgresql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1766661598769,
-      "tag": "0000_upgrade_system_redesign",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1766661882475,
-      "tag": "0001_remove_route_level",
-      "breakpoints": true
-    }
-  ]
+	"version": "7",
+	"dialect": "postgresql",
+	"entries": [
+		{
+			"idx": 0,
+			"version": "7",
+			"when": 1766661598769,
+			"tag": "0000_upgrade_system_redesign",
+			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "7",
+			"when": 1766661882475,
+			"tag": "0001_remove_route_level",
+			"breakpoints": true
+		}
+	]
 }

@@ -127,9 +127,18 @@ export const gameStates = pgTable(
 			.notNull()
 			.default(sql`CURRENT_TIMESTAMP`),
 		money: doublePrecision('money').notNull().default(0),
-		xp: jsonb('xp').$type<CategoryXp>().notNull().default(sql`'{}'::jsonb`),
-		upgradesPurchased: text('upgrades_purchased').array().notNull().default(sql`'{}'::text[]`),
-		upgradeEffects: jsonb('upgrade_effects').$type<UpgradeEffects>().notNull().default(sql`'{}'::jsonb`)
+		xp: jsonb('xp')
+			.$type<CategoryXp>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
+		upgradesPurchased: text('upgrades_purchased')
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
+		upgradeEffects: jsonb('upgrade_effects')
+			.$type<UpgradeEffects>()
+			.notNull()
+			.default(sql`'{}'::jsonb`)
 	},
 	(table) => [index('game_states_user_id_idx').on(table.userId)]
 );
