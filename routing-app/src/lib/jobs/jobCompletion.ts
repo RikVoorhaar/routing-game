@@ -2,14 +2,7 @@ import { db } from '../server/db';
 import { employees, activeJobs, gameStates, addresses } from '../server/db/schema';
 import { eq, and, isNotNull, sql } from 'drizzle-orm';
 import { log } from '$lib/logger';
-import type {
-	Employee,
-	ActiveJob,
-	GameState,
-	LevelXP,
-	CategoryLevels,
-	Address
-} from '../server/db/schema';
+import type { Employee, ActiveJob, GameState, Address } from '../server/db/schema';
 import { JobCategory } from '../jobs/jobCategories';
 
 export interface JobCompletionResult {
@@ -69,9 +62,24 @@ export async function completeActiveJob(
 		const updatedEmployee = updateEmployeeAfterJobCompletion(employee, activeJob, endAddress);
 		await tx.update(employees).set(updatedEmployee).where(eq(employees.id, employee.id));
 
-		// Update game state money only if requested
+		// Update game state: money and category XP
 		if (updateGameState) {
-			await tx.update(gameStates).set({ money: newBalance }).where(eq(gameStates.id, gameState.id));
+			// Update category XP in gameState
+			const jobCategory = activeJob.jobCategory as JobCategory;
+			const currentCategoryXp = (gameState.xp?.[jobCategory] as number) || 0;
+			const newCategoryXp = currentCategoryXp + activeJob.categoryXp;
+			const updatedXp = {
+				...(gameState.xp || {}),
+				[jobCategory]: newCategoryXp
+			};
+
+			await tx
+				.update(gameStates)
+				.set({
+					money: newBalance,
+					xp: updatedXp
+				})
+				.where(eq(gameStates.id, gameState.id));
 		}
 
 		return {
@@ -142,11 +150,38 @@ export async function processCompletedJobs(gameStateId: string): Promise<{
 	const totalReward = successfulResults.reduce((sum, result) => sum + result.reward, 0);
 	const updatedEmployees = successfulResults.map((result) => result.employee);
 
-	// Single atomic update to game state with total reward
+	// Calculate total category XP updates
+	const categoryXpUpdates: Record<JobCategory, number> = {} as Record<JobCategory, number>;
+	successfulResults.forEach((result) => {
+		const category = result.completedActiveJob.jobCategory as JobCategory;
+		categoryXpUpdates[category] = (categoryXpUpdates[category] || 0) + result.completedActiveJob.categoryXp;
+	});
+
+	// Get current game state to update XP
+	const [currentGameState] = await db
+		.select()
+		.from(gameStates)
+		.where(eq(gameStates.id, gameStateId))
+		.limit(1);
+
+	if (!currentGameState) {
+		throw new Error('Game state not found');
+	}
+
+	// Update category XP
+	const currentXp = (currentGameState.xp || {}) as Record<JobCategory, number>;
+	const updatedXp = { ...currentXp };
+	Object.entries(categoryXpUpdates).forEach(([category, xp]) => {
+		const cat = parseInt(category) as JobCategory;
+		updatedXp[cat] = (updatedXp[cat] || 0) + xp;
+	});
+
+	// Single atomic update to game state with total reward and XP
 	const [updatedGameState] = await db
 		.update(gameStates)
 		.set({
-			money: sql`${gameStates.money} + ${totalReward}`
+			money: sql`${gameStates.money} + ${totalReward}`,
+			xp: updatedXp
 		})
 		.where(eq(gameStates.id, gameStateId))
 		.returning();
@@ -174,32 +209,18 @@ function isJobComplete(activeJob: ActiveJob, currentTime: number): boolean {
 	return elapsed >= totalDurationMs;
 }
 /**
- * Update employee after job completion - XP, location, clear active job
+ * Update employee after job completion - XP, location
+ * New upgrade system: employees have single XP value, category XP goes to gameState
  */
 function updateEmployeeAfterJobCompletion(
 	employee: Employee,
 	activeJob: ActiveJob,
 	endAddress: Address
 ): Employee {
-	//TODO: Handle logic for leveleing up
-	const newDrivingLevel: LevelXP = {
-		level: employee.drivingLevel.level,
-		xp: employee.drivingLevel.xp + activeJob.drivingXp
-	};
-	const jobCategory = activeJob.jobCategory as JobCategory;
-	const newCategoryLevelRecord: LevelXP = {
-		level: employee.categoryLevel[jobCategory].level,
-		xp: employee.categoryLevel[jobCategory].xp + activeJob.categoryXp
-	};
-	const newCategoryLevel: CategoryLevels = {
-		...employee.categoryLevel,
-		[activeJob.jobCategory as JobCategory]: newCategoryLevelRecord
-	};
-
+	// Update employee XP (single value) - add driving XP
 	const newEmployee: Employee = {
 		...employee,
-		drivingLevel: newDrivingLevel,
-		categoryLevel: newCategoryLevel,
+		xp: employee.xp + activeJob.drivingXp,
 		location: endAddress
 	};
 

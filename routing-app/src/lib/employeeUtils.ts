@@ -4,23 +4,17 @@
 
 import { JobCategory } from './jobs/jobCategories';
 import type { Employee } from '$lib/server/db/schema';
-import { VehicleType, LicenseType, VehicleClass, getVehicleConfig } from './upgrades/vehicles';
-import {
-	getDefaultCategoryLevels,
-	getDefaultCategoryUpgrades,
-	getDefaultDrivingLevel,
-	canDoJobCategory
-} from './upgrades/upgrades';
+import { VehicleType, VehicleClass, LicenseType, getVehicleConfig } from './upgrades/vehicles';
 
 export interface NewEmployeeData {
 	gameId: string;
 	name: string;
-	vehicleLevel?: VehicleType;
-	licenseLevel?: LicenseType;
+	vehicleLevel?: number; // Vehicle level (0-based, from vehicles.yaml)
 }
 
 /**
  * Create default employee data for new employees
+ * New upgrade system: employees only have vehicleLevel and xp
  */
 export function createDefaultEmployee(
 	data: NewEmployeeData
@@ -28,121 +22,194 @@ export function createDefaultEmployee(
 	return {
 		gameId: data.gameId,
 		name: data.name,
-		vehicleLevel: data.vehicleLevel ?? VehicleType.BIKE,
-		licenseLevel: data.licenseLevel ?? LicenseType.UNLICENSED,
-		categoryLevel: getDefaultCategoryLevels(),
-		drivingLevel: getDefaultDrivingLevel(),
-		upgradeState: getDefaultCategoryUpgrades()
+		vehicleLevel: data.vehicleLevel ?? 0, // Default to level 0 (Bike)
+		xp: 0 // Start with 0 XP
 	};
 }
 
 /**
  * Get employee's current vehicle configuration
+ * Uses vehicles.yaml config on server-side, falls back to old VehicleType enum on client-side
  */
 export function getEmployeeVehicleConfig(employee: Employee) {
-	return getVehicleConfig(employee.vehicleLevel);
+	// Try to use server-side vehicles.yaml config if available
+	if (typeof window === 'undefined') {
+		// Server-side: use vehicles.yaml config via direct import
+		// Use a function that can be called synchronously
+		try {
+			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			const vehicleUtils = require('$lib/server/vehicleUtils');
+			const config = vehicleUtils.getVehicleConfigByLevel(employee.vehicleLevel);
+			if (config) {
+				// Convert new VehicleConfig format to old format for compatibility
+				return {
+					name: config.name,
+					capacity: config.capacity,
+					maxSpeed: config.roadSpeed,
+					baseCost: 0, // Not in new config, use 0
+					minLicenseLevel: LicenseType.UNLICENSED, // Not in new config, use default
+					vehicleClass: VehicleClass.BIKE // Not in new config, default to BIKE
+				};
+			}
+		} catch {
+			// Fall through to fallback
+		}
+	}
+	
+	// Fallback: Cast vehicle level to VehicleType enum for compatibility
+	// This works because VehicleType enum values match vehicle levels (0=BIKE, 1=BACKPACK, etc.)
+	const vehicleType = employee.vehicleLevel as VehicleType;
+	return getVehicleConfig(vehicleType);
 }
 
 /**
  * Get employee's current vehicle class
+ * Uses vehicles.yaml config on server-side, falls back to old VehicleType enum on client-side
  */
 export function getEmployeeVehicleClass(employee: Employee): VehicleClass {
-	return getVehicleConfig(employee.vehicleLevel).vehicleClass;
+	// Try to use server-side vehicles.yaml config if available
+	if (typeof window === 'undefined') {
+		try {
+			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			const vehicleUtils = require('$lib/server/vehicleUtils');
+			const config = vehicleUtils.getVehicleConfigByLevel(employee.vehicleLevel);
+			if (config) {
+				// Map tier to vehicle class (simplified mapping)
+				// Tier 1-2 = BIKE, Tier 3 = SCOOTER, Tier 4+ = CAR/VAN/TRUCK
+				if (config.tier <= 2) return VehicleClass.BIKE;
+				if (config.tier === 3) return VehicleClass.SCOOTER;
+				return VehicleClass.CAR; // Default for higher tiers
+			}
+		} catch {
+			// Fall through to fallback
+		}
+	}
+	
+	// Fallback: Cast vehicle level to VehicleType enum
+	const vehicleType = employee.vehicleLevel as VehicleType;
+	return getVehicleConfig(vehicleType).vehicleClass;
 }
 
 /**
  * Check if employee can do a specific job category
+ * @deprecated This function is no longer used in the new upgrade system
+ * Job eligibility is now based on vehicle tier vs job tier
+ * This function is kept for backward compatibility but always returns true
  */
-export function canEmployeeDoJobCategory(employee: Employee, jobCategory: JobCategory): boolean {
-	const vehicleClass = getEmployeeVehicleClass(employee);
-	return canDoJobCategory(jobCategory, employee.licenseLevel, vehicleClass);
+export function canEmployeeDoJobCategory(_employee: Employee, _jobCategory: JobCategory): boolean {
+	// In the new system, this check is done via vehicle tier in employeeCanPerformJob
+	// This function is kept for backward compatibility but always returns true
+	// (actual filtering happens via vehicle tier check)
+	return true;
 }
 
 /**
  * Get employee's capacity including upgrades
- * Uses default upgrade values (can be overridden server-side)
+ * Note: In the new upgrade system, upgrades are global (in gameState.upgradeEffects)
+ * For now, this returns base capacity without upgrades
+ * Uses vehicles.yaml config on server-side
  */
-export function getEmployeeCapacity(employee: Employee, capacityPerLevel: number = 0.05): number {
-	const baseCapacity = getVehicleConfig(employee.vehicleLevel).capacity;
-	const furnitureUpgradeLevel = employee.upgradeState[JobCategory.FURNITURE];
-	const furnitureCapacityBonus = furnitureUpgradeLevel * capacityPerLevel;
-
-	return Math.floor(baseCapacity * (1 + furnitureCapacityBonus));
+export function getEmployeeCapacity(employee: Employee, _capacityPerLevel: number = 0.05): number {
+	// Try to use server-side vehicles.yaml config if available
+	if (typeof window === 'undefined') {
+		try {
+			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			const vehicleUtils = require('$lib/server/vehicleUtils');
+			return vehicleUtils.getVehicleCapacityByLevel(employee.vehicleLevel);
+		} catch {
+			// Fall through to fallback
+		}
+	}
+	
+	// Fallback: Cast vehicle level to VehicleType enum
+	const vehicleType = employee.vehicleLevel as VehicleType;
+	return getVehicleConfig(vehicleType).capacity;
 }
 
 /**
  * Get employee's effective max speed including upgrades
- * Uses default upgrade values (can be overridden server-side)
+ * Note: In the new upgrade system, upgrades are global (in gameState.upgradeEffects)
+ * For now, this returns base max speed without upgrades
+ * Uses vehicles.yaml config on server-side
  */
-export function getEmployeeMaxSpeed(employee: Employee, maxSpeedPerLevel: number = 5): number {
-	const baseMaxSpeed = getVehicleConfig(employee.vehicleLevel).maxSpeed;
-	const fragileGoodsUpgradeLevel = employee.upgradeState[JobCategory.FRAGILE_GOODS];
-	const speedBonus = fragileGoodsUpgradeLevel * maxSpeedPerLevel;
-
-	return baseMaxSpeed + speedBonus;
+export function getEmployeeMaxSpeed(employee: Employee, _maxSpeedPerLevel: number = 5): number {
+	// Try to use server-side vehicles.yaml config if available
+	if (typeof window === 'undefined') {
+		try {
+			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			const vehicleUtils = require('$lib/server/vehicleUtils');
+			return vehicleUtils.getVehicleRoadSpeedByLevel(employee.vehicleLevel);
+		} catch {
+			// Fall through to fallback
+		}
+	}
+	
+	// Fallback: Cast vehicle level to VehicleType enum
+	const vehicleType = employee.vehicleLevel as VehicleType;
+	return getVehicleConfig(vehicleType).maxSpeed;
 }
 
 /**
  * Get employee's distance-based earnings multiplier
- * Uses default upgrade values (can be overridden server-side)
+ * Note: In the new upgrade system, upgrades are global (in gameState.upgradeEffects)
+ * For now, returns 1.0 (no multiplier)
  */
-export function getDistanceEarningsMultiplier(employee: Employee, perLevel: number = 0.05): number {
-	const groceriesUpgradeLevel = employee.upgradeState[JobCategory.GROCERIES];
-	return 1 + groceriesUpgradeLevel * perLevel;
+export function getDistanceEarningsMultiplier(_employee: Employee, _perLevel: number = 0.05): number {
+	return 1.0;
 }
 
 /**
  * Get employee's time-based earnings multiplier
- * Uses default upgrade values (can be overridden server-side)
+ * Note: In the new upgrade system, upgrades are global (in gameState.upgradeEffects)
+ * For now, returns 1.0 (no multiplier)
  */
-export function getTimeEarningsMultiplier(employee: Employee, perLevel: number = 0.05): number {
-	const foodUpgradeLevel = employee.upgradeState[JobCategory.FOOD];
-	return 1 + foodUpgradeLevel * perLevel;
+export function getTimeEarningsMultiplier(_employee: Employee, _perLevel: number = 0.05): number {
+	return 1.0;
 }
 
 /**
  * Get employee's XP gain multiplier
- * Uses default upgrade values (can be overridden server-side)
+ * Note: In the new upgrade system, upgrades are global (in gameState.upgradeEffects)
+ * For now, returns 1.0 (no multiplier)
  */
-export function getXPGainMultiplier(employee: Employee, perLevel: number = 0.1): number {
-	const peopleUpgradeLevel = employee.upgradeState[JobCategory.PEOPLE];
-	return 1 + peopleUpgradeLevel * perLevel;
+export function getXPGainMultiplier(_employee: Employee, _perLevel: number = 0.1): number {
+	return 1.0;
 }
 
 /**
  * Get employee's route time reduction multiplier
- * Uses default upgrade values (can be overridden server-side)
+ * Note: In the new upgrade system, upgrades are global (in gameState.upgradeEffects)
+ * For now, returns 1.0 (no reduction)
  */
-export function getRouteTimeMultiplier(employee: Employee, perLevel: number = 0.05): number {
-	const liquidsUpgradeLevel = employee.upgradeState[JobCategory.LIQUIDS];
-	return 1 - liquidsUpgradeLevel * perLevel;
+export function getRouteTimeMultiplier(_employee: Employee, _perLevel: number = 0.05): number {
+	return 1.0;
 }
 
 /**
  * Get employee's node-to-address time reduction multiplier
- * Uses default upgrade values (can be overridden server-side)
+ * Note: In the new upgrade system, upgrades are global (in gameState.upgradeEffects)
+ * For now, returns 1.0 (no reduction)
  */
-export function getNodeToAddressTimeMultiplier(employee: Employee, perLevel: number = 0.2): number {
-	const packagesUpgradeLevel = employee.upgradeState[JobCategory.PACKAGES];
-	return 1 - packagesUpgradeLevel * perLevel;
+export function getNodeToAddressTimeMultiplier(_employee: Employee, _perLevel: number = 0.2): number {
+	return 1.0;
 }
 
 /**
  * Get employee's upgrade cost reduction multiplier
- * Uses default upgrade values (can be overridden server-side)
+ * Note: In the new upgrade system, upgrades are global (in gameState.upgradeEffects)
+ * For now, returns 1.0 (no reduction)
  */
-export function getUpgradeCostMultiplier(employee: Employee, perLevel: number = 0.1): number {
-	const toxicGoodsUpgradeLevel = employee.upgradeState[JobCategory.TOXIC_GOODS];
-	return 1 - toxicGoodsUpgradeLevel * perLevel;
+export function getUpgradeCostMultiplier(_employee: Employee, _perLevel: number = 0.1): number {
+	return 1.0;
 }
 
 /**
  * Get employee's maximum job capacity multiplier (for job eligibility)
- * Uses default upgrade values (can be overridden server-side)
+ * Note: In the new upgrade system, upgrades are global (in gameState.upgradeEffects)
+ * For now, returns 1.0 (no multiplier)
  */
-export function getMaxJobCapacityMultiplier(employee: Employee, perLevel: number = 0.2): number {
-	const constructionUpgradeLevel = employee.upgradeState[JobCategory.CONSTRUCTION];
-	return 1 + constructionUpgradeLevel * perLevel;
+export function getMaxJobCapacityMultiplier(_employee: Employee, _perLevel: number = 0.2): number {
+	return 1.0;
 }
 
 /**

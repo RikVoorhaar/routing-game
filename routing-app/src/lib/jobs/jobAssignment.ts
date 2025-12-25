@@ -1,17 +1,37 @@
 import type { Employee, Job } from '$lib/server/db/schema';
 import { JobCategory } from '$lib/jobs/jobCategories';
-import { canEmployeeDoJobCategory } from '$lib/employeeUtils';
+import { getVehicleTierByLevel } from '$lib/vehicleUtils';
+import { get } from 'svelte/store';
+import { config as configStore } from '$lib/stores/config';
+
+/**
+ * Get vehicle tier for an employee
+ * Uses the vehicle config from vehicles.yaml which has a tier field
+ * Always uses the config store (works on both client and server)
+ */
+function getEmployeeVehicleTier(employee: Employee): number {
+	const config = get(configStore);
+	if (config?.vehicles) {
+		return getVehicleTierByLevel(employee.vehicleLevel, config.vehicles);
+	}
+	
+	// Fallback: Should not happen in production
+	console.warn(
+		`Could not get vehicle tier for employee with vehicleLevel ${employee.vehicleLevel}. ` +
+		`Using default tier 1. Make sure vehicles config is loaded.`
+	);
+	return 1;
+}
 
 /**
  * Check if an employee can perform a specific job
- * This checks license level, vehicle class, and driving level vs job tier
+ * This checks vehicle tier vs job tier (new upgrade system)
  */
 export function employeeCanPerformJob(employee: Employee, job: Job): boolean {
 	// Ensure job category is a valid JobCategory enum value
 	// Convert to number if it's a string, then cast to JobCategory
 	const jobCategoryValue =
 		typeof job.jobCategory === 'string' ? parseInt(job.jobCategory, 10) : job.jobCategory;
-	const jobCategory = jobCategoryValue as JobCategory;
 
 	// Validate that the job category is within valid range
 	if (
@@ -23,21 +43,10 @@ export function employeeCanPerformJob(employee: Employee, job: Job): boolean {
 		return false;
 	}
 
-	// Check if employee can do the job category (license + vehicle requirements)
-	if (!canEmployeeDoJobCategory(employee, jobCategory)) {
-		return false;
-	}
-
-	// Check if employee's driving level is sufficient for the job tier
-	const drivingLevel =
-		typeof employee.drivingLevel === 'string'
-			? JSON.parse(employee.drivingLevel)
-			: employee.drivingLevel;
-
-	// Minimum driving level required is job tier - 1 (so tier 1 jobs need level 0)
-	const requiredDrivingLevel = Math.max(0, job.jobTier - 1);
-
-	return drivingLevel.level >= requiredDrivingLevel;
+	// Check if employee's vehicle tier is sufficient for the job tier
+	// Employee can do a job if their vehicle tier >= job tier
+	const employeeVehicleTier = getEmployeeVehicleTier(employee);
+	return employeeVehicleTier >= job.jobTier;
 }
 
 /**

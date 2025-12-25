@@ -68,12 +68,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			gameId: gameStateId,
 			name: employeeName.trim(),
 			vehicleLevel: employeeData.vehicleLevel,
-			licenseLevel: employeeData.licenseLevel,
-			categoryLevel: JSON.stringify(employeeData.categoryLevel),
-			drivingLevel: JSON.stringify(employeeData.drivingLevel),
-			upgradeState: JSON.stringify(employeeData.upgradeState),
-			location: JSON.stringify(DEFAULT_EMPLOYEE_LOCATION),
-			activeJobId: null
+			xp: employeeData.xp,
+			location: JSON.stringify(DEFAULT_EMPLOYEE_LOCATION)
 		};
 
 		// Use a transaction to ensure consistency
