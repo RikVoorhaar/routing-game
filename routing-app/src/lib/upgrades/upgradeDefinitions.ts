@@ -68,4 +68,3 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		}
 	}
 ];
-

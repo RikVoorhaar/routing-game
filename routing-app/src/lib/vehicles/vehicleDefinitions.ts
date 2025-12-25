@@ -34,4 +34,3 @@ export const VEHICLE_DEFINITIONS: VehicleConfig[] = [
 		tier: 3
 	}
 ];
-
