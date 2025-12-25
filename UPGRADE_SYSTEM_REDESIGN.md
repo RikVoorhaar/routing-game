@@ -298,20 +298,34 @@ The following steps can be taken (mostly) independently:
    - ✅ Handle race conditions using database transactions or JSONB updates
    - ✅ Add unit tests for XP updates
 
-6. **Create Global XP Display Tab/Component**
-   - Build UI component showing total XP and per-category XP
-   - Display current level per category using LOT
-   - Show progress bars toward next level
-   - Integrate into existing game UI
+6. **Create Global XP Display Tab/Component** ✅ DONE
+   - ✅ Build UI component showing total XP and per-category XP
+   - ✅ Display current level per category using LOT
+   - ✅ Show progress bars toward next level
+   - ✅ Integrate into existing game UI
+   - ✅ Add placeholder Upgrades UI panel
 
-7. **Implement Upgrade System Backend**
+7. **Unify Job XP (single xp field)**
+   - Update job interfaces/types so each job has a single `xp` value (remove `drivingXp` and `categoryXp`)
+   - Update job generation logic to produce a single XP value per job (determine appropriate scaling/balance)
+   - Update job completion logic to award XP correctly using the single job XP (still split employee XP vs global category XP as needed)
+   - Ensure persistence/DB schema and API payloads match the new job structure
+   - Update/repair relevant unit tests and fixtures
+
+8. **Fix Job Selection UI: show XP and correct time estimate**
+   - Update the job selection UI to display the job's XP reward
+   - Fix the time estimate calculation/display (currently always shows 1m)
+   - Ensure time estimate uses the same underlying duration logic as job assignment/completion (including speed multipliers if applicable)
+   - Add small UI affordances: XP label + duration formatting consistency
+
+9. **Implement Upgrade System Backend**
    - Create upgrade configuration loader for `config/upgrades.yaml` (YAML parser)
    - Implement upgrade purchase logic (check requirements, deduct money, apply effects)
    - Create effect application functions (`multiply`, `increment`)
    - Implement requirement checking (upgrade dependencies + level requirements calculated from global XP)
    - Add unit tests for upgrade system
 
-8. **Build Upgrade Purchase UI**
+10. **Build Upgrade Purchase UI**
    - Create upgrade card component
    - Filter upgrades to show only available ones (requirements met)
    - Display upgrade details (money cost, description, effects, level requirements)
@@ -319,28 +333,28 @@ The following steps can be taken (mostly) independently:
    - Add visual feedback for purchased vs available vs locked upgrades
    - Show level requirement status (met/not met) for each upgrade
 
-9. **Implement Vehicle Upgrade System**
+11. **Implement Vehicle Upgrade System**
    - Create vehicle configuration loader for `config/vehicles.yaml` (YAML parser)
    - Create vehicle upgrade purchase logic (costs money, checks unlock requirements)
    - Update employee vehicle level assignment
    - Update vehicle stats calculation (capacity, speed, tier from config)
    - Add unit tests for vehicle upgrades
 
-10. **Revamp Employee Character Cards**
+12. **Revamp Employee Character Cards**
     - Update employee card UI to show new structure (single XP, vehicle level)
     - Add vehicle upgrade purchase interface to employee cards
     - Display vehicle stats based on current vehicle level
     - Update XP display to use LOT for level calculation
     - Remove old category/upgrade displays
 
-11. **Populate Upgrade Definitions**
+13. **Populate Upgrade Definitions**
     - Add comprehensive upgrade list to `src/lib/upgrades/upgradeDefinitions.ts`
     - Design tech tree with meaningful dependencies
     - Balance upgrade costs and effects
     - Ensure upgrades cover all effect types
     - Test upgrade progression flow
 
-12. **Populate Vehicle Definitions**
+14. **Populate Vehicle Definitions**
     - Add comprehensive vehicle definitions to `src/lib/vehicles/vehicleDefinitions.ts`
     - Structure vehicles by level (capacity, roadSpeed, tier, name)
     - Refactor existing vehicle definitions from `game-config.yaml` to new structure
