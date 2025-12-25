@@ -9,7 +9,7 @@ import { VehicleType, VehicleClass, LicenseType, getVehicleConfig } from './upgr
 export interface NewEmployeeData {
 	gameId: string;
 	name: string;
-	vehicleLevel?: number; // Vehicle level (0-based, from vehicles.yaml)
+	vehicleLevel?: number; // Vehicle level (0-based, from vehicle definitions)
 }
 
 /**
@@ -29,12 +29,12 @@ export function createDefaultEmployee(
 
 /**
  * Get employee's current vehicle configuration
- * Uses vehicles.yaml config on server-side, falls back to old VehicleType enum on client-side
+ * Uses vehicle definitions on server-side, falls back to old VehicleType enum on client-side
  */
 export function getEmployeeVehicleConfig(employee: Employee) {
-	// Try to use server-side vehicles.yaml config if available
+	// Try to use server-side vehicle definitions if available
 	if (typeof window === 'undefined') {
-		// Server-side: use vehicles.yaml config via direct import
+		// Server-side: use vehicle definitions via direct import
 		// Use a function that can be called synchronously
 		try {
 			// eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -64,10 +64,10 @@ export function getEmployeeVehicleConfig(employee: Employee) {
 
 /**
  * Get employee's current vehicle class
- * Uses vehicles.yaml config on server-side, falls back to old VehicleType enum on client-side
+ * Uses vehicle definitions on server-side, falls back to old VehicleType enum on client-side
  */
 export function getEmployeeVehicleClass(employee: Employee): VehicleClass {
-	// Try to use server-side vehicles.yaml config if available
+	// Try to use server-side vehicle definitions if available
 	if (typeof window === 'undefined') {
 		try {
 			// eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -107,10 +107,10 @@ export function canEmployeeDoJobCategory(_employee: Employee, _jobCategory: JobC
  * Get employee's capacity including upgrades
  * Note: In the new upgrade system, upgrades are global (in gameState.upgradeEffects)
  * For now, this returns base capacity without upgrades
- * Uses vehicles.yaml config on server-side
+ * Uses vehicle definitions on server-side
  */
 export function getEmployeeCapacity(employee: Employee, _capacityPerLevel: number = 0.05): number {
-	// Try to use server-side vehicles.yaml config if available
+	// Try to use server-side vehicle definitions if available
 	if (typeof window === 'undefined') {
 		try {
 			// eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -130,10 +130,10 @@ export function getEmployeeCapacity(employee: Employee, _capacityPerLevel: numbe
  * Get employee's effective max speed including upgrades
  * Note: In the new upgrade system, upgrades are global (in gameState.upgradeEffects)
  * For now, this returns base max speed without upgrades
- * Uses vehicles.yaml config on server-side
+ * Uses vehicle definitions on server-side
  */
 export function getEmployeeMaxSpeed(employee: Employee, _maxSpeedPerLevel: number = 5): number {
-	// Try to use server-side vehicles.yaml config if available
+	// Try to use server-side vehicle definitions if available
 	if (typeof window === 'undefined') {
 		try {
 			// eslint-disable-next-line @typescript-eslint/no-var-requires

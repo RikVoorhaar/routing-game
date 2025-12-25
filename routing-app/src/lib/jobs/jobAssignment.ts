@@ -1,26 +1,14 @@
 import type { Employee, Job } from '$lib/server/db/schema';
 import { JobCategory } from '$lib/jobs/jobCategories';
 import { getVehicleTierByLevel } from '$lib/vehicleUtils';
-import { get } from 'svelte/store';
-import { config as configStore } from '$lib/stores/config';
+import { VEHICLE_DEFINITIONS } from '$lib/vehicles/vehicleDefinitions';
 
 /**
  * Get vehicle tier for an employee
- * Uses the vehicle config from vehicles.yaml which has a tier field
- * Always uses the config store (works on both client and server)
+ * Uses the vehicle definitions which have a tier field
  */
 function getEmployeeVehicleTier(employee: Employee): number {
-	const config = get(configStore);
-	if (config?.vehicles) {
-		return getVehicleTierByLevel(employee.vehicleLevel, config.vehicles);
-	}
-
-	// Fallback: Should not happen in production
-	console.warn(
-		`Could not get vehicle tier for employee with vehicleLevel ${employee.vehicleLevel}. ` +
-			`Using default tier 1. Make sure vehicles config is loaded.`
-	);
-	return 1;
+	return getVehicleTierByLevel(employee.vehicleLevel, VEHICLE_DEFINITIONS);
 }
 
 /**

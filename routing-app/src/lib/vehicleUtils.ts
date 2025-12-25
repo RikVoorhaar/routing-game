@@ -1,61 +1,61 @@
 /**
  * Shared vehicle utilities that work on both client and server
- * Accepts VehiclesConfig as a parameter instead of importing server-only code
+ * Accepts vehicle definitions array directly
  */
 
-import type { VehicleConfig, VehiclesConfig } from '$lib/config/types';
+import type { VehicleConfig } from '$lib/config/types';
 
 /**
  * Build a mapping from vehicle level to vehicle config
- * This is computed from the provided vehicles config
+ * This is computed from the provided vehicle definitions array
  */
-function buildVehicleLevelMapping(vehiclesConfig: VehiclesConfig): Map<number, VehicleConfig> {
+function buildVehicleLevelMapping(vehicles: VehicleConfig[]): Map<number, VehicleConfig> {
 	const mapping = new Map<number, VehicleConfig>();
-	for (const vehicle of vehiclesConfig.vehicles) {
+	for (const vehicle of vehicles) {
 		mapping.set(vehicle.level, vehicle);
 	}
 	return mapping;
 }
 
 /**
- * Get vehicle config by level from vehicles config
+ * Get vehicle config by level from vehicle definitions array
  */
 export function getVehicleConfigByLevel(
 	level: number,
-	vehiclesConfig: VehiclesConfig
+	vehicles: VehicleConfig[]
 ): VehicleConfig | null {
-	const mapping = buildVehicleLevelMapping(vehiclesConfig);
+	const mapping = buildVehicleLevelMapping(vehicles);
 	return mapping.get(level) || null;
 }
 
 /**
  * Get vehicle tier by level
  */
-export function getVehicleTierByLevel(level: number, vehiclesConfig: VehiclesConfig): number {
-	const vehicle = getVehicleConfigByLevel(level, vehiclesConfig);
+export function getVehicleTierByLevel(level: number, vehicles: VehicleConfig[]): number {
+	const vehicle = getVehicleConfigByLevel(level, vehicles);
 	return vehicle?.tier ?? 1; // Default to tier 1 if not found
 }
 
 /**
  * Get vehicle capacity by level
  */
-export function getVehicleCapacityByLevel(level: number, vehiclesConfig: VehiclesConfig): number {
-	const vehicle = getVehicleConfigByLevel(level, vehiclesConfig);
+export function getVehicleCapacityByLevel(level: number, vehicles: VehicleConfig[]): number {
+	const vehicle = getVehicleConfigByLevel(level, vehicles);
 	return vehicle?.capacity ?? 10; // Default to 10 if not found
 }
 
 /**
  * Get vehicle road speed by level
  */
-export function getVehicleRoadSpeedByLevel(level: number, vehiclesConfig: VehiclesConfig): number {
-	const vehicle = getVehicleConfigByLevel(level, vehiclesConfig);
+export function getVehicleRoadSpeedByLevel(level: number, vehicles: VehicleConfig[]): number {
+	const vehicle = getVehicleConfigByLevel(level, vehicles);
 	return vehicle?.roadSpeed ?? 15; // Default to 15 if not found
 }
 
 /**
  * Get vehicle name by level
  */
-export function getVehicleNameByLevel(level: number, vehiclesConfig: VehiclesConfig): string {
-	const vehicle = getVehicleConfigByLevel(level, vehiclesConfig);
+export function getVehicleNameByLevel(level: number, vehicles: VehicleConfig[]): string {
+	const vehicle = getVehicleConfigByLevel(level, vehicles);
 	return vehicle?.name ?? 'Unknown Vehicle';
 }

@@ -277,15 +277,18 @@ The following steps can be taken (mostly) independently:
    - ✅ Update TypeScript types to match new schema (types automatically inferred from schema)
    - **Note:** Migration file generated. To apply: run `npm run db:migrate` or `npm run init-db:force` (rebuilds entire database, no data worth keeping per notes)
 
-4. **Move Upgrades and Vehicles to Code (Refactor)**
-   - Move upgrade definitions from `config/upgrades.yaml` to TypeScript code (e.g., `src/lib/upgrades/upgradeDefinitions.ts`)
-   - Move vehicle definitions from `config/vehicles.yaml` to TypeScript code (e.g., `src/lib/vehicles/vehicleDefinitions.ts`)
-   - Export these as constants/arrays that can be imported directly by both client and server
-   - Remove the need for config store workarounds and YAML parsing
-   - Keep `config/game-config.yaml` for game balance values (money multipliers, XP rates, etc.) but move structural data (upgrades, vehicles) to code
-   - Benefits: Type safety, easier refactoring, no runtime parsing, simpler imports, better IDE support
-   - Update all references to use the new code-based definitions
-   - Remove YAML config loaders and validation for upgrades/vehicles (keep for game-config.yaml)
+4. **Move Upgrades and Vehicles to Code (Refactor)** ✅ DONE
+   - ✅ Moved upgrade definitions from `config/upgrades.yaml` to TypeScript code (`src/lib/upgrades/upgradeDefinitions.ts`)
+   - ✅ Moved vehicle definitions from `config/vehicles.yaml` to TypeScript code (`src/lib/vehicles/vehicleDefinitions.ts`)
+   - ✅ Exported as constants/arrays (`UPGRADE_DEFINITIONS`, `VEHICLE_DEFINITIONS`) that can be imported directly by both client and server
+   - ✅ Removed the need for config store workarounds and YAML parsing
+   - ✅ Kept `config/game-config.yaml` for game balance values (money multipliers, XP rates, etc.) but moved structural data (upgrades, vehicles) to code
+   - ✅ Benefits: Type safety, easier refactoring, no runtime parsing, simpler imports, better IDE support
+   - ✅ Updated all references to use the new code-based definitions
+   - ✅ Removed YAML config loaders and validation for upgrades/vehicles (kept for game-config.yaml)
+   - ✅ Refactored `vehicleUtils.ts` to accept arrays directly instead of wrapper types
+   - ✅ Removed vehicles from API endpoint and config store (clients import directly)
+   - ✅ Deleted YAML files (`config/upgrades.yaml`, `config/vehicles.yaml`)
    - This simplifies the codebase and makes subsequent steps easier
 
 5. **Implement XP System Backend**

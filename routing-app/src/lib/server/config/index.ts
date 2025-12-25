@@ -2,13 +2,9 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { load } from 'js-yaml';
-import type {
-	GameConfig,
-	UpgradesConfig,
-	VehiclesConfig,
-	UpgradeConfig,
-	VehicleConfig
-} from '$lib/config/types';
+import type { GameConfig, UpgradeConfig, VehicleConfig } from '$lib/config/types';
+import { UPGRADE_DEFINITIONS } from '$lib/upgrades/upgradeDefinitions';
+import { VEHICLE_DEFINITIONS } from '$lib/vehicles/vehicleDefinitions';
 
 /**
  * Get the directory of the current file (for resolving config path)
@@ -20,8 +16,6 @@ const __dirname = dirname(__filename);
  * Resolve config path relative to the routing-app root
  */
 const configPath = join(__dirname, '../../../..', 'config', 'game-config.yaml');
-const upgradesConfigPath = join(__dirname, '../../../..', 'config', 'upgrades.yaml');
-const vehiclesConfigPath = join(__dirname, '../../../..', 'config', 'vehicles.yaml');
 
 /**
  * Loads and validates the game configuration from config/game-config.yaml
@@ -169,10 +163,7 @@ function validateConfig(config: GameConfig): void {
 		}
 	}
 
-	// Validate vehicles section
-	if (!config.vehicles || Object.keys(config.vehicles).length === 0) {
-		errors.push('vehicles section is required and must not be empty');
-	}
+	// Note: vehicles section validation removed - vehicles are now defined in TypeScript code
 
 	// Validate licenses section
 	if (!config.licenses || Object.keys(config.licenses).length === 0) {
@@ -211,43 +202,17 @@ try {
 }
 
 /**
- * Loads and validates the upgrades configuration from config/upgrades.yaml
- */
-function loadUpgradesConfig(): UpgradesConfig {
-	try {
-		const fileContents = readFileSync(upgradesConfigPath, 'utf-8');
-		const config = load(fileContents) as UpgradesConfig;
-
-		// Validate config structure
-		validateUpgradesConfig(config);
-
-		return config;
-	} catch (error) {
-		if (error instanceof Error) {
-			if ('code' in error && error.code === 'ENOENT') {
-				throw new Error(
-					`Configuration file not found: ${upgradesConfigPath}\n` +
-						'Please create config/upgrades.yaml in the routing-app root directory.'
-				);
-			}
-			throw new Error(`Failed to load upgrades configuration: ${error.message}`);
-		}
-		throw error;
-	}
-}
-
-/**
- * Validates the upgrades configuration structure and values
+ * Validates the upgrades definitions structure and values
  * Exported for testing purposes
  */
-export function validateUpgradesConfig(config: UpgradesConfig): void {
+export function validateUpgradesConfig(upgrades: UpgradeConfig[]): void {
 	const errors: string[] = [];
 
-	if (!config.upgrades || !Array.isArray(config.upgrades)) {
+	if (!Array.isArray(upgrades)) {
 		errors.push('upgrades must be an array');
 	} else {
 		const upgradeIds = new Set<string>();
-		config.upgrades.forEach((upgrade: UpgradeConfig, index: number) => {
+		upgrades.forEach((upgrade: UpgradeConfig, index: number) => {
 			if (!upgrade.id || typeof upgrade.id !== 'string') {
 				errors.push(`upgrades[${index}].id must be a non-empty string`);
 			} else if (upgradeIds.has(upgrade.id)) {
@@ -300,43 +265,17 @@ export function validateUpgradesConfig(config: UpgradesConfig): void {
 }
 
 /**
- * Loads and validates the vehicles configuration from config/vehicles.yaml
- */
-function loadVehiclesConfig(): VehiclesConfig {
-	try {
-		const fileContents = readFileSync(vehiclesConfigPath, 'utf-8');
-		const config = load(fileContents) as VehiclesConfig;
-
-		// Validate config structure
-		validateVehiclesConfig(config);
-
-		return config;
-	} catch (error) {
-		if (error instanceof Error) {
-			if ('code' in error && error.code === 'ENOENT') {
-				throw new Error(
-					`Configuration file not found: ${vehiclesConfigPath}\n` +
-						'Please create config/vehicles.yaml in the routing-app root directory.'
-				);
-			}
-			throw new Error(`Failed to load vehicles configuration: ${error.message}`);
-		}
-		throw error;
-	}
-}
-
-/**
- * Validates the vehicles configuration structure and values
+ * Validates the vehicle definitions structure and values
  * Exported for testing purposes
  */
-export function validateVehiclesConfig(config: VehiclesConfig): void {
+export function validateVehiclesConfig(vehicles: VehicleConfig[]): void {
 	const errors: string[] = [];
 
-	if (!config.vehicles || !Array.isArray(config.vehicles)) {
+	if (!Array.isArray(vehicles)) {
 		errors.push('vehicles must be an array');
 	} else {
 		const vehicleLevels = new Set<number>();
-		config.vehicles.forEach((vehicle: VehicleConfig, index: number) => {
+		vehicles.forEach((vehicle: VehicleConfig, index: number) => {
 			if (typeof vehicle.level !== 'number' || vehicle.level < 0) {
 				errors.push(`vehicles[${index}].level must be a non-negative number`);
 			} else if (vehicleLevels.has(vehicle.level)) {
@@ -376,15 +315,15 @@ export function validateVehiclesConfig(config: VehiclesConfig): void {
  * Exported for testing purposes
  */
 export function validateVehicleUpgradeRelationship(
-	vehiclesConfig: VehiclesConfig,
-	upgradesConfig: UpgradesConfig
+	vehicles: VehicleConfig[],
+	upgrades: UpgradeConfig[]
 ): void {
 	const errors: string[] = [];
-	const vehicleLevels = vehiclesConfig.vehicles.map((v) => v.level).filter((level) => level > 0);
+	const vehicleLevels = vehicles.map((v) => v.level).filter((level) => level > 0);
 	const maxVehicleLevel = Math.max(...vehicleLevels, 0);
 
 	// Find all upgrades that increment vehicleLevelMax
-	const vehicleUnlockUpgrades = upgradesConfig.upgrades.filter(
+	const vehicleUnlockUpgrades = upgrades.filter(
 		(upgrade) =>
 			upgrade.effect === 'increment' &&
 			upgrade.effectArguments.name === 'vehicleLevelMax' &&
@@ -400,7 +339,7 @@ export function validateVehicleUpgradeRelationship(
 	}
 
 	// Check that vehicle level 0 exists (it should be unlocked by default)
-	const hasLevelZero = vehiclesConfig.vehicles.some((v) => v.level === 0);
+	const hasLevelZero = vehicles.some((v) => v.level === 0);
 	if (!hasLevelZero) {
 		errors.push('Vehicle level 0 must exist (unlocked by default)');
 	}
@@ -412,23 +351,22 @@ export function validateVehicleUpgradeRelationship(
 	}
 }
 
-// Load configs once at module initialization
-let upgradesConfig: UpgradesConfig;
-let vehiclesConfig: VehiclesConfig;
-
+// Validate definitions on module load
 try {
-	upgradesConfig = loadUpgradesConfig();
-	vehiclesConfig = loadVehiclesConfig();
+	validateUpgradesConfig(UPGRADE_DEFINITIONS);
+	validateVehiclesConfig(VEHICLE_DEFINITIONS);
 	// Validate relationship between vehicles and upgrades
-	validateVehicleUpgradeRelationship(vehiclesConfig, upgradesConfig);
+	validateVehicleUpgradeRelationship(VEHICLE_DEFINITIONS, UPGRADE_DEFINITIONS);
 } catch (error) {
-	console.error('Failed to load upgrades/vehicles configuration:', error);
+	console.error('Failed to validate upgrade/vehicle definitions:', error);
 	throw error;
 }
 
 /**
- * Exported config store - use this throughout the server-side code
+ * Exported config and definitions - use this throughout the server-side code
+ * Note: Vehicle and upgrade definitions are imported directly from TypeScript code,
+ * not loaded from YAML files
  */
-export { config, upgradesConfig, vehiclesConfig };
-// Re-export types from shared location for backward compatibility
-export type { GameConfig, UpgradesConfig, VehiclesConfig } from '$lib/config/types';
+export { config, UPGRADE_DEFINITIONS, VEHICLE_DEFINITIONS };
+// Re-export types from shared location
+export type { GameConfig } from '$lib/config/types';

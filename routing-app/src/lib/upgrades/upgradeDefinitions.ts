@@ -1,0 +1,71 @@
+import type { UpgradeConfig } from '$lib/config/types';
+
+/**
+ * Global upgrade definitions
+ * These define the tech tree structure for global upgrades that affect the entire game
+ */
+export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
+	// Vehicle unlock upgrades (each increments vehicleLevelMax by 1)
+	{
+		id: 'unlock_cargo_bike',
+		name: 'Cargo Bike',
+		upgradeRequirements: [],
+		levelRequirements: {
+			total: 1
+		},
+		description: 'Unlocks cargo bike upgrade for all employees',
+		cost: 10,
+		effect: 'increment',
+		effectArguments: {
+			name: 'vehicleLevelMax',
+			amount: 1
+		}
+	},
+	{
+		id: 'unlock_electric_bike',
+		name: 'Electric Bike',
+		upgradeRequirements: ['unlock_cargo_bike'],
+		levelRequirements: {
+			total: 3
+		},
+		description: 'Unlocks electric bike upgrade for all employees',
+		cost: 25,
+		effect: 'increment',
+		effectArguments: {
+			name: 'vehicleLevelMax',
+			amount: 1
+		}
+	},
+	{
+		id: 'unlock_scooter',
+		name: 'Scooter',
+		upgradeRequirements: ['unlock_electric_bike'],
+		levelRequirements: {
+			total: 5
+		},
+		description: 'Unlocks scooter upgrade for all employees',
+		cost: 50,
+		effect: 'increment',
+		effectArguments: {
+			name: 'vehicleLevelMax',
+			amount: 1
+		}
+	},
+	// Example non-vehicle upgrade
+	{
+		id: 'careful_driver',
+		name: 'Careful Driver',
+		upgradeRequirements: [],
+		levelRequirements: {
+			total: 5
+		},
+		description: 'Increase speed of all jobs by 20%',
+		cost: 20,
+		effect: 'multiply',
+		effectArguments: {
+			name: 'speed',
+			amount: 1.2
+		}
+	}
+];
+

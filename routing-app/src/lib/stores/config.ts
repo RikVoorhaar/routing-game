@@ -1,16 +1,14 @@
 import { writable, get } from 'svelte/store';
-import type { GameConfig, VehiclesConfig } from '$lib/config/types';
+import type { GameConfig } from '$lib/config/types';
 
 /**
  * Client-side config store
  * Loads the config from the server on initialization
+ * Note: Vehicle and upgrade definitions are imported directly from TypeScript code,
+ * not loaded from the config store
  */
-// Extended config that includes vehicles config
-interface ExtendedGameConfig extends GameConfig {
-	vehicles?: VehiclesConfig;
-}
 
-const configStore = writable<ExtendedGameConfig | null>(null);
+const configStore = writable<GameConfig | null>(null);
 let isLoading = false;
 let loadPromise: Promise<void> | null = null;
 
@@ -80,10 +78,7 @@ if (typeof window === 'undefined') {
 	try {
 		// eslint-disable-next-line @typescript-eslint/no-require-imports
 		const serverConfig = require('$lib/server/config');
-		configStore.set({
-			...serverConfig.config,
-			vehicles: serverConfig.vehiclesConfig
-		});
+		configStore.set(serverConfig.config);
 	} catch (error) {
 		console.error('Failed to load server config:', error);
 	}
