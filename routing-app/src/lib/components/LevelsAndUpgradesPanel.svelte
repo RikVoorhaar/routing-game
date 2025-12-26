@@ -1,6 +1,6 @@
 <script lang="ts">
 	import GlobalXpPanel from './GlobalXpPanel.svelte';
-	import UpgradesPanelPlaceholder from './UpgradesPanelPlaceholder.svelte';
+	import UpgradesPanel from './UpgradesPanel.svelte';
 
 	let activeTab: 'levels' | 'upgrades' = 'levels';
 </script>
@@ -30,7 +30,7 @@
 			{#if activeTab === 'levels'}
 				<GlobalXpPanel />
 			{:else}
-				<UpgradesPanelPlaceholder />
+				<UpgradesPanel />
 			{/if}
 		</div>
 	</div>

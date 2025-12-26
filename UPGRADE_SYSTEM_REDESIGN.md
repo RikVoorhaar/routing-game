@@ -336,13 +336,16 @@ The following steps can be taken (mostly) independently:
    - ✅ Validates upgrade existence, already purchased status, requirements (dependencies + levels), and sufficient funds
    - ✅ Atomically updates money, upgradesPurchased array, and upgradeEffects JSONB field
 
-10. **Build Upgrade Purchase UI**
-   - Create upgrade card component
-   - Filter upgrades to show only available ones (requirements met)
-   - Display upgrade details (money cost, description, effects, level requirements)
-   - Implement purchase flow (API call, state update)
-   - Add visual feedback for purchased vs available vs locked upgrades
-   - Show level requirement status (met/not met) for each upgrade
+10. **Build Upgrade Purchase UI** ✅ DONE
+   - ✅ Create upgrade card component (`UpgradesPanel.svelte`)
+   - ✅ Filter upgrades to show only available and locked ones (hide purchased)
+   - ✅ Display upgrade details (money cost, description, level requirements, dependencies)
+   - ✅ Implement purchase flow (API call, state update)
+   - ✅ Add visual feedback for available vs locked upgrades (grayed out, disabled buttons)
+   - ✅ Show level requirement status and dependencies for each upgrade
+   - ✅ Created client-side utility functions (`$lib/upgrades/upgradeUtils.ts`) for requirement checking
+   - ✅ Integrated with game state store for real-time updates after purchase
+   - ✅ Replaced `UpgradesPanelPlaceholder` with functional `UpgradesPanel` component
 
 11. **Implement Vehicle Upgrade System**
    - Create vehicle configuration loader for `config/vehicles.yaml` (YAML parser)

@@ -5,11 +5,8 @@ import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { GameState } from '../db/schema';
 import { UPGRADE_DEFINITIONS } from '$lib/upgrades/upgradeDefinitions';
-import {
-	checkLevelRequirements,
-	checkUpgradeRequirements,
-	applyUpgradeEffect
-} from './upgradeUtils';
+import { checkLevelRequirements, checkUpgradeRequirements } from '../../upgrades/upgradeUtils';
+import { applyUpgradeEffect } from './upgradeUtils';
 import { log } from '$lib/logger';
 
 /**
