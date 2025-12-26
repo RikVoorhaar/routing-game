@@ -392,8 +392,7 @@
 			: null;
 </script>
 
-<button
-	type="button"
+<div
 	class={cardClass}
 	class:h-24={true}
 	on:click={handleClick}
@@ -402,6 +401,8 @@
 			handleClick();
 		}
 	}}
+	role="button"
+	tabindex="0"
 >
 	<div class="grid h-full grid-cols-2 gap-3 p-3">
 		<!-- Left Column: Name, Progress Bar, ETA -->
@@ -514,4 +515,4 @@
 			</div>
 		</div>
 	</div>
-</button>
+</div>
