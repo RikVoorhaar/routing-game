@@ -35,7 +35,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			if (err.message.includes('already purchased')) {
 				return error(409, err.message); // Conflict
 			}
-			if (err.message.includes('requirements not met') || err.message.includes('Insufficient funds')) {
+			if (
+				err.message.includes('requirements not met') ||
+				err.message.includes('Insufficient funds')
+			) {
 				return error(400, err.message);
 			}
 			if (err.message.includes('access denied')) {
@@ -46,4 +49,3 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return error(500, 'Failed to purchase upgrade');
 	}
 };
-

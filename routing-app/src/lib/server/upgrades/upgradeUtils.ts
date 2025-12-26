@@ -1,5 +1,9 @@
 import type { GameState } from '../db/schema';
-import type { LevelRequirements, UpgradeEffectType, UpgradeEffectArguments } from '$lib/config/types';
+import type {
+	LevelRequirements,
+	UpgradeEffectType,
+	UpgradeEffectArguments
+} from '$lib/config/types';
 import type { UpgradeEffects } from '../db/schema';
 import { getLevelFromXp } from '$lib/xp/xpUtils';
 import { JobCategory } from '$lib/jobs/jobCategories';
@@ -131,4 +135,3 @@ export function applyUpgradeEffect(
 
 	return newEffects;
 }
-

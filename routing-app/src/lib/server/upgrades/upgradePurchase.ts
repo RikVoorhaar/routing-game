@@ -104,7 +104,9 @@ export async function purchaseUpgrade(
 
 		// Check sufficient money
 		if (lockedGameState.money < upgrade.cost) {
-			throw new Error(`Insufficient funds. Required: ${upgrade.cost}, Available: ${lockedGameState.money}`);
+			throw new Error(
+				`Insufficient funds. Required: ${upgrade.cost}, Available: ${lockedGameState.money}`
+			);
 		}
 
 		// Apply the upgrade effect to calculate new upgradeEffects
@@ -147,4 +149,3 @@ export async function purchaseUpgrade(
 		return updatedGameState;
 	});
 }
-

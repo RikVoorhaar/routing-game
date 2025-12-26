@@ -74,7 +74,7 @@ describe('Upgrade Utilities', () => {
 			const level2Xp = getXpForLevel(2);
 			const totalXp = level3Xp + level2Xp;
 			const level6Xp = getXpForLevel(6);
-			
+
 			// Verify total XP is less than level 6 requirement
 			// (This should be true since we're using relatively low levels)
 			if (totalXp >= level6Xp) {
@@ -99,7 +99,7 @@ describe('Upgrade Utilities', () => {
 				expect(checkLevelRequirements(gameState, { total: 3, '1': 1 })).toBe(false);
 				return;
 			}
-			
+
 			const gameState: GameState = {
 				id: 'test',
 				name: 'Test',
@@ -148,7 +148,9 @@ describe('Upgrade Utilities', () => {
 				upgradeEffects: {}
 			};
 
-			expect(checkLevelRequirements(gameState, { total: undefined, groceries: undefined })).toBe(true);
+			expect(checkLevelRequirements(gameState, { total: undefined, groceries: undefined })).toBe(
+				true
+			);
 		});
 	});
 
@@ -295,4 +297,3 @@ describe('Upgrade Utilities', () => {
 		});
 	});
 });
-

@@ -131,4 +131,3 @@ describe('Upgrade Purchase Logic', () => {
 		});
 	});
 });
-
