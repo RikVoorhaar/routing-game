@@ -309,7 +309,11 @@
 
 	async function handleVehicleUpgrade(e: MouseEvent) {
 		e.stopPropagation(); // Prevent card click
-		if (!nextVehicleLevel || !$currentGameState || isPurchasingUpgrade) return;
+		if (!nextVehicleLevel || !$currentGameState || isPurchasingUpgrade || !canAffordUpgrade) return;
+
+		// Store the vehicle we're upgrading TO before the upgrade happens
+		// (after upgrade, nextVehicle will point to the next level)
+		const vehicleBeingUpgradedTo = nextVehicle;
 
 		isPurchasingUpgrade = true;
 		try {
@@ -331,7 +335,7 @@
 			gameDataActions.setGameState(result.gameState);
 			await gameDataAPI.loadAllEmployeeData();
 
-			addError(`Vehicle upgraded to ${nextVehicle?.name || 'next level'}!`, 'info');
+			addError(`Vehicle upgraded to ${vehicleBeingUpgradedTo?.name || 'next level'}!`, 'info');
 		} catch (err) {
 			const errorMessage =
 				err instanceof Error ? err.message : 'Failed to purchase vehicle upgrade';
@@ -484,16 +488,16 @@
 			<div class="flex items-center gap-2">
 				<span class="text-xs text-base-content/70">{vehicleName}</span>
 				{#if upgradeButtonState === 'max'}
-					<button class="btn btn-disabled btn-xs" disabled on:click|stopPropagation> Max </button>
+					<button class="btn btn-xs bg-base-300 !text-red-200 font-light border border-base-content/20 cursor-not-allowed" disabled on:click|stopPropagation> Max </button>
 				{:else if upgradeButtonState === 'locked'}
-					<button class="btn btn-disabled btn-xs" disabled on:click|stopPropagation>
+					<button class="btn btn-xs bg-base-300 !text-red-200 font-light border border-base-content/20 cursor-not-allowed" disabled on:click|stopPropagation>
 						Upgrade locked
 					</button>
 				{:else if upgradeButtonState === 'too_expensive'}
 					<button
-						class="btn btn-error btn-xs"
-						disabled={isPurchasingUpgrade}
-						on:click|stopPropagation={handleVehicleUpgrade}
+						class="btn btn-xs bg-base-300 !text-red-200 font-light border border-base-content/20 cursor-not-allowed"
+						disabled={true}
+						on:click|stopPropagation
 					>
 						Upgrade {formatMoney(upgradeCost ?? 0)}
 					</button>
