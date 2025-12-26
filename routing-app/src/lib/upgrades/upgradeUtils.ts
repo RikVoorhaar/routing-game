@@ -87,4 +87,3 @@ export function checkUpgradeRequirements(purchased: string[], required: string[]
 	const purchasedSet = new Set(purchased);
 	return required.every((upgradeId) => purchasedSet.has(upgradeId));
 }
-

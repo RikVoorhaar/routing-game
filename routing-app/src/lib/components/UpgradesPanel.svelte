@@ -12,17 +12,17 @@
 
 	// Filter upgrades: show only available and locked (hide purchased)
 	$: purchasedUpgradeIds = new Set($currentGameState?.upgradesPurchased || []);
-	$: availableUpgrades = UPGRADE_DEFINITIONS.filter((upgrade) => !purchasedUpgradeIds.has(upgrade.id));
+	$: availableUpgrades = UPGRADE_DEFINITIONS.filter(
+		(upgrade) => !purchasedUpgradeIds.has(upgrade.id)
+	);
 
 	// Check requirements for each upgrade
 	function getUpgradeStatus(upgrade: UpgradeConfig, gameState: GameState) {
 		const purchased = gameState.upgradesPurchased || [];
-		
+
 		// Check upgrade dependencies
 		const dependenciesMet = checkUpgradeRequirements(purchased, upgrade.upgradeRequirements);
-		const missingDependencies = upgrade.upgradeRequirements.filter(
-			(id) => !purchased.includes(id)
-		);
+		const missingDependencies = upgrade.upgradeRequirements.filter((id) => !purchased.includes(id));
 
 		// Check level requirements
 		const levelsMet = checkLevelRequirements(gameState, upgrade.levelRequirements);
@@ -90,7 +90,10 @@
 			// Update game state store
 			gameDataActions.setGameState(updatedGameState);
 
-			addError(`Upgrade purchased: ${UPGRADE_DEFINITIONS.find((u) => u.id === upgradeId)?.name}`, 'info');
+			addError(
+				`Upgrade purchased: ${UPGRADE_DEFINITIONS.find((u) => u.id === upgradeId)?.name}`,
+				'info'
+			);
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : 'Failed to purchase upgrade';
 			addError(errorMessage, 'error');
@@ -140,16 +143,17 @@
 						<div class="mb-3 space-y-1 text-xs">
 							<div>
 								<span class="font-semibold">Cost:</span>{' '}
-								<span class:text-error={!status.hasEnoughMoney && status.requirementsMet}
-									class:text-success={status.hasEnoughMoney && status.requirementsMet}>
+								<span
+									class:text-error={!status.hasEnoughMoney && status.requirementsMet}
+									class:text-success={status.hasEnoughMoney && status.requirementsMet}
+								>
 									{formatMoney(upgrade.cost)}
 								</span>
 								{#if !status.hasEnoughMoney && status.requirementsMet}
 									<span class="ml-1 text-error">(Insufficient funds)</span>
 								{/if}
 							</div>
-							{#if upgrade.levelRequirements.total !== undefined ||
-								Object.keys(upgrade.levelRequirements).some((k) => k !== 'total')}
+							{#if upgrade.levelRequirements.total !== undefined || Object.keys(upgrade.levelRequirements).some((k) => k !== 'total')}
 								<div>
 									<span class="font-semibold">Requirements:</span>{' '}
 									<span class:text-error={!status.levelsMet} class:text-success={status.levelsMet}>
@@ -162,7 +166,8 @@
 									<span class="font-semibold">Dependencies:</span>
 									<div class="ml-4 mt-1 space-y-0.5">
 										{#each upgrade.upgradeRequirements as depId (depId)}
-											{@const depName = UPGRADE_DEFINITIONS.find((u) => u.id === depId)?.name || depId}
+											{@const depName =
+												UPGRADE_DEFINITIONS.find((u) => u.id === depId)?.name || depId}
 											{@const depMet = ($currentGameState?.upgradesPurchased || []).includes(depId)}
 											<div class:text-success={depMet} class:text-error={!depMet}>
 												• {depName}
@@ -197,4 +202,3 @@
 		</div>
 	{/if}
 </div>
-
