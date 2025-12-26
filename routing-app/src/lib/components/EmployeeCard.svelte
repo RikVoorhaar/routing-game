@@ -424,7 +424,7 @@
 				{#if activeJob && jobProgress && !jobProgress.isComplete}
 					ETA: {formatTimeFromMs(jobProgress.remainingTimeMs)}
 					{#if activeJob.reward && activeJob.xp}
-						<span class="ml-2 text-base-content/60 font-normal">
+						<span class="ml-2 font-normal text-base-content/60">
 							• {formatMoney(activeJob.reward)} • {activeJob.xp} XP
 						</span>
 					{/if}
