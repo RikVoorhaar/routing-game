@@ -59,6 +59,7 @@ export interface VehicleConfig {
 	capacity: number;
 	roadSpeed: number;
 	tier: number;
+	cost: number; // Cost in euros to upgrade to this vehicle level
 }
 
 /**
