@@ -488,14 +488,24 @@
 			<div class="flex items-center gap-2">
 				<span class="text-xs text-base-content/70">{vehicleName}</span>
 				{#if upgradeButtonState === 'max'}
-					<button class="btn btn-xs bg-base-300 !text-red-200 font-light border border-base-content/20 cursor-not-allowed" disabled on:click|stopPropagation> Max </button>
+					<button
+						class="btn btn-xs cursor-not-allowed border border-base-content/20 bg-base-300 font-light !text-red-200"
+						disabled
+						on:click|stopPropagation
+					>
+						Max
+					</button>
 				{:else if upgradeButtonState === 'locked'}
-					<button class="btn btn-xs bg-base-300 !text-red-200 font-light border border-base-content/20 cursor-not-allowed" disabled on:click|stopPropagation>
+					<button
+						class="btn btn-xs cursor-not-allowed border border-base-content/20 bg-base-300 font-light !text-red-200"
+						disabled
+						on:click|stopPropagation
+					>
 						Upgrade locked
 					</button>
 				{:else if upgradeButtonState === 'too_expensive'}
 					<button
-						class="btn btn-xs bg-base-300 !text-red-200 font-light border border-base-content/20 cursor-not-allowed"
+						class="btn btn-xs cursor-not-allowed border border-base-content/20 bg-base-300 font-light !text-red-200"
 						disabled={true}
 						on:click|stopPropagation
 					>
