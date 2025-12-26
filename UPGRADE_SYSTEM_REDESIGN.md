@@ -323,12 +323,18 @@ The following steps can be taken (mostly) independently:
    - ✅ Updated server-side `activeJobComputation.ts` to use shared function
    - ✅ Updated `JobCard.svelte` to display XP computed with upgrade multipliers and show computed duration in hh:mm:ss format (or error state when route not computed)
 
-9. **Implement Upgrade System Backend**
-   - Create upgrade configuration loader for `config/upgrades.yaml` (YAML parser)
-   - Implement upgrade purchase logic (check requirements, deduct money, apply effects)
-   - Create effect application functions (`multiply`, `increment`)
-   - Implement requirement checking (upgrade dependencies + level requirements calculated from global XP)
-   - Add unit tests for upgrade system
+9. **Implement Upgrade System Backend** ✅ DONE
+   - ✅ Implement upgrade purchase logic (check requirements, deduct money, apply effects)
+   - ✅ Create effect application functions (`multiply`, `increment`)
+   - ✅ Implement requirement checking (upgrade dependencies + level requirements calculated from global XP)
+   - ✅ Add unit tests for upgrade system
+   - ✅ Created `src/lib/server/upgrades/upgradeUtils.ts` with utility functions for requirement checking and effect application
+   - ✅ Created `src/lib/server/upgrades/upgradePurchase.ts` with purchase logic using row-level locking (`.for('update')`) to prevent race conditions
+   - ✅ Created `src/routes/api/upgrades/purchase/+server.ts` API endpoint for purchasing upgrades
+   - ✅ Added comprehensive unit tests (`upgradeUtils.test.ts` and `upgradePurchase.test.ts`) - all 30 tests passing
+   - ✅ Uses database transactions with row-level locking to ensure atomicity and prevent race conditions
+   - ✅ Validates upgrade existence, already purchased status, requirements (dependencies + levels), and sufficient funds
+   - ✅ Atomically updates money, upgradesPurchased array, and upgradeEffects JSONB field
 
 10. **Build Upgrade Purchase UI**
    - Create upgrade card component

@@ -32,20 +32,19 @@ DEV / NEW FEATURES:
 - [x] Currency should be a float
 - [x] end address is formatted as coords, but start is a string
 - [ ] Add batched API endpoint to routing server for processing multiple routing requests in one call (performance optimization)
+- [ ] Add unit tests to github actions
 - [ ] Many (1-2%) jobs fail to generate and are skipped. What are the causes of these skips, and are they necessary?
 - [ ] Reform the job generation system. Probably jobs should be generated per employee, and not on the whole map. Then the DB should not ingest _all_ the addresses, but rather a fraction of addresses. 
 - [x] ALl the jobs show up as not costing anything
 - [x] There are issue with the routes schema that I have notes on
 - [ ] The current max of 100 jobs per tile is too large, reduce to like 25
 - [ ] remove the restriction that jobs aren't shown at tile levels below 12
-- [ ] Add filters to the map jobs, in particular checkboxes for each category, and a min/max slider for the tier. When you select an employee it should automatically adjust the _max_ tier, and the categories to those unlocked. 
 - [X] Implement licenses, levels, xp, etc. 
 - [x] IN generateJobs.ts, use the job categories defined in jobCategories.ts
 - [x] In generateJobs.ts, remove all profiling code.
-- [ ] Implement XP gain from jobs
-- [ ] Implement upgrade system
-- [ ] Implement a way to buy licenses
-- [ ] Implement a way to buy upgrades
+- [x] Implement XP gain from jobs
+- [x] Implement upgrade system
+- [x] Implement a way to buy upgrades
 - [ ] The init db script hangs on `creating schema using drizzle kit push`.  (is this still true?)
 - [x] When the user clicks on a job, do stuff 
 - [x] The routing server is constantly using 100% CPU
