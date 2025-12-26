@@ -10,7 +10,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	try {
-
 		const { employeeId, gameStateId } = await request.json();
 
 		if (!employeeId || !gameStateId) {
@@ -26,4 +25,3 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return error(400, message);
 	}
 };
-

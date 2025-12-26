@@ -104,4 +104,3 @@ export function getVehicleUpgradeCost(vehicleLevel: number): number {
 	const vehicle = getVehicleConfig(vehicleLevel);
 	return vehicle?.cost ?? 0;
 }
-

@@ -2,7 +2,13 @@
 	import { createEventDispatcher } from 'svelte';
 	import { onDestroy } from 'svelte';
 	import { selectedEmployee, selectEmployee } from '$lib/stores/selectedEmployee';
-	import type { Employee, ActiveJob, Address, UpgradeState, GameState } from '$lib/server/db/schema';
+	import type {
+		Employee,
+		ActiveJob,
+		Address,
+		UpgradeState,
+		GameState
+	} from '$lib/server/db/schema';
 	import { addError } from '$lib/stores/errors';
 	import { selectedRoute, clearSelection } from '$lib/stores/selectedRoute';
 	import { formatMoney, formatAddress, formatTimeFromMs } from '$lib/formatting';
@@ -327,7 +333,8 @@
 
 			addError(`Vehicle upgraded to ${nextVehicle?.name || 'next level'}!`, 'info');
 		} catch (err) {
-			const errorMessage = err instanceof Error ? err.message : 'Failed to purchase vehicle upgrade';
+			const errorMessage =
+				err instanceof Error ? err.message : 'Failed to purchase vehicle upgrade';
 			addError(errorMessage, 'error');
 		} finally {
 			isPurchasingUpgrade = false;
@@ -337,13 +344,16 @@
 	// Calculate employee level from XP
 	$: employeeLevel = typeof employee?.xp === 'number' ? getLevelFromXp(employee.xp) : 0;
 	$: xpForCurrentLevel = employeeLevel >= 0 ? getXpForLevel(employeeLevel) : 0;
-	$: xpForNextLevel = employeeLevel >= 0 && employeeLevel < 120 ? getXpForLevel(employeeLevel + 1) : 0;
-	$: xpProgress = typeof employee?.xp === 'number' ? Math.max(0, employee.xp - xpForCurrentLevel) : 0;
+	$: xpForNextLevel =
+		employeeLevel >= 0 && employeeLevel < 120 ? getXpForLevel(employeeLevel + 1) : 0;
+	$: xpProgress =
+		typeof employee?.xp === 'number' ? Math.max(0, employee.xp - xpForCurrentLevel) : 0;
 	$: xpNeeded = xpForNextLevel > xpForCurrentLevel ? xpForNextLevel - xpForCurrentLevel : 1;
 	$: xpProgressPercent = xpNeeded > 0 ? (xpProgress / xpNeeded) * 100 : 0;
 
 	// Get current vehicle config
-	$: currentVehicle = typeof employee?.vehicleLevel === 'number' ? getVehicleConfig(employee.vehicleLevel) : null;
+	$: currentVehicle =
+		typeof employee?.vehicleLevel === 'number' ? getVehicleConfig(employee.vehicleLevel) : null;
 	$: vehicleCapacity = currentVehicle?.capacity ?? 0;
 	$: vehicleSpeed = currentVehicle?.roadSpeed ?? 0;
 	$: vehicleTier = currentVehicle?.tier ?? 0;
@@ -376,7 +386,10 @@
 					: 'available';
 
 	// Get next vehicle stats for hover preview
-	$: nextVehicle = nextVehicleLevel !== null && nextVehicleLevel !== undefined ? getVehicleConfig(nextVehicleLevel) : null;
+	$: nextVehicle =
+		nextVehicleLevel !== null && nextVehicleLevel !== undefined
+			? getVehicleConfig(nextVehicleLevel)
+			: null;
 </script>
 
 <button
@@ -390,10 +403,10 @@
 		}
 	}}
 >
-	<div class="p-3 h-full grid grid-cols-2 gap-3">
+	<div class="grid h-full grid-cols-2 gap-3 p-3">
 		<!-- Left Column: Name, Progress Bar, ETA -->
-		<div class="flex flex-col min-w-0">
-			<h3 class="text-sm font-semibold truncate mb-1 text-left">{employee.name}</h3>
+		<div class="flex min-w-0 flex-col">
+			<h3 class="mb-1 truncate text-left text-sm font-semibold">{employee.name}</h3>
 			<div class="mb-1">
 				<progress
 					class="progress progress-primary h-2 w-full"
@@ -402,7 +415,7 @@
 					max="100"
 				></progress>
 			</div>
-			<div class="text-xs text-base-content/60 text-left">
+			<div class="text-left text-xs text-base-content/60">
 				{#if activeJob && jobProgress && !jobProgress.isComplete}
 					ETA: {formatTimeFromMs(jobProgress.remainingTimeMs)}
 				{:else}
@@ -412,17 +425,14 @@
 		</div>
 
 		<!-- Right Column: Level, Stats, Vehicle Name, Upgrade Button -->
-		<div class="flex flex-col items-end gap-2 min-w-0 justify-between">
+		<div class="flex min-w-0 flex-col items-end justify-between gap-2">
 			<!-- Level and XP Progress -->
 			<div class="flex items-center gap-1">
 				<div class="text-xs text-base-content/70">Lv {employeeLevel}</div>
 				<div class="flex items-center gap-1">
-					<progress
-						class="progress progress-info h-2 w-16"
-						value={xpProgress}
-						max={xpNeeded}
+					<progress class="progress progress-info h-2 w-16" value={xpProgress} max={xpNeeded}
 					></progress>
-					<span class="text-xs text-base-content/60 whitespace-nowrap">
+					<span class="whitespace-nowrap text-xs text-base-content/60">
 						{Math.floor(xpProgress)}/{xpNeeded}
 					</span>
 				</div>
@@ -430,15 +440,41 @@
 
 			<!-- Stats (or preview stats on hover) -->
 			<div
-				class="flex items-center gap-2 text-xs {hoveredUpgradeButton && nextVehicle ? 'text-success' : 'text-base-content/70'}"
+				class="flex items-center gap-2 text-xs {hoveredUpgradeButton && nextVehicle
+					? 'text-success'
+					: 'text-base-content/70'}"
 			>
 				{#if hoveredUpgradeButton && nextVehicle}
 					<span>C: {nextVehicle.capacity}kg</span>
-					<span>t: {nextVehicle.tier === 1 ? 'I' : nextVehicle.tier === 2 ? 'II' : nextVehicle.tier === 3 ? 'III' : nextVehicle.tier === 4 ? 'IV' : nextVehicle.tier === 5 ? 'V' : nextVehicle.tier}</span>
+					<span
+						>t: {nextVehicle.tier === 1
+							? 'I'
+							: nextVehicle.tier === 2
+								? 'II'
+								: nextVehicle.tier === 3
+									? 'III'
+									: nextVehicle.tier === 4
+										? 'IV'
+										: nextVehicle.tier === 5
+											? 'V'
+											: nextVehicle.tier}</span
+					>
 					<span>s: {nextVehicle.roadSpeed}km/h</span>
 				{:else}
 					<span>C: {vehicleCapacity}kg</span>
-					<span>t: {vehicleTier === 1 ? 'I' : vehicleTier === 2 ? 'II' : vehicleTier === 3 ? 'III' : vehicleTier === 4 ? 'IV' : vehicleTier === 5 ? 'V' : vehicleTier}</span>
+					<span
+						>t: {vehicleTier === 1
+							? 'I'
+							: vehicleTier === 2
+								? 'II'
+								: vehicleTier === 3
+									? 'III'
+									: vehicleTier === 4
+										? 'IV'
+										: vehicleTier === 5
+											? 'V'
+											: vehicleTier}</span
+					>
 					<span>s: {vehicleSpeed}km/h</span>
 				{/if}
 			</div>
@@ -447,24 +483,14 @@
 			<div class="flex items-center gap-2">
 				<span class="text-xs text-base-content/70">{vehicleName}</span>
 				{#if upgradeButtonState === 'max'}
-					<button
-						class="btn btn-xs btn-disabled"
-						disabled
-						on:click|stopPropagation
-					>
-						Max
-					</button>
+					<button class="btn btn-disabled btn-xs" disabled on:click|stopPropagation> Max </button>
 				{:else if upgradeButtonState === 'locked'}
-					<button
-						class="btn btn-xs btn-disabled"
-						disabled
-						on:click|stopPropagation
-					>
+					<button class="btn btn-disabled btn-xs" disabled on:click|stopPropagation>
 						Upgrade locked
 					</button>
 				{:else if upgradeButtonState === 'too_expensive'}
 					<button
-						class="btn btn-xs btn-error"
+						class="btn btn-error btn-xs"
 						disabled={isPurchasingUpgrade}
 						on:click|stopPropagation={handleVehicleUpgrade}
 					>
@@ -472,7 +498,7 @@
 					</button>
 				{:else if upgradeButtonState === 'available'}
 					<button
-						class="btn btn-xs btn-success"
+						class="btn btn-success btn-xs"
 						disabled={isPurchasingUpgrade}
 						on:click|stopPropagation={handleVehicleUpgrade}
 						on:mouseenter={() => (hoveredUpgradeButton = true)}
