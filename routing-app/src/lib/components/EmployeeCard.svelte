@@ -420,9 +420,14 @@
 					max="100"
 				></progress>
 			</div>
-			<div class="text-left text-xs text-base-content/60">
+			<div class="text-left text-xs font-semibold text-base-content/80">
 				{#if activeJob && jobProgress && !jobProgress.isComplete}
 					ETA: {formatTimeFromMs(jobProgress.remainingTimeMs)}
+					{#if activeJob.reward && activeJob.xp}
+						<span class="ml-2 text-base-content/60 font-normal">
+							• {formatMoney(activeJob.reward)} • {activeJob.xp} XP
+						</span>
+					{/if}
 				{:else}
 					Idle
 				{/if}
@@ -433,7 +438,7 @@
 		<div class="flex min-w-0 flex-col items-end justify-between gap-2">
 			<!-- Level and XP Progress -->
 			<div class="flex items-center gap-1">
-				<div class="text-xs text-base-content/70">Lv {employeeLevel}</div>
+				<div class="text-xs font-semibold text-base-content/80">Lv {employeeLevel}</div>
 				<div class="flex items-center gap-1">
 					<progress class="progress progress-info h-2 w-16" value={xpProgress} max={xpNeeded}
 					></progress>
