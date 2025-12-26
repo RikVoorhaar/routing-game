@@ -347,19 +347,24 @@ The following steps can be taken (mostly) independently:
    - ✅ Integrated with game state store for real-time updates after purchase
    - ✅ Replaced `UpgradesPanelPlaceholder` with functional `UpgradesPanel` component
 
-11. **Implement Vehicle Upgrade System**
-   - Create vehicle configuration loader for `config/vehicles.yaml` (YAML parser)
-   - Create vehicle upgrade purchase logic (costs money, checks unlock requirements)
-   - Update employee vehicle level assignment
-   - Update vehicle stats calculation (capacity, speed, tier from config)
-   - Add unit tests for vehicle upgrades
+11. **Implement Vehicle Upgrade System** ✅ DONE
+   - ✅ Created vehicle upgrade purchase logic (`src/lib/server/vehicles/vehicleUpgradePurchase.ts`) with transaction-based purchase, row-level locking, and unlock requirement checking
+   - ✅ Created vehicle utility functions (`src/lib/vehicles/vehicleUtils.ts`) for vehicle config lookup, unlock checking, and cost calculation
+   - ✅ Created API endpoint (`src/routes/api/employees/vehicle-upgrade/+server.ts`) for purchasing vehicle upgrades
+   - ✅ Added vehicle cost field to `VehicleConfig` interface and vehicle definitions (`src/lib/vehicles/vehicleDefinitions.ts`)
+   - ✅ Vehicle costs are defined in vehicle definitions (5, 10, 20 euros for levels 1-3) and shared between frontend and backend
+   - ✅ Upgrade discount from `upgradeEffects` is applied when calculating final cost
+   - ✅ Validates unlock status, funds, and max level before allowing purchase
 
-12. **Revamp Employee Character Cards**
-    - Update employee card UI to show new structure (single XP, vehicle level)
-    - Add vehicle upgrade purchase interface to employee cards
-    - Display vehicle stats based on current vehicle level
-    - Update XP display to use LOT for level calculation
-    - Remove old category/upgrade displays
+12. **Revamp Employee Character Cards** ✅ DONE
+   - ✅ Updated employee card UI with two-column layout (left: name/progress/ETA, right: level/stats/upgrade)
+   - ✅ Added vehicle upgrade purchase interface directly on employee cards with different button states (available, locked, too expensive, max)
+   - ✅ Display vehicle stats (capacity, tier, speed) based on current vehicle level
+   - ✅ Display employee level and XP progress using LOT for level calculation
+   - ✅ Always show progress bar (disabled/grayed when idle) with ETA or "Idle" text
+   - ✅ Added hover effect on upgrade button that replaces stats with next vehicle preview (green text)
+   - ✅ Display job rewards (money and XP) next to ETA when on job
+   - ✅ Fixed height cards with border, improved contrast for disabled buttons
 
 13. **Populate Upgrade Definitions**
     - Add comprehensive upgrade list to `src/lib/upgrades/upgradeDefinitions.ts`
