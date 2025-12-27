@@ -22,7 +22,7 @@ ENHANCEMENTS:
 - [ ] Starting location should be part of the config
 - [ ] Copyright notice in footer should reference Rik Voorhaar. 
 - [ ] job categories that are not unlocked should be shown as locked. 
-- [ ] Upgrades should show upgrades with all requirements met first. It should not show upgrades for which a dependency is missing (it should only be shown if level requirements are not met, or if funds are insufficient).
+- [x] Upgrades should show upgrades with all requirements met first. It should not show upgrades for which a dependency is missing (it should only be shown if level requirements are not met, or if funds are insufficient).
 
 
 LOGGING:
