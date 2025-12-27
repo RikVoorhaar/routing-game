@@ -4,6 +4,7 @@
 	import { UPGRADE_DEFINITIONS } from '$lib/upgrades/upgradeDefinitions';
 	import { checkLevelRequirements, checkUpgradeRequirements } from '$lib/upgrades/upgradeUtils';
 	import { formatMoney } from '$lib/formatting';
+	import { CATEGORY_NAMES, JobCategory } from '$lib/jobs/jobCategories';
 	import type { UpgradeConfig } from '$lib/config/types';
 	import type { GameState } from '$lib/server/db/schema';
 
@@ -44,25 +45,41 @@
 		};
 	}
 
-	$: upgradesWithStatus = availableUpgrades.map((upgrade) => {
-		if (!$currentGameState) {
+	$: upgradesWithStatus = availableUpgrades
+		.map((upgrade) => {
+			if (!$currentGameState) {
+				return {
+					upgrade,
+					status: {
+						dependenciesMet: false,
+						missingDependencies: upgrade.upgradeRequirements,
+						levelsMet: false,
+						hasEnoughMoney: false,
+						requirementsMet: false,
+						canPurchase: false
+					}
+				};
+			}
 			return {
 				upgrade,
-				status: {
-					dependenciesMet: false,
-					missingDependencies: upgrade.upgradeRequirements,
-					levelsMet: false,
-					hasEnoughMoney: false,
-					requirementsMet: false,
-					canPurchase: false
-				}
+				status: getUpgradeStatus(upgrade, $currentGameState)
 			};
-		}
-		return {
-			upgrade,
-			status: getUpgradeStatus(upgrade, $currentGameState)
-		};
-	});
+		})
+		// Filter: only show upgrades where dependencies are met
+		// (hide upgrades with missing dependencies, but show those with unmet level requirements or insufficient funds)
+		.filter(({ status }) => status.dependenciesMet)
+		// Sort: upgrades with all requirements met (canPurchase) first, then those with requirements met but insufficient funds,
+		// then those with unmet level requirements
+		.sort((a, b) => {
+			// Priority 1: Can purchase (all requirements met + enough money)
+			if (a.status.canPurchase && !b.status.canPurchase) return -1;
+			if (!a.status.canPurchase && b.status.canPurchase) return 1;
+			// Priority 2: Requirements met but insufficient funds
+			if (a.status.requirementsMet && !b.status.requirementsMet) return -1;
+			if (!a.status.requirementsMet && b.status.requirementsMet) return 1;
+			// Priority 3: Sort by cost (cheaper first) for same priority level
+			return a.upgrade.cost - b.upgrade.cost;
+		});
 
 	async function handlePurchase(upgradeId: string) {
 		if (!$currentGameState || isPurchasing) return;
@@ -108,10 +125,13 @@
 		if (requirements.total !== undefined) {
 			parts.push(`Total Level ${requirements.total}`);
 		}
-		// Add category requirements if any (using numeric keys)
+		// Add category requirements if any (using enum keys like "FURNITURE", "PEOPLE", etc.)
 		for (const [key, level] of Object.entries(requirements)) {
 			if (key !== 'total' && level !== undefined) {
-				parts.push(`Level ${level}`);
+				// Look up category name from enum key
+				const categoryNum = JobCategory[key as keyof typeof JobCategory];
+				const categoryName = categoryNum !== undefined ? CATEGORY_NAMES[categoryNum] : key;
+				parts.push(`${categoryName} Level ${level}`);
 			}
 		}
 		return parts.length > 0 ? parts.join(', ') : 'None';
@@ -128,8 +148,9 @@
 			</div>
 		</div>
 	{:else}
-		<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-			{#each upgradesWithStatus as { upgrade, status } (upgrade.id)}
+		<div class="max-h-[calc(100vh-12rem)] overflow-y-auto pr-2">
+			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+				{#each upgradesWithStatus as { upgrade, status } (upgrade.id)}
 				{@const isLocked = !status.requirementsMet}
 				<div
 					class="card bg-base-100 shadow"
@@ -193,12 +214,13 @@
 									Insufficient Funds
 								{:else}
 									Locked
-								{/if}
-							</button>
+				{/if}
+			</button>
 						</div>
 					</div>
 				</div>
 			{/each}
+			</div>
 		</div>
 	{/if}
 </div>
