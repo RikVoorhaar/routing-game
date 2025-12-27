@@ -151,75 +151,80 @@
 		<div class="max-h-[calc(100vh-12rem)] overflow-y-auto pr-2">
 			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 				{#each upgradesWithStatus as { upgrade, status } (upgrade.id)}
-				{@const isLocked = !status.requirementsMet}
-				<div
-					class="card bg-base-100 shadow"
-					class:opacity-50={isLocked}
-					class:pointer-events-none={isLocked && !isPurchasing}
-				>
-					<div class="card-body p-4">
-						<h3 class="card-title text-lg">{upgrade.name}</h3>
-						<p class="mb-3 text-sm text-base-content/70">{upgrade.description}</p>
+					{@const isLocked = !status.requirementsMet}
+					<div
+						class="card bg-base-100 shadow"
+						class:opacity-50={isLocked}
+						class:pointer-events-none={isLocked && !isPurchasing}
+					>
+						<div class="card-body p-4">
+							<h3 class="card-title text-lg">{upgrade.name}</h3>
+							<p class="mb-3 text-sm text-base-content/70">{upgrade.description}</p>
 
-						<div class="mb-3 space-y-1 text-xs">
-							<div>
-								<span class="font-semibold">Cost:</span>{' '}
-								<span
-									class:text-error={!status.hasEnoughMoney && status.requirementsMet}
-									class:text-success={status.hasEnoughMoney && status.requirementsMet}
-								>
-									{formatMoney(upgrade.cost)}
-								</span>
-								{#if !status.hasEnoughMoney && status.requirementsMet}
-									<span class="ml-1 text-error">(Insufficient funds)</span>
+							<div class="mb-3 space-y-1 text-xs">
+								<div>
+									<span class="font-semibold">Cost:</span>{' '}
+									<span
+										class:text-error={!status.hasEnoughMoney && status.requirementsMet}
+										class:text-success={status.hasEnoughMoney && status.requirementsMet}
+									>
+										{formatMoney(upgrade.cost)}
+									</span>
+									{#if !status.hasEnoughMoney && status.requirementsMet}
+										<span class="ml-1 text-error">(Insufficient funds)</span>
+									{/if}
+								</div>
+								{#if upgrade.levelRequirements.total !== undefined || Object.keys(upgrade.levelRequirements).some((k) => k !== 'total')}
+									<div>
+										<span class="font-semibold">Requirements:</span>{' '}
+										<span
+											class:text-error={!status.levelsMet}
+											class:text-success={status.levelsMet}
+										>
+											{formatLevelRequirements(upgrade.levelRequirements)}
+										</span>
+									</div>
+								{/if}
+								{#if upgrade.upgradeRequirements.length > 0}
+									<div>
+										<span class="font-semibold">Dependencies:</span>
+										<div class="ml-4 mt-1 space-y-0.5">
+											{#each upgrade.upgradeRequirements as depId (depId)}
+												{@const depName =
+													UPGRADE_DEFINITIONS.find((u) => u.id === depId)?.name || depId}
+												{@const depMet = ($currentGameState?.upgradesPurchased || []).includes(
+													depId
+												)}
+												<div class:text-success={depMet} class:text-error={!depMet}>
+													• {depName}
+												</div>
+											{/each}
+										</div>
+									</div>
 								{/if}
 							</div>
-							{#if upgrade.levelRequirements.total !== undefined || Object.keys(upgrade.levelRequirements).some((k) => k !== 'total')}
-								<div>
-									<span class="font-semibold">Requirements:</span>{' '}
-									<span class:text-error={!status.levelsMet} class:text-success={status.levelsMet}>
-										{formatLevelRequirements(upgrade.levelRequirements)}
-									</span>
-								</div>
-							{/if}
-							{#if upgrade.upgradeRequirements.length > 0}
-								<div>
-									<span class="font-semibold">Dependencies:</span>
-									<div class="ml-4 mt-1 space-y-0.5">
-										{#each upgrade.upgradeRequirements as depId (depId)}
-											{@const depName =
-												UPGRADE_DEFINITIONS.find((u) => u.id === depId)?.name || depId}
-											{@const depMet = ($currentGameState?.upgradesPurchased || []).includes(depId)}
-											<div class:text-success={depMet} class:text-error={!depMet}>
-												• {depName}
-											</div>
-										{/each}
-									</div>
-								</div>
-							{/if}
-						</div>
 
-						<div class="card-actions justify-end">
-							<button
-								class="btn btn-primary btn-sm"
-								disabled={!status.canPurchase || isPurchasing}
-								on:click={() => handlePurchase(upgrade.id)}
-							>
-								{#if isPurchasing && purchasingUpgradeId === upgrade.id}
-									<span class="loading loading-spinner loading-xs"></span>
-									Purchasing...
-								{:else if status.canPurchase}
-									Purchase ({formatMoney(upgrade.cost)})
-								{:else if status.requirementsMet && !status.hasEnoughMoney}
-									Insufficient Funds
-								{:else}
-									Locked
-				{/if}
-			</button>
+							<div class="card-actions justify-end">
+								<button
+									class="btn btn-primary btn-sm"
+									disabled={!status.canPurchase || isPurchasing}
+									on:click={() => handlePurchase(upgrade.id)}
+								>
+									{#if isPurchasing && purchasingUpgradeId === upgrade.id}
+										<span class="loading loading-spinner loading-xs"></span>
+										Purchasing...
+									{:else if status.canPurchase}
+										Purchase ({formatMoney(upgrade.cost)})
+									{:else if status.requirementsMet && !status.hasEnoughMoney}
+										Insufficient Funds
+									{:else}
+										Locked
+									{/if}
+								</button>
+							</div>
 						</div>
 					</div>
-				</div>
-			{/each}
+				{/each}
 			</div>
 		</div>
 	{/if}
