@@ -6,6 +6,7 @@ BUGS:
 - [ ] When opening character selection screen it shows 'create your first character' when existing characters haven't been loaded yet. INstead there should be a loading screen of sorts. 
 - [ ] Food category glyph is undefined
 - [ ] When no upgrades are available, there is an undefined glyph.
+- [x] SSR error: `require is not defined` in `config.ts` - using CommonJS `require()` in ES module context during server-side rendering
 
 ENHANCEMENTS:
 - [ ] Make job-progress smooth (use css animations, not per second updates)

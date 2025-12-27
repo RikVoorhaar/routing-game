@@ -75,13 +75,15 @@ export const config = {
 // On client, load from API
 if (typeof window === 'undefined') {
 	// Server-side: use server config directly
-	try {
-		// eslint-disable-next-line @typescript-eslint/no-require-imports
-		const serverConfig = require('$lib/server/config');
-		configStore.set(serverConfig.config);
-	} catch (error) {
-		console.error('Failed to load server config:', error);
-	}
+	// Use dynamic import for ES module compatibility
+	(async () => {
+		try {
+			const serverConfig = await import('$lib/server/config');
+			configStore.set(serverConfig.config);
+		} catch (error) {
+			console.error('Failed to load server config:', error);
+		}
+	})();
 } else {
 	// Client-side: load from API
 	loadConfig();
