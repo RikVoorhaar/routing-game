@@ -366,12 +366,14 @@ The following steps can be taken (mostly) independently:
    - ✅ Display job rewards (money and XP) next to ETA when on job
    - ✅ Fixed height cards with border, improved contrast for disabled buttons
 
-13. **Extend GameState upgrade interfaces (so we can define/purchase upgrades even if some effects are not wired yet)**
-    - Extend the **game state upgrade effects interface** (`UpgradeEffects` / `gameState.upgradeEffects` in `src/lib/server/db/schema.ts`) with any new effect keys we plan to add, even if they're temporarily "no-op":
-      - `jobsPerTier?: number` (defer wiring; needs job system revamp)
-      - `freeTravel?: number` (defer wiring; needs travel model)
-      - `roadSpeedMin?: number` (defer wiring; needs speed-limit model decision)
-      - (keep existing keys like `speed`, `capacity`, `xpMultiplier`, `moneyTimeFactor`, `moneyDistanceFactor`, `upgradeDiscount`, etc.)
+13. **Extend GameState upgrade interfaces (so we can define/purchase upgrades even if some effects are not wired yet)** ✅ DONE
+    - ✅ Extended the **game state upgrade effects interface** (`UpgradeEffects` / `gameState.upgradeEffects` in `src/lib/server/db/schema.ts`) with new effect keys that are temporarily "no-op":
+      - ✅ `jobsPerTier?: number` (defer wiring; needs job system revamp)
+      - ✅ `freeTravel?: number` (defer wiring; needs travel model)
+      - ✅ `roadSpeedMin?: number` (defer wiring; needs speed-limit model decision)
+      - ✅ Kept all existing keys (`speed`, `capacity`, `xpMultiplier`, `moneyTimeFactor`, `moneyDistanceFactor`, `upgradeDiscount`, `vehicleLevelMax`, `vehicleLevelMin`, `employeeLevelStart`)
+    - ✅ All new fields are optional, maintaining backward compatibility with existing game states
+    - ✅ Effects can be stored in `upgradeEffects` JSONB field but won't affect gameplay until wired in later steps
 
 14. **Populate Upgrade Definitions**
     - Implement the full tech tree in `src/lib/upgrades/upgradeDefinitions.ts` (including vehicle unlock upgrades)
