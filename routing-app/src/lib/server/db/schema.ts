@@ -75,6 +75,9 @@ export interface UpgradeEffects {
 	moneyDistanceFactor?: number;
 	capacity?: number;
 	upgradeDiscount?: number;
+	jobsPerTier?: number; // Increases number of jobs per tier (deferred; needs job system revamp)
+	freeTravel?: number; // Reduces non-job travel time (deferred; needs travel model)
+	roadSpeedMin?: number; // Overrides minimum road speed cap (deferred; needs speed-limit model decision)
 }
 
 // Users table - core user data

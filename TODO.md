@@ -4,6 +4,8 @@ BUGS:
 - [ ] The route end icon should be consistent between the preview and the active route. (home icon vs. finish icon.)
 - [ ] When accepting a job, it still displays the route in orange from another employee to the job's start location.
 - [ ] When opening character selection screen it shows 'create your first character' when existing characters haven't been loaded yet. INstead there should be a loading screen of sorts. 
+- [ ] Food category glyph is undefined
+- [ ] When no upgrades are available, there is an undefined glyph.
 
 ENHANCEMENTS:
 - [ ] Make job-progress smooth (use css animations, not per second updates)
@@ -18,6 +20,7 @@ ENHANCEMENTS:
 - [ ] When selecting a route, pan and zoom on the route. When starting a route, the pan/zoom shouldn't change because it already shows the route.
 - [ ] Starting location should be part of the config
 - [ ] Copyright notice in footer should reference Rik Voorhaar. 
+- [ ] job categories that are not unlocked should be shown as locked. 
 
 
 LOGGING:

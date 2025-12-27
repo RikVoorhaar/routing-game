@@ -367,17 +367,11 @@ The following steps can be taken (mostly) independently:
    - ✅ Fixed height cards with border, improved contrast for disabled buttons
 
 13. **Extend GameState upgrade interfaces (so we can define/purchase upgrades even if some effects are not wired yet)**
-    - Extend the **game state upgrade effects interface** (`UpgradeEffects` / `gameState.upgradeEffects` in `src/lib/server/db/schema.ts`) with any new effect keys we plan to add, even if they’re temporarily “no-op”:
+    - Extend the **game state upgrade effects interface** (`UpgradeEffects` / `gameState.upgradeEffects` in `src/lib/server/db/schema.ts`) with any new effect keys we plan to add, even if they're temporarily "no-op":
       - `jobsPerTier?: number` (defer wiring; needs job system revamp)
       - `freeTravel?: number` (defer wiring; needs travel model)
       - `roadSpeedMin?: number` (defer wiring; needs speed-limit model decision)
       - (keep existing keys like `speed`, `capacity`, `xpMultiplier`, `moneyTimeFactor`, `moneyDistanceFactor`, `upgradeDiscount`, etc.)
-    - Extend the **upgrade definition types** (e.g. `UpgradeConfig`) so the UI/backend can represent the richer metadata used by our tables:
-      - `unlockCost` (global unlock cost; separate from per-employee vehicle purchase cost)
-      - `minTotalLevel` (global total level requirement)
-      - `minEmployeeLevel` (employee level requirement for per-employee purchases)
-      - `jobCategoryUnlock` (optional: unlocks a job category; used by the “Progression” table)
-    - Wire these fields through client/server validation so upgrades can be loaded, displayed, and purchased (even if some effects are no-op for now)
 
 14. **Populate Upgrade Definitions**
     - Implement the full tech tree in `src/lib/upgrades/upgradeDefinitions.ts` (including vehicle unlock upgrades)
