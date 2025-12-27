@@ -366,20 +366,47 @@ The following steps can be taken (mostly) independently:
    - ✅ Display job rewards (money and XP) next to ETA when on job
    - ✅ Fixed height cards with border, improved contrast for disabled buttons
 
-13. **Populate Upgrade Definitions**
-    - Add comprehensive upgrade list to `src/lib/upgrades/upgradeDefinitions.ts`
-    - Design tech tree with meaningful dependencies
-    - Balance upgrade costs and effects
-    - Ensure upgrades cover all effect types
-    - Test upgrade progression flow
+13. **Extend GameState upgrade interfaces (so we can define/purchase upgrades even if some effects are not wired yet)**
+    - Extend the **game state upgrade effects interface** (`UpgradeEffects` / `gameState.upgradeEffects` in `src/lib/server/db/schema.ts`) with any new effect keys we plan to add, even if they’re temporarily “no-op”:
+      - `jobsPerTier?: number` (defer wiring; needs job system revamp)
+      - `freeTravel?: number` (defer wiring; needs travel model)
+      - `roadSpeedMin?: number` (defer wiring; needs speed-limit model decision)
+      - (keep existing keys like `speed`, `capacity`, `xpMultiplier`, `moneyTimeFactor`, `moneyDistanceFactor`, `upgradeDiscount`, etc.)
+    - Extend the **upgrade definition types** (e.g. `UpgradeConfig`) so the UI/backend can represent the richer metadata used by our tables:
+      - `unlockCost` (global unlock cost; separate from per-employee vehicle purchase cost)
+      - `minTotalLevel` (global total level requirement)
+      - `minEmployeeLevel` (employee level requirement for per-employee purchases)
+      - `jobCategoryUnlock` (optional: unlocks a job category; used by the “Progression” table)
+    - Wire these fields through client/server validation so upgrades can be loaded, displayed, and purchased (even if some effects are no-op for now)
 
-14. **Populate Vehicle Definitions**
+14. **Populate Upgrade Definitions**
+    - Implement the full tech tree in `src/lib/upgrades/upgradeDefinitions.ts` (including vehicle unlock upgrades)
+    - Encode dependencies + level requirements from the tables below
+    - Balance upgrade costs and effects
+    - Mark upgrades whose effects are intentionally stubbed/deferred (see below)
+
+15. **Populate Vehicle Definitions**
     - Add comprehensive vehicle definitions to `src/lib/vehicles/vehicleDefinitions.ts`
     - Structure vehicles by level (capacity, roadSpeed, tier, name)
     - Refactor existing vehicle definitions from `game-config.yaml` to new structure
     - Ensure vehicle progression makes sense (exponential costs)
     - Update vehicle-related game logic to use new code-based definitions
     - Test vehicle upgrades and unlocks
+
+16. **Implement in-scope upgrade effects; stub only the ones that need a job-system revamp**
+    - In scope now (should work end-to-end):
+      - `speed`
+      - `capacity`
+      - `xpMultiplier`
+      - `moneyTimeFactor`, `moneyDistanceFactor`
+      - `upgradeDiscount`
+      - vehicle unlocks (`vehicleLevelMax` gating) + per-employee vehicle purchases
+      - category unlocks (People/Fragile/Construction/Liquids/Toxic) as defined in “Progression”
+    - **Defer (needs job-system revamp):**
+      - `jobsPerTier +n`
+      - `freeTravel` / fast travel timing
+      - `roadSpeedMin` / roadspeed cap override
+      - `employeeLevelStart`, `vehicleLevelMin` (new hire seeding)
 
 ## Notes
 
@@ -392,3 +419,114 @@ The following steps can be taken (mostly) independently:
 - Configuration: Game balance values are in `config/game-config.yaml`. Structural data (upgrades, vehicles) will be moved to TypeScript code in step 4 for better type safety and simpler imports.
 - Vehicle definitions will be moved from `game-config.yaml` to TypeScript code (see step 4)
 
+### Out of scope / related work (not in this feature branch)
+- Revamp job generation and job market to support “more jobs per tier” and better late-game variety
+- Define and implement a “fast travel” time model (non-job travel) and how it interacts with speed upgrades
+- Decide whether roadspeed is capped by route type, vehicle type, or a global override, then implement `roadSpeedMin` properly
+- Add/validate license & category gating inside the job system (and ensure the UI explains unlock paths clearly)
+- Revisit job “capacity/weight” modeling so vehicle capacity meaningfully constrains jobs (ties into Construction/Furniture scaling)
+
+## Suggested upgrades:
+**Vehicles (unlocked via global upgrades):**
+- If something is listed in `game-config.yaml`, it should be removed from there.
+- **Vehicle level** is just `0, 1, 2, ...` (progression index). **Tier** is used for job eligibility: employees can do a job iff `vehicleTier >= jobTier`.
+- Each vehicle has its **own unlock upgrade** (global purchase). Separately, each employee then pays the **per-employee upgrade cost** to move to the next vehicle level.
+- Suggested progression (capacity in **kg**, speed in **km/h**). Unlock costs scale “kinda exponentially”, and top speeds stay realistic (vans/trucks often slower than cars):
+
+| Upgrade ID | Vehicle | Veh lvl | Tier | Capacity (kg) | Road speed (km/h) | Min total lvl (unlock) | Min employee lvl (buy) | Unlock cost (€) | Employee cost (€) | Depends on |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `unlock_bike` | Bike | 0 | 1 | 10 | 15 | 0 | 0 | 0 | 0 | - |
+| `unlock_pannier_bike` | Pannier Bike | 1 | 1 | 25 | 18 | 3 | 2 | 20 | 12 | `unlock_bike` |
+| `unlock_e_bike` | E-Bike | 2 | 2 | 20 | 25 | 6 | 4 | 60 | 28 | `unlock_pannier_bike` |
+| `unlock_cargo_bike` | Cargo Bike | 3 | 2 | 80 | 20 | 10 | 6 | 150 | 60 | `unlock_e_bike` |
+| `unlock_scooter` | Scooter | 4 | 3 | 50 | 45 | 15 | 9 | 400 | 130 | `unlock_cargo_bike` |
+| `unlock_motorbike_125` | Motorbike 125 | 5 | 3 | 80 | 70 | 22 | 13 | 900 | 260 | `unlock_scooter` |
+| `unlock_compact_car` | Compact Car | 6 | 4 | 250 | 120 | 30 | 18 | 2_000 | 520 | `unlock_motorbike_125` |
+| `unlock_small_van` | Small Van | 7 | 4 | 700 | 110 | 40 | 24 | 4_500 | 1_050 | `unlock_compact_car` |
+| `unlock_cargo_van` | Cargo Van | 8 | 5 | 1_200 | 105 | 50 | 30 | 10_000 | 2_100 | `unlock_small_van` |
+| `unlock_box_truck` | Box Truck | 9 | 6 | 3_500 | 90 | 60 | 36 | 22_000 | 4_200 | `unlock_cargo_van` |
+| `unlock_tipper_truck` | Tipper Truck | 10 | 6 | 5_000 | 85 | 70 | 42 | 48_000 | 8_500 | `unlock_box_truck` |
+| `unlock_tanker` | Tanker | 11 | 7 | 8_000 | 80 | 80 | 48 | 100_000 | 17_000 | `unlock_tipper_truck` |
+| `unlock_hazmat_truck` | Hazmat Truck | 12 | 8 | 12_000 | 80 | 90 | 55 | 210_000 | 34_000 | `unlock_tanker` |
+| `unlock_hazmat_semi` | Hazmat Semi | 13 | 8 | 18_000 | 75 | 99 | 60 | 450_000 | 70_000 | `unlock_hazmat_truck` |
+
+
+**Progression:**
+These unlock job categories. Groceries, packages, food and furniture are unlocked by default. This refers to total XP level. 
+Upgrade name |Job category | Minimum level | Cost (€)
+--- | --- | ---: | ---:
+Taxi license | People | 20 | 500
+Certified courier | Fragile goods | 35 | 1000
+Tough guy | Construction | 50 | 4000
+Slightly tipsy | Liquids | 70 | 2000
+Put on your hazmat suit | Toxic goods | 90 | 8000
+
+**Upgrades:**
+First of all, the upgrade effects we should consider are:
+- Speed: Increase the speed of all vehicles by a certain percentage. (Typically 20-100%)
+- Capacity: Increase the capacity of all vehicles by a certain percentage. (Typically 10-50%)
+- XP: Increase the XP gain of all jobs by a certain percentage. (Typically 10-100%)
+- Cost: Reduce the cost of all upgrades by a certain percentage. (Typically 10-20%)
+- Num jobs per tier: Increase the number of jobs per tier by a certain amount. (Always 1). Not yet implemented, but we can add the field and implement feature later.
+- Money time factor: Increase the money earned from time by a certain percentage. (Typically 10-100%)
+- Money distance factor: Increase the money earned from distance by a certain percentage. (Typically 10-100%)
+- Fast travel: Reduce the time it takes to travel when not on a job by a certain percentage. (Typically 10-30%). Feature not yet implemented. 
+- Employee level start: Increase the starting level for new employees by a certain amount. (Typically 1-10). Feature not yet implemented. 
+- Employee vehicle start: Increase the starting vehicle level for new employees by a certain amount. (Typically 1-10). Feature not yet implemented. 
+- Roadspeed increase: Ignore the fact that vehicles past compact car have lower speeds than 120km/h and always use 120km/h as speed limit. 
+
+### Tech tree (proposal)
+
+Notes:
+- Levels per category (and total) go up to **99**.
+- “Better” upgrades should either be expensive, gated behind higher levels, or both.
+- All effects are **additive or multiplicative** and **stack** (buying “I”, “II”, “III” does not replace earlier upgrades).
+- “Implemented” below means we already have a matching `upgradeEffects` field and purchase pipeline; some effects are still **not wired into gameplay** yet (marked **No / later**).
+
+| ID | Upgrade | Effect | Level requirements | Depends on | Cost (€) | Implemented |
+| --- | --- | --- | --- | --- | ---: | --- |
+| `speed_1` | Better Routes I | `speed x1.30` | `total: 6` | - | 120 | Yes |
+| `speed_2` | Better Routes II | `speed x1.30` | `total: 22` | `speed_1` | 480 | Yes |
+| `speed_3` | Better Routes III | `speed x1.25` | `total: 55` | `speed_2` | 2_500 | Yes |
+| `speed_4` | Better Routes IV | `speed x1.30` | `total: 80` | `speed_3` | 12_000 | Yes |
+| `speed_5` | Better Routes V | `speed x1.25` | `total: 99` | `speed_4` | 60_000 | Yes |
+| `capacity_1` | Packing I | `capacity x1.25` | `FURNITURE: 8` | - | 140 | Yes |
+| `capacity_2` | Packing II | `capacity x1.25` | `FURNITURE: 20, total: 25` | `capacity_1` | 520 | Yes |
+| `capacity_3` | Packing III | `capacity x1.20` | `FURNITURE: 35, total: 40` | `capacity_2` | 1_900 | Yes |
+| `capacity_4` | Packing IV | `capacity x1.25` | `FURNITURE: 70, total: 75` | `capacity_3` | 10_000 | Yes |
+| `capacity_5` | Packing V | `capacity x1.20` | `FURNITURE: 99, total: 99` | `capacity_4` | 55_000 | Yes |
+| `xp_1` | Training I | `xpMultiplier x1.35` | `PEOPLE: 8` | - | 160 | Yes |
+| `xp_2` | Training II | `xpMultiplier x1.35` | `PEOPLE: 22, total: 28` | `xp_1` | 650 | Yes |
+| `xp_3` | Training III | `xpMultiplier x1.30` | `PEOPLE: 45, total: 55` | `xp_2` | 2_900 | Yes |
+| `xp_4` | Training IV | `xpMultiplier x1.35` | `PEOPLE: 75, total: 80` | `xp_3` | 15_000 | Yes |
+| `xp_5` | Training V | `xpMultiplier x1.30` | `PEOPLE: 99, total: 99` | `xp_4` | 80_000 | Yes |
+| `money_dist_1` | Distance Pay I | `moneyDistanceFactor x1.30` | `GROCERIES: 8` | - | 130 | Yes |
+| `money_dist_2` | Distance Pay II | `moneyDistanceFactor x1.30` | `GROCERIES: 22, total: 28` | `money_dist_1` | 520 | Yes |
+| `money_dist_3` | Distance Pay III | `moneyDistanceFactor x1.25` | `GROCERIES: 45, total: 55` | `money_dist_2` | 2_400 | Yes |
+| `money_dist_4` | Distance Pay IV | `moneyDistanceFactor x1.30` | `GROCERIES: 75, total: 80` | `money_dist_3` | 12_000 | Yes |
+| `money_dist_5` | Distance Pay V | `moneyDistanceFactor x1.25` | `GROCERIES: 99, total: 99` | `money_dist_4` | 65_000 | Yes |
+| `money_time_1` | Time Pay I | `moneyTimeFactor x1.30` | `FOOD: 8` | - | 130 | Yes |
+| `money_time_2` | Time Pay II | `moneyTimeFactor x1.30` | `FOOD: 22, total: 28` | `money_time_1` | 520 | Yes |
+| `money_time_3` | Time Pay III | `moneyTimeFactor x1.25` | `FOOD: 45, total: 55` | `money_time_2` | 2_400 | Yes |
+| `money_time_4` | Time Pay IV | `moneyTimeFactor x1.30` | `FOOD: 75, total: 80` | `money_time_3` | 12_000 | Yes |
+| `money_time_5` | Time Pay V | `moneyTimeFactor x1.25` | `FOOD: 99, total: 99` | `money_time_4` | 65_000 | Yes |
+| `discount_1` | Bulk Deals I | `upgradeDiscount x0.90` | `PACKAGES: 10, total: 12` | - | 220 | Yes |
+| `discount_2` | Bulk Deals II | `upgradeDiscount x0.90` | `PACKAGES: 25, total: 30` | `discount_1` | 900 | Yes |
+| `discount_3` | Bulk Deals III | `upgradeDiscount x0.90` | `PACKAGES: 55, total: 60` | `discount_2` | 4_500 | Yes |
+| `discount_4` | Bulk Deals IV | `upgradeDiscount x0.90` | `PACKAGES: 80, total: 85` | `discount_3` | 25_000 | Yes |
+| `discount_5` | Bulk Deals V | `upgradeDiscount x0.90` | `PACKAGES: 99, total: 99` | `discount_4` | 150_000 | Yes |
+| `start_lvl_1` | Better Hires I | `employeeLevelStart +10` | `total: 18` | - | 600 | No / later |
+| `start_lvl_2` | Better Hires II | `employeeLevelStart +20` | `total: 40` | `start_lvl_1` | 2_500 | No / later |
+| `start_lvl_3` | Better Hires III | `employeeLevelStart +40` | `total: 75` | `start_lvl_2` | 12_000 | No / later |
+| `start_lvl_4` | Better Hires IV | `employeeLevelStart +60` | `total: 99` | `start_lvl_3` | 80_000 | No / later |
+| `start_veh_1` | Better Gear I | `vehicleLevelMin +1` | `total: 22` | `unlock_scooter` | 650 | No / later |
+| `start_veh_2` | Better Gear II | `vehicleLevelMin +2` | `total: 50` | `start_veh_1` | 3_200 | No / later |
+| `start_veh_3` | Better Gear III | `vehicleLevelMin +3` | `total: 75` | `start_veh_2` | 12_000 | No / later |
+| `start_veh_4` | Better Gear IV | `vehicleLevelMin +4` | `total: 99` | `start_veh_3` | 80_000 | No / later |
+| `more_jobs_1` | More Jobs I | `jobsPerTier +1` | `total: 25` | - | 600 | No / later |
+| `more_jobs_2` | More Jobs II | `jobsPerTier +1` | `total: 55` | `more_jobs_1` | 3_000 | No / later |
+| `more_jobs_3` | More Jobs III | `jobsPerTier +1` | `total: 85` | `more_jobs_2` | 18_000 | No / later |
+| `fast_travel_1` | Fast Travel I | `freeTravel x0.90` | `total: 30` | - | 900 | No / later |
+| `fast_travel_2` | Fast Travel II | `freeTravel x0.85` | `total: 60` | `fast_travel_1` | 5_000 | No / later |
+| `fast_travel_3` | Fast Travel III | `freeTravel x0.75` | `total: 90` | `fast_travel_2` | 35_000 | No / later |
+| `roadspeed_cap` | Speed Cap | `roadSpeedMin 120` | `total: 99` | `unlock_compact_car, speed_5` | 150_000 | No / later |
