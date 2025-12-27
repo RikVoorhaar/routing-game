@@ -63,9 +63,9 @@ describe('Upgrade Utilities', () => {
 				upgradeEffects: {}
 			};
 
-			// Category keys must be numeric strings (e.g., "0" for GROCERIES)
-			expect(checkLevelRequirements(gameState, { '0': 3 })).toBe(true);
-			expect(checkLevelRequirements(gameState, { '0': 4 })).toBe(false);
+			// Category keys use enum names (e.g., "GROCERIES")
+			expect(checkLevelRequirements(gameState, { GROCERIES: 3 })).toBe(true);
+			expect(checkLevelRequirements(gameState, { GROCERIES: 4 })).toBe(false);
 		});
 
 		it('should check both total and category requirements', () => {
@@ -94,9 +94,9 @@ describe('Upgrade Utilities', () => {
 					upgradesPurchased: [],
 					upgradeEffects: {}
 				};
-				// Category keys must be numeric strings (e.g., "1" for PACKAGES)
-				expect(checkLevelRequirements(gameState, { total: 2, '1': 1 })).toBe(true);
-				expect(checkLevelRequirements(gameState, { total: 3, '1': 1 })).toBe(false);
+				// Category keys use enum names (e.g., "PACKAGES")
+				expect(checkLevelRequirements(gameState, { total: 2, PACKAGES: 1 })).toBe(true);
+				expect(checkLevelRequirements(gameState, { total: 3, PACKAGES: 1 })).toBe(false);
 				return;
 			}
 
@@ -114,10 +114,10 @@ describe('Upgrade Utilities', () => {
 				upgradeEffects: {}
 			};
 
-			// Category keys must be numeric strings (e.g., "1" for PACKAGES)
-			expect(checkLevelRequirements(gameState, { total: 3, '1': 2 })).toBe(true);
-			expect(checkLevelRequirements(gameState, { total: 6, '1': 2 })).toBe(false);
-			expect(checkLevelRequirements(gameState, { total: 3, '1': 3 })).toBe(false);
+			// Category keys use enum names (e.g., "PACKAGES")
+			expect(checkLevelRequirements(gameState, { total: 3, PACKAGES: 2 })).toBe(true);
+			expect(checkLevelRequirements(gameState, { total: 6, PACKAGES: 2 })).toBe(false);
+			expect(checkLevelRequirements(gameState, { total: 3, PACKAGES: 3 })).toBe(false);
 		});
 
 		it('should handle missing XP categories as level 0', () => {
@@ -132,8 +132,8 @@ describe('Upgrade Utilities', () => {
 				upgradeEffects: {}
 			};
 
-			expect(checkLevelRequirements(gameState, { [JobCategory.GROCERIES]: 0 })).toBe(true);
-			expect(checkLevelRequirements(gameState, { [JobCategory.GROCERIES]: 1 })).toBe(false);
+			expect(checkLevelRequirements(gameState, { GROCERIES: 0 })).toBe(true);
+			expect(checkLevelRequirements(gameState, { GROCERIES: 1 })).toBe(false);
 		});
 
 		it('should handle undefined requirements', () => {
@@ -148,7 +148,7 @@ describe('Upgrade Utilities', () => {
 				upgradeEffects: {}
 			};
 
-			expect(checkLevelRequirements(gameState, { total: undefined, groceries: undefined })).toBe(
+			expect(checkLevelRequirements(gameState, { total: undefined, GROCERIES: undefined })).toBe(
 				true
 			);
 		});

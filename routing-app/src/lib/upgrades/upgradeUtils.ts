@@ -36,7 +36,7 @@ export function checkLevelRequirements(
 	}
 
 	// Check category-specific level requirements
-	// Category keys must be numeric strings matching JobCategory enum values (e.g., "0", "1", "2")
+	// Category keys are JobCategory enum names (e.g., "FURNITURE", "PEOPLE", "GROCERIES")
 	for (const [key, requiredLevel] of Object.entries(requirements)) {
 		if (key === 'total') {
 			continue; // Already checked above
@@ -46,14 +46,14 @@ export function checkLevelRequirements(
 			continue;
 		}
 
-		// Parse the key as a numeric category ID
-		const categoryNum = parseInt(key, 10);
-		if (isNaN(categoryNum) || !(categoryNum in JobCategory)) {
+		// Look up the enum value from the enum key
+		const categoryNum = JobCategory[key as keyof typeof JobCategory];
+		if (categoryNum === undefined) {
 			// Invalid category key - skip it (could throw error, but being lenient for now)
 			continue;
 		}
 
-		const categoryXpValue = categoryXp[categoryNum as JobCategory] || 0;
+		const categoryXpValue = categoryXp[categoryNum] || 0;
 		const categoryLevel = getLevelFromXp(categoryXpValue);
 
 		if (categoryLevel < requiredLevel) {

@@ -9,11 +9,19 @@ import { JobCategory } from '$lib/jobs/jobCategories';
 /**
  * Level requirements for upgrades
  * Can specify total level requirement and/or category-specific requirements
- * Category-specific requirements use numeric string keys matching JobCategory enum values (e.g., "0" for GROCERIES, "1" for PACKAGES)
+ * Category-specific requirements use JobCategory enum keys (e.g., "FURNITURE", "PEOPLE", "GROCERIES")
  */
 export interface LevelRequirements {
 	total?: number;
-	[key: string]: number | undefined; // For category-specific requirements (keys must be numeric strings like "0", "1", etc.)
+	GROCERIES?: number;
+	PACKAGES?: number;
+	FOOD?: number;
+	FURNITURE?: number;
+	PEOPLE?: number;
+	FRAGILE_GOODS?: number;
+	CONSTRUCTION?: number;
+	LIQUIDS?: number;
+	TOXIC_GOODS?: number;
 }
 
 /**
