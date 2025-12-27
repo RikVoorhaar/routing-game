@@ -17,6 +17,7 @@ ENHANCEMENTS:
 - [ ] When an employee is selected, the route map should pan to the employee's location. If the employee is on a route, the zoom should be such that the entire route is visible. If no route is active, just pan and don't change the zoom. If there are available routes, then show the available routes on the map and zoom/pan to make sure all routes are visible.
 - [ ] When selecting a route, pan and zoom on the route. When starting a route, the pan/zoom shouldn't change because it already shows the route.
 - [ ] Starting location should be part of the config
+- [ ] Copyright notice in footer should reference Rik Voorhaar. 
 
 
 LOGGING:
@@ -38,8 +39,6 @@ DEV / NEW FEATURES:
 - [ ] Reform the job generation system. Probably jobs should be generated per employee, and not on the whole map. Then the DB should not ingest _all_ the addresses, but rather a fraction of addresses. 
 - [x] ALl the jobs show up as not costing anything
 - [x] There are issue with the routes schema that I have notes on
-- [ ] The current max of 100 jobs per tile is too large, reduce to like 25
-- [ ] remove the restriction that jobs aren't shown at tile levels below 12
 - [X] Implement licenses, levels, xp, etc. 
 - [x] IN generateJobs.ts, use the job categories defined in jobCategories.ts
 - [x] In generateJobs.ts, remove all profiling code.
@@ -50,3 +49,10 @@ DEV / NEW FEATURES:
 - [x] When the user clicks on a job, do stuff 
 - [x] The routing server is constantly using 100% CPU
 - [x] Make a config system for the game: upgrades, scaling for costs, distances, number of jobs per tile, etc.
+- [ ] Remove the employee details pane
+- [ ] Job selection revamp: 
+    - [ ] Only show 1-3 jobs per tier for currently selected employee. 
+    - [ ] Upgrades increase number of jobs shown. (vehicle upgrades and global upgrades)
+    - [ ] Instead of job selection pane, it should be a tooltip on top of the map when clicking on a job marker.
+    - [ ] Allow option to move the employee to a different location. 
+    - [ ] Job filtering is based purely on distance from employee, so that it's consistent. 
