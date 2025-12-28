@@ -3,7 +3,6 @@
 	import { computeEmployeeCosts } from '$lib/employeeUtils';
 	import { formatMoney } from '$lib/formatting';
 	import EmployeeCard from './EmployeeCard.svelte';
-	import EmployeeDetails from './EmployeeDetails.svelte';
 	import ErrorOverlay from './ErrorOverlay.svelte';
 	import Cheats from './Cheats.svelte';
 	import RouteMap from './RouteMap.svelte';
@@ -247,9 +246,6 @@
 				<div class="space-y-6 lg:col-span-1">
 					<!-- Selected Job Card -->
 					<JobCard />
-
-					<!-- Employee Details -->
-					<EmployeeDetails />
 
 					<!-- Employees List -->
 					<div class="space-y-3">

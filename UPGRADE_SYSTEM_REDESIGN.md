@@ -389,6 +389,10 @@ The following steps can be taken (mostly) independently:
     - ✅ Vehicle-related game logic already uses code-based definitions (no changes needed)
     - ✅ Vehicle definitions match upgrade unlock requirements (validation passes)
 
+Notes:
+- Vehicle upgrades don't seem to exist?
+- The level requirements for vehicles don't seem to work? I think the vehicle config needs to be expanded to include a minimum level. 
+
 16. **Implement in-scope upgrade effects; stub only the ones that need a job-system revamp**
     - In scope now (should work end-to-end):
       - `speed`
