@@ -13,10 +13,12 @@ skipIfCI('addresses', () => {
 			const { db } = await import('./server/db/standalone');
 			await db.execute('SELECT 1');
 		} catch {
-			throw new Error('Database is not available. Please start PostgreSQL before running these tests.');
+			throw new Error(
+				'Database is not available. Please start PostgreSQL before running these tests.'
+			);
 		}
 	});
-	
+
 	describe('getRandomAddressInAnnulus', () => {
 		const center: Coordinate = {
 			lat: DEFAULT_EMPLOYEE_LOCATION.lat,
