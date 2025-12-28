@@ -2,7 +2,7 @@
 
 import { ChunkGrid, type BoundingBox, type ChunkCoordinate } from '../lib/coordinateGrid';
 import { getAddressBbox, getNumAddresses, getAddressSample } from '../lib/server';
-import type { Address } from '../lib/types';
+import type { Address } from '../lib/server/db/schema';
 
 // Configuration
 const DEFAULT_CHUNK_SIZE_KM = 0.5; // 500m chunks by default

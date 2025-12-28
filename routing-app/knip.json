@@ -1,0 +1,28 @@
+{
+	"$schema": "https://unpkg.com/knip@latest/schema.json",
+	"entry": [
+		"src/routes/**/*.{js,ts,svelte}",
+		"src/app.html"
+	],
+	"project": ["**/*.{js,ts,svelte}"],
+	"ignore": [
+		"**/*.test.ts",
+		"**/*.spec.ts",
+		"**/vitest-setup-client.ts",
+		"**/node_modules/**",
+		"**/.svelte-kit/**",
+		"**/build/**",
+		"**/dist/**",
+		"**/drizzle/**",
+		"**/logs/**",
+		"**/790033.0x/**",
+		"src/hooks.server.ts"
+	],
+	"svelte": {
+		"entry": [
+			"src/routes/**/*.{js,ts,svelte}",
+			"src/app.html"
+		]
+	}
+}
+

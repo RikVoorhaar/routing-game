@@ -1,5 +1,5 @@
 import * as turf from '@turf/turf';
-import type { Coordinate } from './types';
+import type { Coordinate } from '$lib/server/db/schema';
 
 export interface TileBounds {
 	north: number;

@@ -1,6 +1,6 @@
 import http from 'http';
 import https from 'https';
-import type { Address, Coordinate } from './types';
+import type { Address, Coordinate } from '$lib/server/db/schema';
 
 const ROUTING_SERVER_URL = 'http://localhost:8050';
 

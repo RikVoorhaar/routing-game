@@ -8,7 +8,7 @@ import {
 	getAddressSample,
 	getUniformRandomAddressInAnnulus
 } from '../server';
-import type { Coordinate } from '../types';
+import type { Coordinate } from '$lib/server/db/schema';
 
 const skipIfCI = process.env.CI ? describe.skip : describe;
 

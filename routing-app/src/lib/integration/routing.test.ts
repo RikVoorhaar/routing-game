@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { getRandomRouteInAnnulus } from '../routes/routing';
 import { getServerHealth } from '../server';
 import { interpolateLocationAtTime } from '../routes/routing-client';
-import type { Coordinate, PathPoint } from '../types';
+import type { Coordinate, PathPoint } from '$lib/server/db/schema';
 
 const skipIfCI = process.env.CI ? describe.skip : describe;
 
