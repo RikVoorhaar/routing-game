@@ -222,8 +222,8 @@ export function validateUpgradesConfig(upgrades: UpgradeConfig[]): void {
 				errors.push(`upgrades[${index}].cost must be a non-negative number`);
 			}
 
-			if (upgrade.effect !== 'multiply' && upgrade.effect !== 'increment') {
-				errors.push(`upgrades[${index}].effect must be either 'multiply' or 'increment'`);
+			if (upgrade.effect !== 'multiply' && upgrade.effect !== 'increment' && upgrade.effect !== 'set') {
+				errors.push(`upgrades[${index}].effect must be either 'multiply', 'increment', or 'set'`);
 			}
 
 			if (

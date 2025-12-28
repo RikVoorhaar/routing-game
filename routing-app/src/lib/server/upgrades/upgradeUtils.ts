@@ -101,7 +101,7 @@ export function checkUpgradeRequirements(purchased: string[], required: string[]
  * currentEffects: UpgradeEffects
  *     The current upgrade effects object
  * effect: UpgradeEffectType
- *     The type of effect to apply ('multiply' or 'increment')
+ *     The type of effect to apply ('multiply', 'increment', or 'set')
  * args: UpgradeEffectArguments
  *     The effect arguments containing the effect name and amount
  *
@@ -129,6 +129,9 @@ export function applyUpgradeEffect(
 		// For increment effects, default to 0 if not present
 		const currentValue = newEffects[effectName] ?? 0;
 		newEffects[effectName] = currentValue + amount;
+	} else if (effect === 'set') {
+		// For set effects, set the value directly to the amount
+		newEffects[effectName] = amount;
 	} else {
 		throw new Error(`Unknown effect type: ${effect}`);
 	}

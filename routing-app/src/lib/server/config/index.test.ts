@@ -99,7 +99,7 @@ describe('Config Loading and Validation', () => {
 				}
 			];
 			expect(() => validateUpgradesConfig(upgrades)).toThrow(
-				/effect must be either 'multiply' or 'increment'/
+				/effect must be either 'multiply', 'increment', or 'set'/
 			);
 		});
 

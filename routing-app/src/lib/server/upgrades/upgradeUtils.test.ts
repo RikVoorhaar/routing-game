@@ -295,5 +295,81 @@ describe('Upgrade Utilities', () => {
 
 			expect(result.speed).toBe(5); // 10 * 0.5 = 5
 		});
+
+		it('should apply set effect to existing value', () => {
+			const currentEffects = { speed: 5 };
+			const result = applyUpgradeEffect(currentEffects, 'set', {
+				name: 'speed',
+				amount: 10
+			});
+
+			expect(result.speed).toBe(10); // Set to 10, ignoring previous value
+		});
+
+		it('should apply set effect to new value', () => {
+			const currentEffects = {};
+			const result = applyUpgradeEffect(currentEffects, 'set', {
+				name: 'speed',
+				amount: 7.5
+			});
+
+			expect(result.speed).toBe(7.5); // Set to 7.5
+		});
+
+		it('should apply set effect and override previous value', () => {
+			const currentEffects = {
+				speed: 5,
+				xpMultiplier: 1.5,
+				vehicleLevelMax: 2
+			};
+			const result = applyUpgradeEffect(currentEffects, 'set', {
+				name: 'speed',
+				amount: 3
+			});
+
+			expect(result.speed).toBe(3); // Set to 3, overriding 5
+			expect(result.xpMultiplier).toBe(1.5); // Other values preserved
+			expect(result.vehicleLevelMax).toBe(2);
+		});
+
+		it('should handle set effect with zero', () => {
+			const currentEffects = { speed: 10 };
+			const result = applyUpgradeEffect(currentEffects, 'set', {
+				name: 'speed',
+				amount: 0
+			});
+
+			expect(result.speed).toBe(0); // Set to 0
+		});
+
+		it('should handle set effect with negative values', () => {
+			const currentEffects = { speed: 5 };
+			const result = applyUpgradeEffect(currentEffects, 'set', {
+				name: 'speed',
+				amount: -2
+			});
+
+			expect(result.speed).toBe(-2); // Set to -2
+		});
+
+		it('should handle multiple effect types including set', () => {
+			let effects = {};
+			effects = applyUpgradeEffect(effects, 'multiply', { name: 'speed', amount: 1.2 });
+			effects = applyUpgradeEffect(effects, 'increment', { name: 'vehicleLevelMax', amount: 1 });
+			effects = applyUpgradeEffect(effects, 'set', { name: 'xpMultiplier', amount: 2.0 });
+
+			expect(effects.speed).toBe(1.2);
+			expect(effects.vehicleLevelMax).toBe(1);
+			expect(effects.xpMultiplier).toBe(2.0);
+		});
+
+		it('should handle set effect overriding multiply result', () => {
+			let effects = { speed: 5 };
+			effects = applyUpgradeEffect(effects, 'multiply', { name: 'speed', amount: 1.2 });
+			expect(effects.speed).toBe(6); // 5 * 1.2 = 6
+
+			effects = applyUpgradeEffect(effects, 'set', { name: 'speed', amount: 10 });
+			expect(effects.speed).toBe(10); // Set to 10, overriding multiply result
+		});
 	});
 });

@@ -25,9 +25,9 @@ export interface LevelRequirements {
 }
 
 /**
- * Upgrade effect type - either multiply or increment
+ * Upgrade effect type - multiply, increment, or set
  */
-export type UpgradeEffectType = 'multiply' | 'increment';
+export type UpgradeEffectType = 'multiply' | 'increment' | 'set';
 
 /**
  * Arguments for upgrade effects
