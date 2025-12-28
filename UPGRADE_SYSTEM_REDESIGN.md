@@ -393,7 +393,7 @@ Notes:
 - ✅ **Fixed:** Level requirements for purchasing vehicles now work - employees must meet the `purchaseLevelRequirement` to purchase a vehicle upgrade
 - ✅ **Fixed:** Bike upgrade is no longer defined as an upgrade - level 0 (Bike) is pre-unlocked by default in new game states
 - ✅ **Fixed:** Employee order is now stable - added `order` field to employees table, migration applied, and all queries/frontend sort by hire order
-- Vehicle upgrades should always be shown first in the upgrade panel and perhaps be pre-pended by (Vehicle) in the name.
+- ✅ **Fixed:** Vehicle upgrades are now shown first in the upgrade panel, prepended with "(Vehicle)" in the name, and all upgrades have their own glyph icons for better visual identification
 
 
 16. **Implement in-scope upgrade effects; stub only the ones that need a job-system revamp**

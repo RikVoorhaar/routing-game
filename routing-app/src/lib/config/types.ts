@@ -1,5 +1,3 @@
-import { JobCategory } from '$lib/jobs/jobCategories';
-
 /**
  * Type definitions for game configuration
  * These types match the structure of config/game-config.yaml
@@ -49,6 +47,7 @@ export interface UpgradeConfig {
 	cost: number;
 	effect: UpgradeEffectType;
 	effectArguments: UpgradeEffectArguments;
+	glyph?: string; // Optional emoji/glyph to display with the upgrade
 }
 
 /**

@@ -2,6 +2,25 @@ import type { UpgradeConfig } from '$lib/config/types';
 import { VEHICLE_DEFINITIONS } from '$lib/vehicles/vehicleDefinitions';
 
 /**
+ * Vehicle glyph mapping
+ */
+const VEHICLE_GLYPHS: Record<string, string> = {
+	pannier_bike: '🚲',
+	e_bike: '🛴',
+	cargo_bike: '🚲',
+	scooter: '🛵',
+	motorbike_125: '🏍️',
+	compact_car: '🚗',
+	small_van: '🚐',
+	cargo_van: '🚚',
+	box_truck: '🚛',
+	tipper_truck: '🚜',
+	tanker: '⛽',
+	hazmat_truck: '☣️',
+	hazmat_semi: '☢️'
+};
+
+/**
  * Generate vehicle unlock upgrades dynamically from vehicle definitions
  * Note: Level 0 (Bike) is skipped as it's the starting vehicle and pre-unlocked
  */
@@ -35,7 +54,8 @@ function generateVehicleUnlockUpgrades(): UpgradeConfig[] {
 			effectArguments: {
 				name: 'vehicleLevelMax',
 				amount: vehicle.level
-			}
+			},
+			glyph: VEHICLE_GLYPHS[vehicle.id] || '🚗'
 		});
 	}
 
@@ -71,7 +91,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'categoryUnlock',
 			amount: 1
-		}
+		},
+		glyph: '🚕'
 	},
 	{
 		id: 'certified_courier',
@@ -86,7 +107,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'categoryUnlock',
 			amount: 1
-		}
+		},
+		glyph: '📦'
 	},
 	{
 		id: 'tough_guy',
@@ -101,7 +123,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'categoryUnlock',
 			amount: 1
-		}
+		},
+		glyph: '🏗️'
 	},
 	{
 		id: 'slightly_tipsy',
@@ -116,7 +139,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'categoryUnlock',
 			amount: 1
-		}
+		},
+		glyph: '🍷'
 	},
 	{
 		id: 'hazmat_suit',
@@ -131,7 +155,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'categoryUnlock',
 			amount: 1
-		}
+		},
+		glyph: '☢️'
 	},
 
 	// ============================================================================
@@ -150,7 +175,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'speed',
 			amount: 1.3
-		}
+		},
+		glyph: '⚡'
 	},
 	{
 		id: 'speed_2',
@@ -165,7 +191,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'speed',
 			amount: 1.3
-		}
+		},
+		glyph: '⚡'
 	},
 	{
 		id: 'speed_3',
@@ -180,7 +207,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'speed',
 			amount: 1.25
-		}
+		},
+		glyph: '⚡'
 	},
 	{
 		id: 'speed_4',
@@ -195,7 +223,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'speed',
 			amount: 1.3
-		}
+		},
+		glyph: '⚡'
 	},
 	{
 		id: 'speed_5',
@@ -210,7 +239,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'speed',
 			amount: 1.25
-		}
+		},
+		glyph: '⚡'
 	},
 
 	// ============================================================================
@@ -229,7 +259,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'capacity',
 			amount: 1.25
-		}
+		},
+		glyph: '📦'
 	},
 	{
 		id: 'capacity_2',
@@ -245,7 +276,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'capacity',
 			amount: 1.25
-		}
+		},
+		glyph: '📦'
 	},
 	{
 		id: 'capacity_3',
@@ -261,7 +293,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'capacity',
 			amount: 1.2
-		}
+		},
+		glyph: '📦'
 	},
 	{
 		id: 'capacity_4',
@@ -277,7 +310,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'capacity',
 			amount: 1.25
-		}
+		},
+		glyph: '📦'
 	},
 	{
 		id: 'capacity_5',
@@ -293,7 +327,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'capacity',
 			amount: 1.2
-		}
+		},
+		glyph: '📦'
 	},
 
 	// ============================================================================
@@ -312,7 +347,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'xpMultiplier',
 			amount: 1.35
-		}
+		},
+		glyph: '📚'
 	},
 	{
 		id: 'xp_2',
@@ -328,7 +364,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'xpMultiplier',
 			amount: 1.35
-		}
+		},
+		glyph: '📚'
 	},
 	{
 		id: 'xp_3',
@@ -344,7 +381,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'xpMultiplier',
 			amount: 1.3
-		}
+		},
+		glyph: '📚'
 	},
 	{
 		id: 'xp_4',
@@ -360,7 +398,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'xpMultiplier',
 			amount: 1.35
-		}
+		},
+		glyph: '📚'
 	},
 	{
 		id: 'xp_5',
@@ -376,7 +415,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'xpMultiplier',
 			amount: 1.3
-		}
+		},
+		glyph: '📚'
 	},
 
 	// ============================================================================
@@ -395,7 +435,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'moneyDistanceFactor',
 			amount: 1.3
-		}
+		},
+		glyph: '💰'
 	},
 	{
 		id: 'money_dist_2',
@@ -411,7 +452,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'moneyDistanceFactor',
 			amount: 1.3
-		}
+		},
+		glyph: '💰'
 	},
 	{
 		id: 'money_dist_3',
@@ -427,7 +469,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'moneyDistanceFactor',
 			amount: 1.25
-		}
+		},
+		glyph: '💰'
 	},
 	{
 		id: 'money_dist_4',
@@ -443,7 +486,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'moneyDistanceFactor',
 			amount: 1.3
-		}
+		},
+		glyph: '💰'
 	},
 	{
 		id: 'money_dist_5',
@@ -459,7 +503,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'moneyDistanceFactor',
 			amount: 1.25
-		}
+		},
+		glyph: '💰'
 	},
 
 	// ============================================================================
@@ -478,7 +523,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'moneyTimeFactor',
 			amount: 1.3
-		}
+		},
+		glyph: '⏰'
 	},
 	{
 		id: 'money_time_2',
@@ -494,7 +540,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'moneyTimeFactor',
 			amount: 1.3
-		}
+		},
+		glyph: '⏰'
 	},
 	{
 		id: 'money_time_3',
@@ -510,7 +557,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'moneyTimeFactor',
 			amount: 1.25
-		}
+		},
+		glyph: '⏰'
 	},
 	{
 		id: 'money_time_4',
@@ -526,7 +574,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'moneyTimeFactor',
 			amount: 1.3
-		}
+		},
+		glyph: '⏰'
 	},
 	{
 		id: 'money_time_5',
@@ -542,7 +591,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'moneyTimeFactor',
 			amount: 1.25
-		}
+		},
+		glyph: '⏰'
 	},
 
 	// ============================================================================
@@ -562,7 +612,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'upgradeDiscount',
 			amount: 0.9
-		}
+		},
+		glyph: '🏷️'
 	},
 	{
 		id: 'discount_2',
@@ -578,7 +629,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'upgradeDiscount',
 			amount: 0.9
-		}
+		},
+		glyph: '🏷️'
 	},
 	{
 		id: 'discount_3',
@@ -594,7 +646,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'upgradeDiscount',
 			amount: 0.9
-		}
+		},
+		glyph: '🏷️'
 	},
 	{
 		id: 'discount_4',
@@ -610,7 +663,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'upgradeDiscount',
 			amount: 0.9
-		}
+		},
+		glyph: '🏷️'
 	},
 	{
 		id: 'discount_5',
@@ -626,7 +680,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'upgradeDiscount',
 			amount: 0.9
-		}
+		},
+		glyph: '🏷️'
 	},
 
 	// ============================================================================
@@ -647,7 +702,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'employeeLevelStart',
 			amount: 10
-		}
+		},
+		glyph: '👥'
 	},
 	{
 		id: 'start_lvl_2',
@@ -662,7 +718,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'employeeLevelStart',
 			amount: 20
-		}
+		},
+		glyph: '👥'
 	},
 	{
 		id: 'start_lvl_3',
@@ -677,7 +734,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'employeeLevelStart',
 			amount: 40
-		}
+		},
+		glyph: '👥'
 	},
 	{
 		id: 'start_lvl_4',
@@ -692,7 +750,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'employeeLevelStart',
 			amount: 60
-		}
+		},
+		glyph: '👥'
 	},
 
 	// Vehicle Level Start Upgrades (4 upgrades) - NOT WIRED
@@ -709,7 +768,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'vehicleLevelMin',
 			amount: 1
-		}
+		},
+		glyph: '⚙️'
 	},
 	{
 		id: 'start_veh_2',
@@ -724,7 +784,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'vehicleLevelMin',
 			amount: 2
-		}
+		},
+		glyph: '⚙️'
 	},
 	{
 		id: 'start_veh_3',
@@ -739,7 +800,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'vehicleLevelMin',
 			amount: 3
-		}
+		},
+		glyph: '⚙️'
 	},
 	{
 		id: 'start_veh_4',
@@ -754,7 +816,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'vehicleLevelMin',
 			amount: 4
-		}
+		},
+		glyph: '⚙️'
 	},
 
 	// More Jobs Per Tier Upgrades (3 upgrades) - NOT WIRED
@@ -771,7 +834,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'jobsPerTier',
 			amount: 1
-		}
+		},
+		glyph: '📋'
 	},
 	{
 		id: 'more_jobs_2',
@@ -786,7 +850,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'jobsPerTier',
 			amount: 1
-		}
+		},
+		glyph: '📋'
 	},
 	{
 		id: 'more_jobs_3',
@@ -801,7 +866,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'jobsPerTier',
 			amount: 1
-		}
+		},
+		glyph: '📋'
 	},
 
 	// Fast Travel Upgrades (3 upgrades) - NOT WIRED
@@ -818,7 +884,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'freeTravel',
 			amount: 0.9
-		}
+		},
+		glyph: '✈️'
 	},
 	{
 		id: 'fast_travel_2',
@@ -833,7 +900,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'freeTravel',
 			amount: 0.85
-		}
+		},
+		glyph: '✈️'
 	},
 	{
 		id: 'fast_travel_3',
@@ -848,7 +916,8 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'freeTravel',
 			amount: 0.75
-		}
+		},
+		glyph: '✈️'
 	},
 
 	// Roadspeed Cap Upgrade (1 upgrade) - NOT WIRED
@@ -865,6 +934,7 @@ export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 		effectArguments: {
 			name: 'roadSpeedMin',
 			amount: 120
-		}
+		},
+		glyph: '🏁'
 	}
 ];

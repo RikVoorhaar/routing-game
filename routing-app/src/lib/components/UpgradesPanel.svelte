@@ -45,6 +45,11 @@
 		};
 	}
 
+	// Helper function to check if an upgrade is a vehicle unlock upgrade
+	function isVehicleUpgrade(upgradeId: string): boolean {
+		return upgradeId.startsWith('unlock_');
+	}
+
 	$: upgradesWithStatus = availableUpgrades
 		.map((upgrade) => {
 			if (!$currentGameState) {
@@ -68,9 +73,13 @@
 		// Filter: only show upgrades where dependencies are met
 		// (hide upgrades with missing dependencies, but show those with unmet level requirements or insufficient funds)
 		.filter(({ status }) => status.dependenciesMet)
-		// Sort: upgrades with all requirements met (canPurchase) first, then those with requirements met but insufficient funds,
-		// then those with unmet level requirements
+		// Sort: vehicle upgrades first, then by purchase priority
 		.sort((a, b) => {
+			// Priority 0: Vehicle upgrades always come first
+			const aIsVehicle = isVehicleUpgrade(a.upgrade.id);
+			const bIsVehicle = isVehicleUpgrade(b.upgrade.id);
+			if (aIsVehicle && !bIsVehicle) return -1;
+			if (!aIsVehicle && bIsVehicle) return 1;
 			// Priority 1: Can purchase (all requirements met + enough money)
 			if (a.status.canPurchase && !b.status.canPurchase) return -1;
 			if (!a.status.canPurchase && b.status.canPurchase) return 1;
@@ -142,9 +151,15 @@
 	{#if upgradesWithStatus.length === 0}
 		<div class="card bg-base-100 shadow">
 			<div class="card-body p-8 text-center">
-				<div class="mb-4 text-6xl">🎉</div>
-				<h3 class="mb-2 text-xl font-bold">All Upgrades Purchased!</h3>
-				<p class="text-base-content/70">You've unlocked all available upgrades.</p>
+				{#if availableUpgrades.length === 0}
+					<div class="mb-4 text-6xl">🎉</div>
+					<h3 class="mb-2 text-xl font-bold">All Upgrades Purchased!</h3>
+					<p class="text-base-content/70">You've unlocked all available upgrades.</p>
+				{:else}
+					<div class="mb-4 text-6xl">🔒</div>
+					<h3 class="mb-2 text-xl font-bold">No Upgrades Available</h3>
+					<p class="text-base-content/70">Complete prerequisite upgrades to unlock more options.</p>
+				{/if}
 			</div>
 		</div>
 	{:else}
@@ -158,7 +173,12 @@
 						class:pointer-events-none={isLocked && !isPurchasing}
 					>
 						<div class="card-body p-4">
-							<h3 class="card-title text-lg">{upgrade.name}</h3>
+							<h3 class="card-title text-lg">
+								{#if upgrade.glyph}
+									<span class="mr-2 text-2xl">{upgrade.glyph}</span>
+								{/if}
+								{isVehicleUpgrade(upgrade.id) ? `(Vehicle) ${upgrade.name}` : upgrade.name}
+							</h3>
 							<p class="mb-3 text-sm text-base-content/70">{upgrade.description}</p>
 
 							<div class="mb-3 space-y-1 text-xs">

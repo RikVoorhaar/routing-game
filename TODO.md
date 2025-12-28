@@ -4,7 +4,7 @@ BUGS:
 - [ ] The route end icon should be consistent between the preview and the active route. (home icon vs. finish icon.)
 - [ ] When accepting a job, it still displays the route in orange from another employee to the job's start location.
 - [ ] When opening character selection screen it shows 'create your first character' when existing characters haven't been loaded yet. INstead there should be a loading screen of sorts. 
-- [ ] Food category glyph is undefined
+- [x] Food category glyph is undefined
 - [ ] When no upgrades are available, there is an undefined glyph.
 - [x] SSR error: `require is not defined` in `config.ts` - using CommonJS `require()` in ES module context during server-side rendering
 
