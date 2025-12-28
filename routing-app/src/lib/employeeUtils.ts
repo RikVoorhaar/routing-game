@@ -28,7 +28,6 @@ export function createDefaultEmployee(
 	};
 }
 
-
 /**
  * Get employee's effective max speed including upgrades
  * Note: In the new upgrade system, upgrades are global (in gameState.upgradeEffects)
@@ -38,7 +37,6 @@ export function createDefaultEmployee(
 export function getEmployeeMaxSpeed(employee: Employee): number {
 	return getVehicleRoadSpeedByLevel(employee.vehicleLevel, VEHICLE_DEFINITIONS);
 }
-
 
 /**
  * Computes the cost of hiring a new employee based on the number of existing employees

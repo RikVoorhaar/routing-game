@@ -326,6 +326,7 @@ Knip suggests these are redundant in knip.json since they're auto-detected:
 ### ✅ Completed
 
 1. **Removed unused exports** - Removed 44 unused exports:
+
    - 12 functions from `employeeUtils.ts`
    - 4 functions from `formatting.ts`
    - 5 exports from `generateJobs.ts` (made internal)

@@ -42,7 +42,6 @@ export function formatDistance(distanceKm: string | number | null | undefined): 
 	return `${numValue.toFixed(1)} km`;
 }
 
-
 /**
  * Formats time duration in seconds as hh:mm:ss or mm:ss (e.g., "1:23:45", "5:30")
  * @param timeSeconds Duration in seconds (can be number or string)
@@ -122,7 +121,6 @@ export function formatTimeFromSeconds(seconds: number): string {
 	}
 }
 
-
 /**
  * Formats remaining time in seconds to human readable format (for ETA display)
  * @param seconds Duration in seconds (can be number or string)
@@ -144,7 +142,6 @@ export function formatTimeRemaining(seconds: number | string): string {
 		return `${remainingSeconds}s`;
 	}
 }
-
 
 /**
  * Converts a number to Roman numeral (for job tiers)

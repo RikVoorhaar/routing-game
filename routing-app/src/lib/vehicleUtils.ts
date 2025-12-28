@@ -51,4 +51,3 @@ export function getVehicleRoadSpeedByLevel(level: number, vehicles: VehicleConfi
 	const vehicle = getVehicleConfigByLevel(level, vehicles);
 	return vehicle?.roadSpeed ?? 15; // Default to 15 if not found
 }
-
