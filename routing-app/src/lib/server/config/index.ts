@@ -309,9 +309,7 @@ export function validateVehicleUpgradeRelationship(
 
 	// Find all upgrades that set vehicleLevelMax (using 'set' effect)
 	const vehicleUnlockUpgrades = upgrades.filter(
-		(upgrade) =>
-			upgrade.effect === 'set' &&
-			upgrade.effectArguments.name === 'vehicleLevelMax'
+		(upgrade) => upgrade.effect === 'set' && upgrade.effectArguments.name === 'vehicleLevelMax'
 	);
 
 	// We need at least as many vehicle unlock upgrades as there are vehicle levels

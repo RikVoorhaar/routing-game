@@ -29,10 +29,10 @@ function loadTestYaml(filename: string): unknown {
 describe('Config Loading and Validation', () => {
 	describe('validateUpgradesConfig', () => {
 		it('should validate a valid upgrades config', () => {
-		const config = loadTestYaml('valid-upgrades.yaml') as { upgrades: UpgradeConfig[] };
-		expect(() => validateUpgradesConfig(config.upgrades)).not.toThrow();
-		expect(config.upgrades).toHaveLength(4); // 3 vehicle unlocks + 1 other upgrade
-		expect(config.upgrades[0].id).toBe('unlock_bike');
+			const config = loadTestYaml('valid-upgrades.yaml') as { upgrades: UpgradeConfig[] };
+			expect(() => validateUpgradesConfig(config.upgrades)).not.toThrow();
+			expect(config.upgrades).toHaveLength(4); // 3 vehicle unlocks + 1 other upgrade
+			expect(config.upgrades[0].id).toBe('unlock_bike');
 		});
 
 		it('should reject config with missing upgrades array', () => {
