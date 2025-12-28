@@ -232,9 +232,13 @@ export const employees = pgTable(
 		name: text('name').notNull(),
 		vehicleLevel: integer('vehicle_level').notNull().default(0), // VehicleType enum
 		xp: integer('xp').notNull().default(0), // Single XP value for employee
-		location: jsonb('location').$type<Address>().notNull() // JSONB: Address
+		location: jsonb('location').$type<Address>().notNull(), // JSONB: Address
+		order: integer('order').notNull().default(0) // Order in which employee was hired (for consistent display ordering)
 	},
-	(table) => [index('employees_game_id_idx').on(table.gameId)]
+	(table) => [
+		index('employees_game_id_idx').on(table.gameId),
+		index('employees_game_id_order_idx').on(table.gameId, table.order)
+	]
 );
 
 // Jobs table - generated jobs for the job market with spatial indexing

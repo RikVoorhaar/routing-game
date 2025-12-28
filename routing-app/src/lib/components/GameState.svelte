@@ -28,6 +28,11 @@
 	export let initialEmployees: Employee[] = [];
 	export let cheatsEnabled: boolean = false;
 
+	// Ensure employees are sorted by order field for stable display ordering
+	$: sortedEmployeeData = [...$fullEmployeeData].sort(
+		(a, b) => (a.employee.order ?? 0) - (b.employee.order ?? 0)
+	);
+
 	let showHireModal = false;
 	let newEmployeeName = '';
 	let isHiring = false;
@@ -304,7 +309,7 @@
 							</div>
 						{:else}
 							<div class="max-h-80 space-y-2 overflow-y-auto pr-2">
-								{#each $fullEmployeeData as fed (fed.employee.id)}
+								{#each sortedEmployeeData as fed (fed.employee.id)}
 									{@const activeJob = fed.activeJob}
 									<EmployeeCard
 										employee={fed.employee}

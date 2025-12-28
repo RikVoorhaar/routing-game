@@ -29,7 +29,8 @@ export function createDefaultEmployee(
 		gameId: data.gameId,
 		name: data.name,
 		vehicleLevel: data.vehicleLevel ?? 0, // Default to level 0 (Bike)
-		xp: 0 // Start with 0 XP
+		xp: 0, // Start with 0 XP
+		order: 0 // Default order, will be set correctly when creating employee
 	};
 }
 
