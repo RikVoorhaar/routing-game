@@ -380,20 +380,27 @@
 		gameState && nextVehicleLevel !== null && nextVehicleLevel !== undefined
 			? isVehicleLevelUnlocked(nextVehicleLevel, gameState)
 			: false;
+	$: nextVehicleConfig =
+		nextVehicleLevel !== null && nextVehicleLevel !== undefined
+			? getVehicleConfig(nextVehicleLevel)
+			: null;
+	$: meetsLevelRequirement =
+		nextVehicleConfig !== null
+			? employeeLevel >= nextVehicleConfig.purchaseLevelRequirement
+			: true;
 	$: upgradeButtonState =
 		nextVehicleLevel === null || nextVehicleLevel === undefined
 			? 'max'
 			: !isUpgradeUnlocked
 				? 'locked'
-				: !canAffordUpgrade
-					? 'too_expensive'
-					: 'available';
+				: !meetsLevelRequirement
+					? 'level_too_low'
+					: !canAffordUpgrade
+						? 'too_expensive'
+						: 'available';
 
-	// Get next vehicle stats for hover preview
-	$: nextVehicle =
-		nextVehicleLevel !== null && nextVehicleLevel !== undefined
-			? getVehicleConfig(nextVehicleLevel)
-			: null;
+	// Get next vehicle stats for hover preview (reuse nextVehicleConfig)
+	$: nextVehicle = nextVehicleConfig;
 </script>
 
 <div
@@ -507,6 +514,15 @@
 						on:click|stopPropagation
 					>
 						Upgrade locked
+					</button>
+				{:else if upgradeButtonState === 'level_too_low'}
+					<button
+						class="btn btn-xs cursor-not-allowed border border-base-content/20 bg-base-300 font-light !text-red-200"
+						disabled
+						on:click|stopPropagation
+						title="Requires level {nextVehicleConfig?.purchaseLevelRequirement ?? '?'}"
+					>
+						Lv {nextVehicleConfig?.purchaseLevelRequirement ?? '?'} required
 					</button>
 				{:else if upgradeButtonState === 'too_expensive'}
 					<button

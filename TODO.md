@@ -24,6 +24,9 @@ ENHANCEMENTS:
 - [ ] job categories that are not unlocked should be shown as locked. 
 - [x] Upgrades should show upgrades with all requirements met first. It should not show upgrades for which a dependency is missing (it should only be shown if level requirements are not met, or if funds are insufficient).
 
+BALANCING:
+- [ ] Balancing: The upgrade costs are too high. They should be reduced. Alternatively, we can make the money earned be much higher. 
+- [ ] Balancing: higher tiers should have much longer distances than they do now. 
 
 LOGGING:
 - [ ] Health checks shouldn't be logged  (server)
@@ -61,3 +64,4 @@ DEV / NEW FEATURES:
     - [ ] Instead of job selection pane, it should be a tooltip on top of the map when clicking on a job marker.
     - [ ] Allow option to move the employee to a different location. 
     - [ ] Job filtering is based purely on distance from employee, so that it's consistent. 
+    - [ ] Value calculation should be happening when clicking on a job, not during job generation. approximateValue field needs to be dropped.

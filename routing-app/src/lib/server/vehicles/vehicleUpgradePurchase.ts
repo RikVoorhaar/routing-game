@@ -8,6 +8,7 @@ import {
 	getVehicleConfig,
 	getVehicleUpgradeCost
 } from '$lib/vehicles/vehicleUtils';
+import { getLevelFromXp } from '$lib/xp/xpUtils';
 
 /**
  * Purchase vehicle upgrade for an employee
@@ -28,7 +29,7 @@ import {
  *
  * Throws
  * ------
- * Error if employee not found, vehicle level not unlocked, insufficient funds, or max level reached
+ * Error if employee not found, vehicle level not unlocked, employee level too low, insufficient funds, or max level reached
  */
 export async function purchaseVehicleUpgrade(
 	employeeId: string,
@@ -68,6 +69,20 @@ export async function purchaseVehicleUpgrade(
 		// Verify vehicle level is unlocked
 		if (!isVehicleLevelUnlocked(nextLevel, lockedGameState)) {
 			throw new Error(`Vehicle level ${nextLevel} is not unlocked`);
+		}
+
+		// Get vehicle config to check purchase level requirement
+		const vehicleConfig = getVehicleConfig(nextLevel);
+		if (!vehicleConfig) {
+			throw new Error(`Vehicle level ${nextLevel} not found`);
+		}
+
+		// Check employee level requirement
+		const employeeLevel = getLevelFromXp(employee.xp ?? 0);
+		if (employeeLevel < vehicleConfig.purchaseLevelRequirement) {
+			throw new Error(
+				`Employee level ${employeeLevel} is too low. Required level ${vehicleConfig.purchaseLevelRequirement} to purchase ${vehicleConfig.name}`
+			);
 		}
 
 		// Get cost from vehicle definition

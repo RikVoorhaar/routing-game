@@ -390,13 +390,10 @@ The following steps can be taken (mostly) independently:
     - ✅ Vehicle definitions match upgrade unlock requirements (validation passes)
 
 Notes:
-- The level requirements for vehicles don't seem to work? I think the vehicle config needs to be expanded to include a minimum level. 
+- ✅ **Fixed:** Level requirements for purchasing vehicles now work - employees must meet the `purchaseLevelRequirement` to purchase a vehicle upgrade
 - Bike upgrade should be pre-unlocked (or it shouldn't be an upgrade at all)
 - The order of the employees changes seemingly randomly when buying upgrades. The order should be based on the order in which employees were bought. This requires employees to have a number field, which requires a DB update and migration.
 - Vehicle upgrades should always be shown first in the upgrade panel and perhaps be pre-pended by (Vehicle) in the name.
-- Balancing: The upgrade costs are too high. They should be reduced. Alternatively, we can make the money earned be much higher. 
-- Balancing: higher tiers should have much longer distances than they do now. 
-- Jobs: The job value caluclation should be changed so that it happens per employee, and the approximate value field should be removed. 
 
 
 16. **Implement in-scope upgrade effects; stub only the ones that need a job-system revamp**
