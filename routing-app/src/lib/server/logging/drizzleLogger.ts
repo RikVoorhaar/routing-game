@@ -10,10 +10,11 @@ export class PinoDrizzleLogger implements Logger {
 
 	logQuery(query: string, params: unknown[]): void {
 		// Extract table name from query if possible (heuristic)
-		const tableMatch = query.match(/\bFROM\s+["`]?(\w+)["`]?/i) || 
-		                  query.match(/\bINTO\s+["`]?(\w+)["`]?/i) ||
-		                  query.match(/\bUPDATE\s+["`]?(\w+)["`]?/i) ||
-		                  query.match(/\bDELETE\s+FROM\s+["`]?(\w+)["`]?/i);
+		const tableMatch =
+			query.match(/\bFROM\s+["`]?(\w+)["`]?/i) ||
+			query.match(/\bINTO\s+["`]?(\w+)["`]?/i) ||
+			query.match(/\bUPDATE\s+["`]?(\w+)["`]?/i) ||
+			query.match(/\bDELETE\s+FROM\s+["`]?(\w+)["`]?/i);
 		const table = tableMatch ? tableMatch[1] : undefined;
 
 		// Determine operation type
@@ -30,16 +31,18 @@ export class PinoDrizzleLogger implements Logger {
 			operation = 'other';
 		}
 
-		this.logger.debug({
-			event: 'db.query',
-			db: {
-				system: 'postgres',
-				operation,
-				statement: query,
-				params_count: params.length,
-				table
-			}
-		}, `DB ${operation}${table ? ` on ${table}` : ''} (${params.length} params)`);
+		this.logger.debug(
+			{
+				event: 'db.query',
+				db: {
+					system: 'postgres',
+					operation,
+					statement: query,
+					params_count: params.length,
+					table
+				}
+			},
+			`DB ${operation}${table ? ` on ${table}` : ''} (${params.length} params)`
+		);
 	}
 }
-

@@ -34,4 +34,3 @@ export function updateRequestContext(updates: Partial<RequestContext>): void {
 		Object.assign(current, updates);
 	}
 }
-

@@ -5,7 +5,8 @@ class BrowserLogger {
 	private level: number;
 
 	constructor() {
-		const debugEnabled = typeof localStorage !== 'undefined' && localStorage.getItem('debug-logs') === 'true';
+		const debugEnabled =
+			typeof localStorage !== 'undefined' && localStorage.getItem('debug-logs') === 'true';
 		this.level = debugEnabled ? 4 : import.meta.env.DEV ? 3 : 1;
 	}
 
@@ -64,7 +65,7 @@ class BrowserLogger {
 }
 
 // Server-side logger - dynamically imported only server-side
-let serverLog: typeof import('$lib/server/logging/serverLogger')['serverLog'] | null = null;
+let serverLog: (typeof import('$lib/server/logging/serverLogger'))['serverLog'] | null = null;
 
 // Initialize server logger (only runs server-side)
 if (!browser) {
@@ -86,12 +87,48 @@ export const log = logger as {
 	info: (objOrMsg: unknown, ...args: unknown[]) => void;
 	debug: (objOrMsg: unknown, ...args: unknown[]) => void;
 	trace: (objOrMsg: unknown, ...args: unknown[]) => void;
-	routes: { error: typeof log.error; warn: typeof log.warn; info: typeof log.info; debug: typeof log.debug; trace: typeof log.trace };
-	map: { error: typeof log.error; warn: typeof log.warn; info: typeof log.info; debug: typeof log.debug; trace: typeof log.trace };
-	api: { error: typeof log.error; warn: typeof log.warn; info: typeof log.info; debug: typeof log.debug; trace: typeof log.trace };
-	db: { error: typeof log.error; warn: typeof log.warn; info: typeof log.info; debug: typeof log.debug; trace: typeof log.trace };
-	auth: { error: typeof log.error; warn: typeof log.warn; info: typeof log.info; debug: typeof log.debug; trace: typeof log.trace };
-	game: { error: typeof log.error; warn: typeof log.warn; info: typeof log.info; debug: typeof log.debug; trace: typeof log.trace };
+	routes: {
+		error: typeof log.error;
+		warn: typeof log.warn;
+		info: typeof log.info;
+		debug: typeof log.debug;
+		trace: typeof log.trace;
+	};
+	map: {
+		error: typeof log.error;
+		warn: typeof log.warn;
+		info: typeof log.info;
+		debug: typeof log.debug;
+		trace: typeof log.trace;
+	};
+	api: {
+		error: typeof log.error;
+		warn: typeof log.warn;
+		info: typeof log.info;
+		debug: typeof log.debug;
+		trace: typeof log.trace;
+	};
+	db: {
+		error: typeof log.error;
+		warn: typeof log.warn;
+		info: typeof log.info;
+		debug: typeof log.debug;
+		trace: typeof log.trace;
+	};
+	auth: {
+		error: typeof log.error;
+		warn: typeof log.warn;
+		info: typeof log.info;
+		debug: typeof log.debug;
+		trace: typeof log.trace;
+	};
+	game: {
+		error: typeof log.error;
+		warn: typeof log.warn;
+		info: typeof log.info;
+		debug: typeof log.debug;
+		trace: typeof log.trace;
+	};
 	setLevel: (level: number) => void;
 	enableDebug: () => void;
 	disableDebug: () => void;

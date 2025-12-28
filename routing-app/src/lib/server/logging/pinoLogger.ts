@@ -27,7 +27,7 @@ function createServerLogger() {
 	const isDev = process.env.NODE_ENV === 'development' || import.meta.env.DEV;
 	const envLevel = process.env.LOG_LEVEL;
 	const debugEnabled = process.env.ENABLE_DEBUG_LOGS === '1';
-	
+
 	// Determine log level
 	let level: pino.Level = 'info';
 	if (envLevel) {
@@ -137,4 +137,3 @@ export function getServerLoggerLevel(): number {
 	};
 	return levelMap[pinoLevel] ?? 3;
 }
-

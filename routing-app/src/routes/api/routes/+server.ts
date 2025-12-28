@@ -73,25 +73,34 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			endTime: null
 		}));
 
-		log.api.debug({
-			event: 'routes.fetch',
-			user_id: session.user.id,
-			route_count: transformedRoutes.length,
-			route_ids: routeIds
-		}, `Fetched ${transformedRoutes.length} routes`);
+		log.api.debug(
+			{
+				event: 'routes.fetch',
+				user_id: session.user.id,
+				route_count: transformedRoutes.length,
+				route_ids: routeIds
+			},
+			`Fetched ${transformedRoutes.length} routes`
+		);
 
 		return json(transformedRoutes);
 	} catch (err) {
-		log.api.error({
-			event: 'routes.fetch.error',
-			user_id: session.user.id,
-			route_ids: routeIds,
-			err: err instanceof Error ? {
-				name: err.name,
-				message: err.message,
-				stack: err.stack
-			} : err
-		}, 'Error fetching routes');
+		log.api.error(
+			{
+				event: 'routes.fetch.error',
+				user_id: session.user.id,
+				route_ids: routeIds,
+				err:
+					err instanceof Error
+						? {
+								name: err.name,
+								message: err.message,
+								stack: err.stack
+							}
+						: err
+			},
+			'Error fetching routes'
+		);
 		return error(500, 'Failed to fetch routes');
 	}
 };

@@ -61,11 +61,14 @@ const auth = SvelteKitAuth({
 					const foundUser = userResult?.[0];
 
 					if (!foundUser) {
-						log.auth.warn({
-							event: 'auth.login.failed',
-							reason: 'user_not_found',
-							username: typedCredentials.username
-						}, 'Login failed: User not found');
+						log.auth.warn(
+							{
+								event: 'auth.login.failed',
+								reason: 'user_not_found',
+								username: typedCredentials.username
+							},
+							'Login failed: User not found'
+						);
 						return null;
 					}
 
@@ -89,27 +92,36 @@ const auth = SvelteKitAuth({
 						);
 
 						if (!isValid) {
-							log.auth.warn({
-								event: 'auth.login.failed',
-								reason: 'invalid_password',
-								user_id: foundUser.id,
-								username: foundUser.username
-							}, 'Login failed: Invalid password');
+							log.auth.warn(
+								{
+									event: 'auth.login.failed',
+									reason: 'invalid_password',
+									user_id: foundUser.id,
+									username: foundUser.username
+								},
+								'Login failed: Invalid password'
+							);
 							return null;
 						}
 
-						log.auth.info({
-							event: 'auth.login.success',
-							user_id: foundUser.id,
-							username: foundUser.username
-						}, 'Login successful');
+						log.auth.info(
+							{
+								event: 'auth.login.success',
+								user_id: foundUser.id,
+								username: foundUser.username
+							},
+							'Login successful'
+						);
 					} else {
-						log.auth.warn({
-							event: 'auth.login.failed',
-							reason: 'no_credentials',
-							user_id: foundUser.id,
-							username: foundUser.username
-						}, 'Login failed: No credentials found');
+						log.auth.warn(
+							{
+								event: 'auth.login.failed',
+								reason: 'no_credentials',
+								user_id: foundUser.id,
+								username: foundUser.username
+							},
+							'Login failed: No credentials found'
+						);
 						return null;
 					}
 
@@ -121,15 +133,21 @@ const auth = SvelteKitAuth({
 						image: foundUser.image
 					};
 				} catch (error) {
-					log.auth.error({
-						event: 'auth.login.error',
-						username: typedCredentials.username,
-						err: error instanceof Error ? {
-							name: error.name,
-							message: error.message,
-							stack: error.stack
-						} : error
-					}, 'Login error');
+					log.auth.error(
+						{
+							event: 'auth.login.error',
+							username: typedCredentials.username,
+							err:
+								error instanceof Error
+									? {
+											name: error.name,
+											message: error.message,
+											stack: error.stack
+										}
+									: error
+						},
+						'Login error'
+					);
 					return null;
 				}
 			}
@@ -239,11 +257,14 @@ export async function createUser({
 		hashedPassword
 	});
 
-	log.auth.info({
-		event: 'auth.user.created',
-		user_id: userId,
-		username,
-		email
-	}, 'User registered');
+	log.auth.info(
+		{
+			event: 'auth.user.created',
+			user_id: userId,
+			username,
+			email
+		},
+		'User registered'
+	);
 	return { userId };
 }

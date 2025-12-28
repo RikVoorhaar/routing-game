@@ -22,23 +22,32 @@ export const GET: RequestHandler = async ({ locals }) => {
 			.from(gameStates)
 			.where(eq(gameStates.userId, session.user.id));
 
-		log.api.debug({
-			event: 'game_state.list',
-			user_id: session.user.id,
-			count: userGameStates.length
-		}, `Fetched ${userGameStates.length} game states`);
+		log.api.debug(
+			{
+				event: 'game_state.list',
+				user_id: session.user.id,
+				count: userGameStates.length
+			},
+			`Fetched ${userGameStates.length} game states`
+		);
 
 		return json(userGameStates);
 	} catch (err) {
-		log.api.error({
-			event: 'game_state.list.error',
-			user_id: session.user.id,
-			err: err instanceof Error ? {
-				name: err.name,
-				message: err.message,
-				stack: err.stack
-			} : err
-		}, 'Error fetching game states');
+		log.api.error(
+			{
+				event: 'game_state.list.error',
+				user_id: session.user.id,
+				err:
+					err instanceof Error
+						? {
+								name: err.name,
+								message: err.message,
+								stack: err.stack
+							}
+						: err
+			},
+			'Error fetching game states'
+		);
 		return error(500, 'Failed to fetch game states');
 	}
 };
@@ -66,11 +75,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			.limit(1);
 
 		if (existingUser.length === 0) {
-			log.api.error({
-				event: 'game_state.create.error',
-				reason: 'user_not_found',
-				user_id: session.user.id
-			}, 'User not found in database');
+			log.api.error(
+				{
+					event: 'game_state.create.error',
+					reason: 'user_not_found',
+					user_id: session.user.id
+				},
+				'User not found in database'
+			);
 			return error(400, 'User not found. Please log out and log back in.');
 		}
 
@@ -88,24 +100,33 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		const [created] = await db.insert(gameStates).values(newGameState).returning();
 
-		log.api.info({
-			event: 'game_state.created',
-			game_state_id: gameStateId,
-			user_id: session.user.id,
-			name: name.trim()
-		}, 'Game state created');
+		log.api.info(
+			{
+				event: 'game_state.created',
+				game_state_id: gameStateId,
+				user_id: session.user.id,
+				name: name.trim()
+			},
+			'Game state created'
+		);
 
 		return json(created, { status: 201 });
 	} catch (err) {
-		log.api.error({
-			event: 'game_state.create.error',
-			user_id: session.user.id,
-			err: err instanceof Error ? {
-				name: err.name,
-				message: err.message,
-				stack: err.stack
-			} : err
-		}, 'Error creating game state');
+		log.api.error(
+			{
+				event: 'game_state.create.error',
+				user_id: session.user.id,
+				err:
+					err instanceof Error
+						? {
+								name: err.name,
+								message: err.message,
+								stack: err.stack
+							}
+						: err
+			},
+			'Error creating game state'
+		);
 		return error(500, 'Failed to create game state');
 	}
 };
@@ -140,24 +161,33 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 
 		await db.delete(gameStates).where(eq(gameStates.id, gameStateId));
 
-		log.api.info({
-			event: 'game_state.deleted',
-			game_state_id: gameStateId,
-			user_id: session.user.id
-		}, 'Game state deleted');
+		log.api.info(
+			{
+				event: 'game_state.deleted',
+				game_state_id: gameStateId,
+				user_id: session.user.id
+			},
+			'Game state deleted'
+		);
 
 		return json({ success: true });
 	} catch (err) {
-		log.api.error({
-			event: 'game_state.delete.error',
-			game_state_id: gameStateId,
-			user_id: session.user.id,
-			err: err instanceof Error ? {
-				name: err.name,
-				message: err.message,
-				stack: err.stack
-			} : err
-		}, 'Error deleting game state');
+		log.api.error(
+			{
+				event: 'game_state.delete.error',
+				game_state_id: gameStateId,
+				user_id: session.user.id,
+				err:
+					err instanceof Error
+						? {
+								name: err.name,
+								message: err.message,
+								stack: err.stack
+							}
+						: err
+			},
+			'Error deleting game state'
+		);
 		return error(500, 'Failed to delete game state');
 	}
 };

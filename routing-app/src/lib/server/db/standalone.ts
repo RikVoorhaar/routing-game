@@ -10,7 +10,7 @@ const DATABASE_URL =
 
 const client = postgres(DATABASE_URL);
 
-export const db = drizzle(client, { 
+export const db = drizzle(client, {
 	schema,
 	logger: new PinoDrizzleLogger()
 });

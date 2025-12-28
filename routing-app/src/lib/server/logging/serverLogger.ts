@@ -90,4 +90,3 @@ export const serverLog = {
 	setLevel: setServerLoggerLevel,
 	getLevel: getServerLoggerLevel
 };
-

@@ -5,12 +5,14 @@ This project uses [Pino](https://getpino.io/) for structured JSON logging on the
 ## Architecture
 
 ### Server-Side (Node.js)
+
 - **Pino** logger with structured JSON output
 - **Request-scoped context** via AsyncLocalStorage (automatically injects `request_id`, `user_id`, `game_state_id`, etc.)
 - **Development**: Pretty logs to stdout + JSON logs to rotating file (`routing-app/.logs/server.log`)
 - **Production**: JSON logs to stdout (for Docker/Alloy ingestion)
 
 ### Client-Side (Browser)
+
 - Simple console wrapper with log level control
 - Respects localStorage debug settings
 
@@ -26,11 +28,13 @@ This project uses [Pino](https://getpino.io/) for structured JSON logging on the
 ## Default Behavior
 
 ### Frontend (Browser)
+
 - **Development**: Info level (3) - shows errors, warnings, and info
 - **Production**: Error level (1) - shows only errors
 - **Debug Mode**: Debug level (4) - shows all logs including debug
 
 ### Backend (Server)
+
 - **Development**: Info level (3) with pretty stdout + file logging
 - **Production**: Warn level (2) with JSON stdout only
 - **Debug Mode**: Debug level (4) - shows all logs including DB queries
@@ -40,6 +44,7 @@ This project uses [Pino](https://getpino.io/) for structured JSON logging on the
 ### Frontend (Browser)
 
 1. **Browser Console**:
+
    ```javascript
    // Enable debug logs
    log.enableDebug();
@@ -71,6 +76,7 @@ ENABLE_DEBUG_LOGS=1
 ## Development File Logging
 
 In development mode, logs are written to both:
+
 - **stdout**: Pretty-formatted, human-readable logs
 - **File**: JSON logs in `routing-app/.logs/server.log` with automatic rotation
   - Max file size: 10MB
@@ -90,11 +96,14 @@ import { log } from '$lib/logger';
 log.info('User logged in');
 
 // Structured logging (recommended)
-log.info({
-  event: 'user.login',
-  user_id: userId,
-  duration_ms: 150
-}, 'User logged in successfully');
+log.info(
+	{
+		event: 'user.login',
+		user_id: userId,
+		duration_ms: 150
+	},
+	'User logged in successfully'
+);
 ```
 
 ### Tagged Loggers
@@ -155,18 +164,24 @@ Always log errors with structured context:
 
 ```typescript
 try {
-  await someOperation();
+	await someOperation();
 } catch (error) {
-  log.error({
-    event: 'operation.failed',
-    operation: 'someOperation',
-    err: error instanceof Error ? {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    } : error
-  }, 'Operation failed');
-  throw error;
+	log.error(
+		{
+			event: 'operation.failed',
+			operation: 'someOperation',
+			err:
+				error instanceof Error
+					? {
+							name: error.name,
+							message: error.message,
+							stack: error.stack
+						}
+					: error
+		},
+		'Operation failed'
+	);
+	throw error;
 }
 ```
 
@@ -212,33 +227,34 @@ Example Alloy config:
 
 ```yaml
 loki.source.file "routing_app" {
-  targets = [
-    {
-      __path__ = "/var/lib/docker/containers/*/*-json.log",
-      job = "routing-app",
-    },
-  ]
+targets = [
+{
+__path__ = "/var/lib/docker/containers/*/*-json.log",
+job = "routing-app",
+},
+]
 }
 
 loki.process "routing_app" {
-  forward_to = [loki.write.loki.endpoint.receiver]
-  
-  stage.json {
-    expressions = {
-      level = "level",
-      message = "msg",
-      timestamp = "time",
-      request_id = "request_id",
-      user_id = "user_id",
-      event = "event",
-    }
-  }
+forward_to = [loki.write.loki.endpoint.receiver]
+
+stage.json {
+expressions = {
+level = "level",
+message = "msg",
+timestamp = "time",
+request_id = "request_id",
+user_id = "user_id",
+event = "event",
+}
+}
 }
 ```
 
 ### Log Rotation
 
 In production (Docker), rely on Docker's log rotation:
+
 - Configure Docker daemon log rotation
 - Or use a log shipper (Alloy, Fluentd, etc.) with rotation
 
@@ -288,12 +304,15 @@ log.db.debug({ event: 'db.query' }, 'DB query');
 ### Log a game event
 
 ```typescript
-log.game.info({
-  event: 'job.complete',
-  active_job_id: jobId,
-  employee_id: employeeId,
-  game_state_id: gameStateId,
-  reward: 100,
-  duration_ms: 5000
-}, 'Job completed successfully');
+log.game.info(
+	{
+		event: 'job.complete',
+		active_job_id: jobId,
+		employee_id: employeeId,
+		game_state_id: gameStateId,
+		reward: 100,
+		duration_ms: 5000
+	},
+	'Job completed successfully'
+);
 ```

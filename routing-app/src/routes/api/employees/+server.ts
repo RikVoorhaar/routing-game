@@ -99,15 +99,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			{ status: 201 }
 		);
 	} catch (err) {
-		log.api.error({
-			event: 'employee.hire.error',
-			game_state_id: gameStateId,
-			err: err instanceof Error ? {
-				name: err.name,
-				message: err.message,
-				stack: err.stack
-			} : err
-		}, 'Error hiring employee');
+		log.api.error(
+			{
+				event: 'employee.hire.error',
+				game_state_id: gameStateId,
+				err:
+					err instanceof Error
+						? {
+								name: err.name,
+								message: err.message,
+								stack: err.stack
+							}
+						: err
+			},
+			'Error hiring employee'
+		);
 		return error(500, 'Failed to hire employee');
 	}
 };
@@ -472,15 +478,21 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 			return error(400, 'Invalid action');
 		}
 	} catch (err) {
-		log.api.error({
-			event: 'employee.update.error',
-			employee_id: employeeId,
-			err: err instanceof Error ? {
-				name: err.name,
-				message: err.message,
-				stack: err.stack
-			} : err
-		}, 'Error updating employee');
+		log.api.error(
+			{
+				event: 'employee.update.error',
+				employee_id: employeeId,
+				err:
+					err instanceof Error
+						? {
+								name: err.name,
+								message: err.message,
+								stack: err.stack
+							}
+						: err
+			},
+			'Error updating employee'
+		);
 		return error(500, 'Failed to update employee');
 	}
 };
