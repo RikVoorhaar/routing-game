@@ -34,7 +34,7 @@ LOGGING:
 DEV / NEW FEATURES:
 - [ ] Add batched API endpoint to routing server for processing multiple routing requests in one call (performance optimization)
 - [ ] Many (1-2%) jobs fail to generate and are skipped. What are the causes of these skips, and are they necessary?
-- [ ] Purge dead code
+- [x] Purge dead code
 - [ ] Job selection revamp: 
     - [ ] Only show 1-3 jobs per tier for currently selected employee. 
     - [ ] Upgrades increase number of jobs shown. (vehicle upgrades and global upgrades)

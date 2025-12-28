@@ -7,6 +7,7 @@ import { users, credentials as credentialsTable } from './lib/server/db/schema';
 import { hashPassword, verifyPassword } from './lib/server/auth/password';
 import { eq } from 'drizzle-orm';
 import type { Session } from '@auth/core/types';
+import { log } from './lib/logger';
 
 // Type definition for credentials
 interface CredentialsType {
@@ -60,7 +61,11 @@ const auth = SvelteKitAuth({
 					const foundUser = userResult?.[0];
 
 					if (!foundUser) {
-						console.log(`Login failed: User not found - ${typedCredentials.username}`);
+						log.auth.warn({
+							event: 'auth.login.failed',
+							reason: 'user_not_found',
+							username: typedCredentials.username
+						}, 'Login failed: User not found');
 						return null;
 					}
 
@@ -84,13 +89,27 @@ const auth = SvelteKitAuth({
 						);
 
 						if (!isValid) {
-							console.log(`Login failed: Invalid password - ${typedCredentials.username}`);
+							log.auth.warn({
+								event: 'auth.login.failed',
+								reason: 'invalid_password',
+								user_id: foundUser.id,
+								username: foundUser.username
+							}, 'Login failed: Invalid password');
 							return null;
 						}
 
-						console.log(`Login successful: ${foundUser.username}`);
+						log.auth.info({
+							event: 'auth.login.success',
+							user_id: foundUser.id,
+							username: foundUser.username
+						}, 'Login successful');
 					} else {
-						console.log(`Login failed: No credentials found - ${typedCredentials.username}`);
+						log.auth.warn({
+							event: 'auth.login.failed',
+							reason: 'no_credentials',
+							user_id: foundUser.id,
+							username: foundUser.username
+						}, 'Login failed: No credentials found');
 						return null;
 					}
 
@@ -102,7 +121,15 @@ const auth = SvelteKitAuth({
 						image: foundUser.image
 					};
 				} catch (error) {
-					console.error(`Login error for ${typedCredentials.username}:`, error);
+					log.auth.error({
+						event: 'auth.login.error',
+						username: typedCredentials.username,
+						err: error instanceof Error ? {
+							name: error.name,
+							message: error.message,
+							stack: error.stack
+						} : error
+					}, 'Login error');
 					return null;
 				}
 			}
@@ -212,6 +239,11 @@ export async function createUser({
 		hashedPassword
 	});
 
-	console.log(`User registered: ${username}`);
+	log.auth.info({
+		event: 'auth.user.created',
+		user_id: userId,
+		username,
+		email
+	}, 'User registered');
 	return { userId };
 }

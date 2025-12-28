@@ -4,6 +4,8 @@ import { db } from '$lib/server/db';
 import { gameStates, employees, routes, activeJobs, addresses, jobs } from '$lib/server/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
+import { log } from '$lib/logger';
+import { updateRequestContext } from '$lib/server/logging/requestContext';
 import {
 	createDefaultEmployee,
 	computeEmployeeCosts,
@@ -97,7 +99,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			{ status: 201 }
 		);
 	} catch (err) {
-		console.error('Error hiring employee:', err);
+		log.api.error({
+			event: 'employee.hire.error',
+			game_state_id: gameStateId,
+			err: err instanceof Error ? {
+				name: err.name,
+				message: err.message,
+				stack: err.stack
+			} : err
+		}, 'Error hiring employee');
 		return error(500, 'Failed to hire employee');
 	}
 };
@@ -462,7 +472,15 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 			return error(400, 'Invalid action');
 		}
 	} catch (err) {
-		console.error('Error updating employee:', err);
+		log.api.error({
+			event: 'employee.update.error',
+			employee_id: employeeId,
+			err: err instanceof Error ? {
+				name: err.name,
+				message: err.message,
+				stack: err.stack
+			} : err
+		}, 'Error updating employee');
 		return error(500, 'Failed to update employee');
 	}
 };
