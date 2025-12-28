@@ -33,17 +33,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		return json(updatedGameState);
 	} catch (err) {
-		log.api.error({
-			event: 'upgrade.purchase.error',
-			game_state_id: gameStateId,
-			upgrade_id: upgradeId,
-			user_id: session.user.id,
-			err: err instanceof Error ? {
-				name: err.name,
-				message: err.message,
-				stack: err.stack
-			} : err
-		}, 'Error purchasing upgrade');
+		log.api.error(
+			{
+				event: 'upgrade.purchase.error',
+				game_state_id: gameStateId,
+				upgrade_id: upgradeId,
+				user_id: session.user.id,
+				err:
+					err instanceof Error
+						? {
+								name: err.name,
+								message: err.message,
+								stack: err.stack
+							}
+						: err
+			},
+			'Error purchasing upgrade'
+		);
 
 		// Return appropriate error based on error message
 		if (err instanceof Error) {

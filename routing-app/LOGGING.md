@@ -90,6 +90,7 @@ The `.logs/` directory is gitignored and created automatically.
 ### Corruption Prevention
 
 The logger includes a JSON validation layer that:
+
 - Validates each JSON log entry before writing to disk
 - Skips corrupted entries with an error message (helps catch accidental file edits or other corruption)
 - Ensures only valid JSON is written to log files for reliable parsing in Loki/Grafana

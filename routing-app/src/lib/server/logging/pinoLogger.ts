@@ -77,7 +77,10 @@ function createSafeJsonStream(): Transform {
 					JSON.parse(buffer.trim());
 					this.push(buffer.trim() + '\n');
 				} catch (error) {
-					console.error('[Logger] Skipping corrupted log entry on flush:', buffer.substring(0, 100));
+					console.error(
+						'[Logger] Skipping corrupted log entry on flush:',
+						buffer.substring(0, 100)
+					);
 				}
 			}
 			callback();

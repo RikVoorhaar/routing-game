@@ -188,26 +188,26 @@ export async function processCompletedJobs(gameStateId: string): Promise<{
 
 	// Process all jobs in parallel (without updating game state)
 	const jobCompletionPromises = jobsToComplete.map((activeJob) =>
-			completeActiveJob(activeJob.id, false).catch((error) => {
-				log.game.error(
-					{
-						event: 'job.batch.complete.error',
-						game_state_id: gameStateId,
-						active_job_id: activeJob.id,
-						err:
-							error instanceof Error
-								? {
-										name: error.name,
-										message: error.message,
-										stack: error.stack
-									}
-								: error
-					},
-					`Failed to complete job: ${activeJob.id}`
-				);
-				return null;
-			})
-		);
+		completeActiveJob(activeJob.id, false).catch((error) => {
+			log.game.error(
+				{
+					event: 'job.batch.complete.error',
+					game_state_id: gameStateId,
+					active_job_id: activeJob.id,
+					err:
+						error instanceof Error
+							? {
+									name: error.name,
+									message: error.message,
+									stack: error.stack
+								}
+							: error
+				},
+				`Failed to complete job: ${activeJob.id}`
+			);
+			return null;
+		})
+	);
 
 	const results = await Promise.all(jobCompletionPromises);
 	const successfulResults = results.filter((result) => result !== null) as JobCompletionResult[];
