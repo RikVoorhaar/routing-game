@@ -1,6 +1,8 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { purchaseUpgrade } from '$lib/server/upgrades/upgradePurchase';
+import { log } from '$lib/logger';
+import { updateRequestContext } from '$lib/server/logging/requestContext';
 
 // POST /api/upgrades/purchase - Purchase a global upgrade
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -10,8 +12,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return error(401, 'Unauthorized');
 	}
 
+	let gameStateId: string | undefined;
+	let upgradeId: string | undefined;
 	try {
-		const { gameStateId, upgradeId } = await request.json();
+		const body = await request.json();
+		gameStateId = body?.gameStateId;
+		upgradeId = body?.upgradeId;
 
 		if (!gameStateId || !upgradeId) {
 			return error(400, 'Game state ID and upgrade ID are required');
@@ -21,11 +27,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return error(400, 'Game state ID and upgrade ID must be strings');
 		}
 
+		updateRequestContext({ gameStateId });
+
 		const updatedGameState = await purchaseUpgrade(gameStateId, upgradeId, session.user.id);
 
 		return json(updatedGameState);
 	} catch (err) {
-		console.error('Error purchasing upgrade:', err);
+		log.api.error({
+			event: 'upgrade.purchase.error',
+			game_state_id: gameStateId,
+			upgrade_id: upgradeId,
+			user_id: session.user.id,
+			err: err instanceof Error ? {
+				name: err.name,
+				message: err.message,
+				stack: err.stack
+			} : err
+		}, 'Error purchasing upgrade');
 
 		// Return appropriate error based on error message
 		if (err instanceof Error) {

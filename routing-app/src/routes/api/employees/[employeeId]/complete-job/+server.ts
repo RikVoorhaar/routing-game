@@ -13,11 +13,8 @@ export const POST: RequestHandler = async ({ params, request }) => {
 			return json({ message: 'Active job ID is required' }, { status: 400 });
 		}
 
-		log.debug('[CompleteJob] Completing job for employee:', employeeId, 'job:', activeJobId);
-
+		// Job completion is logged at info level in completeActiveJob function
 		const result = await completeActiveJob(activeJobId);
-
-		log.debug('[CompleteJob] Job completed successfully. Reward:', result.reward);
 
 		return json({
 			success: true,
@@ -27,7 +24,16 @@ export const POST: RequestHandler = async ({ params, request }) => {
 			newBalance: result.newBalance
 		});
 	} catch (error) {
-		log.error('[CompleteJob] Error completing job:', error);
+		log.api.error({
+			event: 'job.complete.error',
+			employee_id: employeeId,
+			active_job_id: activeJobId,
+			err: error instanceof Error ? {
+				name: error.name,
+				message: error.message,
+				stack: error.stack
+			} : error
+		}, 'Error completing job');
 		const message = error instanceof Error ? error.message : 'Failed to complete job';
 		return json({ message }, { status: 500 });
 	}

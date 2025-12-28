@@ -29,7 +29,7 @@ export async function completeActiveJob(
 	activeJobId: string,
 	updateGameState: boolean = true
 ): Promise<JobCompletionResult> {
-	log.debug('[JobCompletion] Starting completion for job:', activeJobId);
+	// Starting completion logged at debug level (DB queries will show the work)
 	// Get the active job with employee and game state
 	const [activeJobData] = await db
 		.select({
@@ -118,11 +118,21 @@ export async function completeActiveJob(
 		};
 	});
 
-	log.debug(
-		'[JobCompletion] Job completed successfully. Reward:',
-		reward,
-		'New balance:',
-		updateGameState ? result.newBalance : 'not updated'
+	// Log structured business event at info level
+	log.game.info(
+		{
+			event: 'job.complete',
+			active_job_id: activeJobId,
+			employee_id: result.employee.id,
+			game_state_id: result.gameState.id,
+			job_category: result.jobCategory,
+			reward: result.reward,
+			employee_xp_gained: result.employeeXpGained,
+			category_xp_gained: result.categoryXpGained,
+			new_balance: result.newBalance,
+			game_state_updated: updateGameState
+		},
+		`Job completed: ${result.jobCategory} - Reward: ${result.reward}, XP: ${result.employeeXpGained}`
 	);
 
 	return result;
@@ -138,7 +148,13 @@ export async function processCompletedJobs(gameStateId: string): Promise<{
 	updatedEmployees: Employee[];
 	updatedGameState: GameState;
 }> {
-	log.debug('[JobCompletion] Processing completed jobs for game state:', gameStateId);
+	log.game.debug(
+		{
+			event: 'job.batch.process.start',
+			game_state_id: gameStateId
+		},
+		`Processing completed jobs for game state: ${gameStateId}`
+	);
 
 	// Get all active jobs for this game state that have been started
 	const activeJobsData = await db
@@ -161,15 +177,37 @@ export async function processCompletedJobs(gameStateId: string): Promise<{
 		}
 	}
 
-	log.debug('[JobCompletion] Found', jobsToComplete.length, 'jobs to complete');
+	log.game.debug(
+		{
+			event: 'job.batch.process.found',
+			game_state_id: gameStateId,
+			jobs_to_complete: jobsToComplete.length
+		},
+		`Found ${jobsToComplete.length} jobs to complete`
+	);
 
 	// Process all jobs in parallel (without updating game state)
 	const jobCompletionPromises = jobsToComplete.map((activeJob) =>
-		completeActiveJob(activeJob.id, false).catch((error) => {
-			log.error('[JobCompletion] Failed to complete job:', activeJob.id, error);
-			return null;
-		})
-	);
+			completeActiveJob(activeJob.id, false).catch((error) => {
+				log.game.error(
+					{
+						event: 'job.batch.complete.error',
+						game_state_id: gameStateId,
+						active_job_id: activeJob.id,
+						err:
+							error instanceof Error
+								? {
+										name: error.name,
+										message: error.message,
+										stack: error.stack
+									}
+								: error
+					},
+					`Failed to complete job: ${activeJob.id}`
+				);
+				return null;
+			})
+		);
 
 	const results = await Promise.all(jobCompletionPromises);
 	const successfulResults = results.filter((result) => result !== null) as JobCompletionResult[];

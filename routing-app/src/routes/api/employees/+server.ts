@@ -21,8 +21,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return error(401, 'Unauthorized');
 	}
 
+	let gameStateId: string | undefined;
 	try {
-		const { gameStateId, employeeName } = await request.json();
+		const body = await request.json();
+		gameStateId = body?.gameStateId;
+		const { employeeName } = body;
 
 		if (!gameStateId || !employeeName || typeof employeeName !== 'string') {
 			return error(400, 'Game state ID and employee name are required');
@@ -89,12 +92,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				.where(eq(gameStates.id, gameStateId));
 		});
 
+		const newBalance = (typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money) - hiringCost;
+
+		// Log structured business event
+		log.game.info({
+			event: 'employee.hire',
+			employee_id: newEmployee.id,
+			game_state_id: gameStateId,
+			employee_name: newEmployee.name,
+			hiring_cost: hiringCost,
+			new_balance: newBalance,
+			vehicle_level: newEmployee.vehicleLevel
+		}, `Employee hired: ${newEmployee.name} - Cost: €${hiringCost}`);
+
 		return json(
 			{
 				employee: newEmployee,
-				newBalance:
-					(typeof gameState.money === 'string' ? parseFloat(gameState.money) : gameState.money) -
-					hiringCost
+				newBalance
 			},
 			{ status: 201 }
 		);
@@ -126,8 +140,11 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 		return error(401, 'Unauthorized');
 	}
 
+	let employeeId: string | undefined;
 	try {
-		const { action, employeeId, gameStateId, routeId, jobId } = await request.json();
+		const body = await request.json();
+		const { action, gameStateId, routeId, jobId } = body;
+		employeeId = body?.employeeId;
 
 		if (!action || !employeeId || !gameStateId) {
 			return error(400, 'Action, employee ID, and game state ID are required');

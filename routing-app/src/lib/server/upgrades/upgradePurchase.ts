@@ -60,7 +60,7 @@ export async function purchaseUpgrade(
 	upgradeId: string,
 	userId: string
 ): Promise<GameState> {
-	log.debug('[UpgradePurchase] Starting purchase:', { gameStateId, upgradeId, userId });
+	// Starting purchase logged at debug level (DB queries will show the work)
 
 	// Find the upgrade definition
 	const upgrade = UPGRADE_DEFINITIONS.find((u) => u.id === upgradeId);
@@ -137,11 +137,20 @@ export async function purchaseUpgrade(
 			throw new Error('Failed to update game state');
 		}
 
-		log.debug('[UpgradePurchase] Purchase successful:', {
-			upgradeId,
-			cost: upgrade.cost,
-			newBalance: updatedGameState.money
-		});
+		// Log structured business event at info level
+		log.game.info(
+			{
+				event: 'upgrade.purchase',
+				game_state_id: gameStateId,
+				upgrade_id: upgradeId,
+				upgrade_name: upgrade.name,
+				cost: upgrade.cost,
+				new_balance: updatedGameState.money,
+				upgrade_effect: upgrade.effect,
+				upgrade_effect_arguments: upgrade.effectArguments
+			},
+			`Upgrade purchased: ${upgrade.name} (${upgradeId}) - Cost: ${upgrade.cost}`
+		);
 
 		return updatedGameState;
 	});

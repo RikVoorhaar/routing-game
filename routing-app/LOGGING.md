@@ -82,8 +82,17 @@ In development mode, logs are written to both:
   - Max file size: 10MB
   - Keeps 5 rotated files
   - Old files are compressed with gzip
+  - **JSON validation**: All log entries are validated before writing to prevent corruption (e.g., from accidental edits)
+  - **Error handling**: Rotation errors are caught and logged to stderr
 
 The `.logs/` directory is gitignored and created automatically.
+
+### Corruption Prevention
+
+The logger includes a JSON validation layer that:
+- Validates each JSON log entry before writing to disk
+- Skips corrupted entries with an error message (helps catch accidental file edits or other corruption)
+- Ensures only valid JSON is written to log files for reliable parsing in Loki/Grafana
 
 ## Structured Logging Patterns
 

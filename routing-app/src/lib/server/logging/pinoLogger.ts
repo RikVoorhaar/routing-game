@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { Transform } from 'node:stream';
 
 const require = createRequire(import.meta.url);
 const rfs = require('rotating-file-stream');
@@ -21,6 +22,67 @@ const LEVEL_MAP: Record<number, pino.Level> = {
 
 function getPinoLevel(level: number): pino.Level {
 	return LEVEL_MAP[level] ?? 'info';
+}
+
+/**
+ * Creates a safe wrapper stream that validates JSON lines before writing.
+ * This prevents corrupted JSON from being written (e.g., from accidental file edits,
+ * rotation issues, or other corruption sources).
+ *
+ * Returns
+ * --------
+ * Transform
+ *     A Transform stream that validates and passes through valid JSON lines
+ */
+function createSafeJsonStream(): Transform {
+	let buffer = '';
+
+	return new Transform({
+		objectMode: false,
+		transform(chunk: Buffer, encoding, callback) {
+			// Append chunk to buffer
+			buffer += chunk.toString('utf8');
+
+			// Process complete lines (Pino writes one JSON object per line)
+			const lines = buffer.split('\n');
+			// Keep the last incomplete line in buffer
+			buffer = lines.pop() || '';
+
+			// Process each complete line
+			for (const line of lines) {
+				const trimmed = line.trim();
+				if (!trimmed) {
+					// Empty line, skip
+					continue;
+				}
+
+				// Validate JSON before writing
+				try {
+					JSON.parse(trimmed);
+					// Valid JSON, pass it through
+					this.push(trimmed + '\n');
+				} catch (error) {
+					// Invalid JSON - log error but don't crash
+					// This can happen from accidental edits, rotation issues, etc.
+					console.error('[Logger] Skipping corrupted log entry:', trimmed.substring(0, 100));
+				}
+			}
+
+			callback();
+		},
+		flush(callback) {
+			// Process any remaining buffer on flush
+			if (buffer.trim()) {
+				try {
+					JSON.parse(buffer.trim());
+					this.push(buffer.trim() + '\n');
+				} catch (error) {
+					console.error('[Logger] Skipping corrupted log entry on flush:', buffer.substring(0, 100));
+				}
+			}
+			callback();
+		}
+	});
 }
 
 function createServerLogger() {
@@ -70,17 +132,36 @@ function createServerLogger() {
 		if (!existsSync(logDir)) {
 			mkdirSync(logDir, { recursive: true });
 		}
-		const logFile = join(logDir, 'server.log');
 
 		// Create rotating file stream (10MB per file, keep 5 files)
 		const rotatingStream = rfs.createStream('server.log', {
 			path: logDir,
 			size: '10M',
 			maxFiles: 5,
-			compress: 'gzip'
+			compress: 'gzip',
+			// Add error handler to catch rotation errors
+			errorHandler: (err: Error) => {
+				console.error('[Logger] File rotation error:', err);
+			}
 		});
 
-		// Create multi-stream: pretty to stdout, JSON to file
+		// Create a safe JSON validation wrapper to prevent corruption
+		const safeJsonStream = createSafeJsonStream();
+
+		// Pipe through validation before writing to rotating stream
+		safeJsonStream.pipe(rotatingStream);
+
+		// Handle errors on the safe stream
+		safeJsonStream.on('error', (err: Error) => {
+			console.error('[Logger] Safe JSON stream error:', err);
+		});
+
+		// Handle errors on the rotating stream
+		rotatingStream.on('error', (err: Error) => {
+			console.error('[Logger] Rotating file stream error:', err);
+		});
+
+		// Create multi-stream: pretty to stdout, validated JSON to file
 		const streams: pino.StreamEntry[] = [
 			// Pretty output to stdout
 			{
@@ -94,10 +175,10 @@ function createServerLogger() {
 					}
 				})
 			},
-			// JSON to rotating file
+			// Validated JSON to rotating file
 			{
 				level,
-				stream: rotatingStream
+				stream: safeJsonStream
 			}
 		];
 

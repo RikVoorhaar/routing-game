@@ -44,17 +44,42 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	// Run request with context
 	return runWithContext(context, async () => {
-		// Log request start
-		log.info(
-			{
-				event: 'request.start',
-				method: event.request.method,
-				path: event.url.pathname,
-				query: Object.fromEntries(event.url.searchParams),
-				user_agent: event.request.headers.get('user-agent')
-			},
-			`[${event.request.method}] ${event.url.pathname}`
-		);
+		// Determine if this request should be logged at info level
+		// Skip noisy endpoints: tile-loading requests, polling endpoints
+		const path = event.url.pathname;
+		const method = event.request.method;
+		const isNoisyEndpoint =
+			path.startsWith('/api/jobs/') || // Tile-loading requests
+			(path === '/api/active-jobs' && method === 'GET') || // Polling requests
+			path === '/api/config' || // Config requests
+			path.startsWith('/_app/') || // SvelteKit internal
+			path.startsWith('/favicon.ico');
+
+		// Log important requests at info, others at debug
+		// Important: POST/PUT/DELETE, or any non-GET, or errors
+		const shouldLogAtInfo = !isNoisyEndpoint && method !== 'GET';
+
+		if (shouldLogAtInfo) {
+			log.info(
+				{
+					event: 'request.start',
+					method,
+					path,
+					query: Object.fromEntries(event.url.searchParams)
+				},
+				`[${method}] ${path}`
+			);
+		} else {
+			log.debug(
+				{
+					event: 'request.start',
+					method,
+					path,
+					query: Object.fromEntries(event.url.searchParams)
+				},
+				`[${method}] ${path}`
+			);
+		}
 
 		let response: Response;
 		let status = 500;
@@ -64,13 +89,13 @@ export const handle: Handle = async ({ event, resolve }) => {
 			status = response.status;
 			return response;
 		} catch (error) {
-			// Don't log Chrome DevTools related errors
+			// Always log errors
 			if (!(error instanceof Error) || !error.message?.includes('chrome.devtools')) {
 				log.error(
 					{
 						event: 'request.error',
-						method: event.request.method,
-						path: event.url.pathname,
+						method,
+						path,
 						err:
 							error instanceof Error
 								? {
@@ -85,18 +110,35 @@ export const handle: Handle = async ({ event, resolve }) => {
 			}
 			throw error;
 		} finally {
-			// Log request completion
+			// Log request completion - info for important requests, debug for noisy ones
 			const duration = Date.now() - startTime;
-			log.info(
-				{
-					event: 'request.complete',
-					method: event.request.method,
-					path: event.url.pathname,
-					status,
-					duration_ms: duration
-				},
-				`[${event.request.method}] ${event.url.pathname} ${status} (${duration}ms)`
-			);
+			const isSlowRequest = duration > 1000; // Log slow requests at info even if GET
+			const isError = status >= 400;
+			const shouldLogCompleteAtInfo = shouldLogAtInfo || isSlowRequest || isError;
+
+			if (shouldLogCompleteAtInfo) {
+				log.info(
+					{
+						event: 'request.complete',
+						method,
+						path,
+						status,
+						duration_ms: duration
+					},
+					`[${method}] ${path} ${status} (${duration}ms)`
+				);
+			} else {
+				log.debug(
+					{
+						event: 'request.complete',
+						method,
+						path,
+						status,
+						duration_ms: duration
+					},
+					`[${method}] ${path} ${status} (${duration}ms)`
+				);
+			}
 		}
 	});
 };

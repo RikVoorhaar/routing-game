@@ -11,13 +11,26 @@ export const GET: RequestHandler = async ({ params }) => {
 	const { gameStateId } = params;
 
 	try {
-		log.debug('[EmployeesAndJobs] Loading data for game state:', gameStateId);
+		log.api.debug(
+			{
+				event: 'employees_and_jobs.load.start',
+				game_state_id: gameStateId
+			},
+			`Loading data for game state: ${gameStateId}`
+		);
 
 		// First, process any completed jobs
 		const completionResult = await processCompletedJobs(gameStateId);
 
 		if (completionResult.processedJobs > 0) {
-			log.debug('[EmployeesAndJobs] Processed', completionResult.processedJobs, 'completed jobs');
+			log.api.debug(
+				{
+					event: 'employees_and_jobs.jobs.processed',
+					game_state_id: gameStateId,
+					processed_jobs: completionResult.processedJobs
+				},
+				`Processed ${completionResult.processedJobs} completed jobs`
+			);
 		}
 
 		// Get all employees for this game state, ordered by hire order
@@ -107,12 +120,15 @@ export const GET: RequestHandler = async ({ params }) => {
 			};
 		});
 
-		log.debug(
-			'[EmployeesAndJobs] Loaded',
-			allEmployees.length,
-			'employees and',
-			fullEmployeeData.filter((fed) => fed.activeJob).length,
-			'active jobs'
+		const activeJobsCount = fullEmployeeData.filter((fed) => fed.activeJob).length;
+		log.api.debug(
+			{
+				event: 'employees_and_jobs.load.complete',
+				game_state_id: gameStateId,
+				employee_count: allEmployees.length,
+				active_jobs_count: activeJobsCount
+			},
+			`Loaded ${allEmployees.length} employees and ${activeJobsCount} active jobs`
 		);
 
 		return json({
@@ -123,7 +139,21 @@ export const GET: RequestHandler = async ({ params }) => {
 			totalReward: completionResult.totalReward
 		});
 	} catch (error) {
-		log.error('[EmployeesAndJobs] Error loading data:', error);
+		log.api.error(
+			{
+				event: 'employees_and_jobs.load.error',
+				game_state_id: gameStateId,
+				err:
+					error instanceof Error
+						? {
+								name: error.name,
+								message: error.message,
+								stack: error.stack
+							}
+						: error
+			},
+			'Error loading employee data'
+		);
 		const message = error instanceof Error ? error.message : 'Failed to load employee data';
 		return json({ message }, { status: 500 });
 	}
