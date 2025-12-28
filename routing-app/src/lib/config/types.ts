@@ -51,13 +51,6 @@ export interface UpgradeConfig {
 }
 
 /**
- * Root upgrades configuration structure
- */
-export interface UpgradesConfig {
-	upgrades: UpgradeConfig[];
-}
-
-/**
  * Single vehicle configuration
  */
 export interface VehicleConfig {
@@ -71,13 +64,6 @@ export interface VehicleConfig {
 	unlockCost: number; // Cost in euros to unlock this vehicle globally (via upgrade)
 	unlockLevelRequirement: number; // Minimum total level required to unlock this vehicle
 	purchaseLevelRequirement: number; // Minimum employee level required to purchase this vehicle
-}
-
-/**
- * Root vehicles configuration structure
- */
-export interface VehiclesConfig {
-	vehicles: VehicleConfig[];
 }
 
 export interface GameConfig {

@@ -20,7 +20,7 @@ function buildVehicleLevelMapping(vehicles: VehicleConfig[]): Map<number, Vehicl
 /**
  * Get vehicle config by level from vehicle definitions array
  */
-export function getVehicleConfigByLevel(
+function getVehicleConfigByLevel(
 	level: number,
 	vehicles: VehicleConfig[]
 ): VehicleConfig | null {
@@ -39,7 +39,7 @@ export function getVehicleTierByLevel(level: number, vehicles: VehicleConfig[]):
 /**
  * Get vehicle capacity by level
  */
-export function getVehicleCapacityByLevel(level: number, vehicles: VehicleConfig[]): number {
+function getVehicleCapacityByLevel(level: number, vehicles: VehicleConfig[]): number {
 	const vehicle = getVehicleConfigByLevel(level, vehicles);
 	return vehicle?.capacity ?? 10; // Default to 10 if not found
 }

@@ -13,7 +13,8 @@
 		"**/drizzle/**",
 		"**/logs/**",
 		"**/790033.0x/**",
-		"src/hooks.server.ts"
+		"src/hooks.server.ts",
+		"src/auth.ts"
 	],
 	"svelte": {
 		"entry": ["src/routes/**/*.{js,ts,svelte}", "src/app.html"]
