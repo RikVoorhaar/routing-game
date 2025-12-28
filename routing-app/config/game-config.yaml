@@ -22,8 +22,8 @@ xp:
 jobs:
   value:
     # Base value calculation factors
-    distanceFactor: 1.0 # euros per kilometer
-    timeFactor: 0.05556 # euros per second (200 euros/hour = 200/3600)
+    distanceFactor: 20.0 # euros per kilometer
+    timeFactor: 1.0
     tierMultiplier: 1.7 # multiplier per tier level
     randomFactorMax: 10.0 # max random factor multiplier (from -log(1-random))
 
