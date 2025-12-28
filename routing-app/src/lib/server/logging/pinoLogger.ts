@@ -141,11 +141,7 @@ function createServerLogger() {
 			path: logDir,
 			size: '10M',
 			maxFiles: 5,
-			compress: 'gzip',
-			// Add error handler to catch rotation errors
-			errorHandler: (err: Error) => {
-				console.error('[Logger] File rotation error:', err);
-			}
+			compress: 'gzip'
 		});
 
 		// Create a safe JSON validation wrapper to prevent corruption
