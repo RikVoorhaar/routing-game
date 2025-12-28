@@ -20,10 +20,7 @@ function buildVehicleLevelMapping(vehicles: VehicleConfig[]): Map<number, Vehicl
 /**
  * Get vehicle config by level from vehicle definitions array
  */
-function getVehicleConfigByLevel(
-	level: number,
-	vehicles: VehicleConfig[]
-): VehicleConfig | null {
+function getVehicleConfigByLevel(level: number, vehicles: VehicleConfig[]): VehicleConfig | null {
 	const mapping = buildVehicleLevelMapping(vehicles);
 	return mapping.get(level) || null;
 }
