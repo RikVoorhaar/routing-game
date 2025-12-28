@@ -4,7 +4,9 @@ import { getServerHealth } from '../server';
 import { interpolateLocationAtTime } from '../routes/routing-client';
 import type { Coordinate, PathPoint } from '../types';
 
-describe('routing functions (integration)', () => {
+const skipIfCI = process.env.CI ? describe.skip : describe;
+
+skipIfCI('routing functions (integration)', () => {
 	beforeAll(async () => {
 		// Check if server is running
 		try {

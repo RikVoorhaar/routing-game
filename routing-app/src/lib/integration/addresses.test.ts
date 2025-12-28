@@ -10,7 +10,9 @@ import {
 } from '../server';
 import type { Coordinate } from '../types';
 
-describe('address functions (integration)', () => {
+const skipIfCI = process.env.CI ? describe.skip : describe;
+
+skipIfCI('address functions (integration)', () => {
 	beforeAll(async () => {
 		// Check if server is running
 		try {
