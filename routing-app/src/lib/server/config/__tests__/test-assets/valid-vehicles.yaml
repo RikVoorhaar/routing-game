@@ -4,15 +4,27 @@ vehicles:
     capacity: 10
     roadSpeed: 15
     tier: 1
+    purchaseCost: 0
+    unlockCost: 0
+    unlockLevelRequirement: 0
+    purchaseLevelRequirement: 0
 
   - level: 1
     name: 'Cargo Bike'
     capacity: 40
     roadSpeed: 20
     tier: 2
+    purchaseCost: 10
+    unlockCost: 20
+    unlockLevelRequirement: 1
+    purchaseLevelRequirement: 1
 
   - level: 2
     name: 'Electric Bike'
     capacity: 40
     roadSpeed: 25
     tier: 2
+    purchaseCost: 25
+    unlockCost: 50
+    unlockLevelRequirement: 3
+    purchaseLevelRequirement: 2

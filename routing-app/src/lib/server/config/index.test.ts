@@ -29,10 +29,10 @@ function loadTestYaml(filename: string): unknown {
 describe('Config Loading and Validation', () => {
 	describe('validateUpgradesConfig', () => {
 		it('should validate a valid upgrades config', () => {
-			const config = loadTestYaml('valid-upgrades.yaml') as { upgrades: UpgradeConfig[] };
-			expect(() => validateUpgradesConfig(config.upgrades)).not.toThrow();
-			expect(config.upgrades).toHaveLength(3);
-			expect(config.upgrades[0].id).toBe('unlock_cargo_bike');
+		const config = loadTestYaml('valid-upgrades.yaml') as { upgrades: UpgradeConfig[] };
+		expect(() => validateUpgradesConfig(config.upgrades)).not.toThrow();
+		expect(config.upgrades).toHaveLength(4); // 3 vehicle unlocks + 1 other upgrade
+		expect(config.upgrades[0].id).toBe('unlock_bike');
 		});
 
 		it('should reject config with missing upgrades array', () => {
@@ -251,7 +251,7 @@ describe('Config Loading and Validation', () => {
 			};
 			expect(() =>
 				validateVehicleUpgradeRelationship(vehiclesConfig.vehicles, upgradesConfig.upgrades)
-			).toThrow(/Need at least 2 vehicle unlock upgrades/);
+			).toThrow(/Need at least 3 vehicle unlock upgrades/);
 		});
 
 		it('should reject when level 0 vehicle is missing', () => {
@@ -266,18 +266,48 @@ describe('Config Loading and Validation', () => {
 
 		it('should accept config with exact number of unlock upgrades needed', () => {
 			const vehicles: VehicleConfig[] = [
-				{ level: 0, name: 'Bike', capacity: 10, roadSpeed: 15, tier: 1 },
-				{ level: 1, name: 'Cargo Bike', capacity: 40, roadSpeed: 20, tier: 2 }
+				{
+					level: 0,
+					name: 'Bike',
+					capacity: 10,
+					roadSpeed: 15,
+					tier: 1,
+					purchaseCost: 0,
+					unlockCost: 0,
+					unlockLevelRequirement: 0,
+					purchaseLevelRequirement: 0
+				},
+				{
+					level: 1,
+					name: 'Cargo Bike',
+					capacity: 40,
+					roadSpeed: 20,
+					tier: 2,
+					purchaseCost: 10,
+					unlockCost: 20,
+					unlockLevelRequirement: 1,
+					purchaseLevelRequirement: 1
+				}
 			];
 			const upgrades: UpgradeConfig[] = [
 				{
+					id: 'unlock_bike',
+					name: 'Bike',
+					upgradeRequirements: [],
+					levelRequirements: { total: 0 },
+					description: 'Unlocks bike',
+					cost: 0,
+					effect: 'set',
+					effectArguments: { name: 'vehicleLevelMax', amount: 0 }
+				},
+				{
 					id: 'unlock_cargo_bike',
 					name: 'Cargo Bike',
-					upgradeRequirements: [],
+					upgradeRequirements: ['unlock_bike'],
 					levelRequirements: { total: 1 },
 					description: 'Unlocks cargo bike',
-					cost: 10,
-					effect: 'increment',
+					cost: 20,
+					effect: 'set',
 					effectArguments: { name: 'vehicleLevelMax', amount: 1 }
 				}
 			];
@@ -286,18 +316,48 @@ describe('Config Loading and Validation', () => {
 
 		it('should accept config with more unlock upgrades than needed', () => {
 			const vehicles: VehicleConfig[] = [
-				{ level: 0, name: 'Bike', capacity: 10, roadSpeed: 15, tier: 1 },
-				{ level: 1, name: 'Cargo Bike', capacity: 40, roadSpeed: 20, tier: 2 }
+				{
+					level: 0,
+					name: 'Bike',
+					capacity: 10,
+					roadSpeed: 15,
+					tier: 1,
+					purchaseCost: 0,
+					unlockCost: 0,
+					unlockLevelRequirement: 0,
+					purchaseLevelRequirement: 0
+				},
+				{
+					level: 1,
+					name: 'Cargo Bike',
+					capacity: 40,
+					roadSpeed: 20,
+					tier: 2,
+					purchaseCost: 10,
+					unlockCost: 20,
+					unlockLevelRequirement: 1,
+					purchaseLevelRequirement: 1
+				}
 			];
 			const upgrades: UpgradeConfig[] = [
 				{
+					id: 'unlock_bike',
+					name: 'Bike',
+					upgradeRequirements: [],
+					levelRequirements: { total: 0 },
+					description: 'Unlocks bike',
+					cost: 0,
+					effect: 'set',
+					effectArguments: { name: 'vehicleLevelMax', amount: 0 }
+				},
+				{
 					id: 'unlock_cargo_bike',
 					name: 'Cargo Bike',
-					upgradeRequirements: [],
+					upgradeRequirements: ['unlock_bike'],
 					levelRequirements: { total: 1 },
 					description: 'Unlocks cargo bike',
-					cost: 10,
-					effect: 'increment',
+					cost: 20,
+					effect: 'set',
 					effectArguments: { name: 'vehicleLevelMax', amount: 1 }
 				},
 				{
@@ -307,17 +367,37 @@ describe('Config Loading and Validation', () => {
 					levelRequirements: { total: 3 },
 					description: 'Unlocks electric bike',
 					cost: 25,
-					effect: 'increment',
-					effectArguments: { name: 'vehicleLevelMax', amount: 1 }
+					effect: 'set',
+					effectArguments: { name: 'vehicleLevelMax', amount: 2 }
 				}
 			];
 			expect(() => validateVehicleUpgradeRelationship(vehicles, upgrades)).not.toThrow();
 		});
 
-		it('should only count upgrades that increment vehicleLevelMax by 1', () => {
+		it('should only count upgrades that set vehicleLevelMax', () => {
 			const vehicles: VehicleConfig[] = [
-				{ level: 0, name: 'Bike', capacity: 10, roadSpeed: 15, tier: 1 },
-				{ level: 1, name: 'Cargo Bike', capacity: 40, roadSpeed: 20, tier: 2 }
+				{
+					level: 0,
+					name: 'Bike',
+					capacity: 10,
+					roadSpeed: 15,
+					tier: 1,
+					purchaseCost: 0,
+					unlockCost: 0,
+					unlockLevelRequirement: 0,
+					purchaseLevelRequirement: 0
+				},
+				{
+					level: 1,
+					name: 'Cargo Bike',
+					capacity: 40,
+					roadSpeed: 20,
+					tier: 2,
+					purchaseCost: 10,
+					unlockCost: 20,
+					unlockLevelRequirement: 1,
+					purchaseLevelRequirement: 1
+				}
 			];
 			const upgrades: UpgradeConfig[] = [
 				{
@@ -331,29 +411,19 @@ describe('Config Loading and Validation', () => {
 					effectArguments: { name: 'vehicleLevelMax', amount: 1 }
 				},
 				{
-					id: 'wrong_amount',
-					name: 'Wrong Amount',
-					upgradeRequirements: [],
-					levelRequirements: { total: 1 },
-					description: 'Wrong amount',
-					cost: 10,
-					effect: 'increment',
-					effectArguments: { name: 'vehicleLevelMax', amount: 2 } // Wrong amount
-				},
-				{
 					id: 'wrong_name',
 					name: 'Wrong Name',
 					upgradeRequirements: [],
 					levelRequirements: { total: 1 },
 					description: 'Wrong name',
 					cost: 10,
-					effect: 'increment',
+					effect: 'set',
 					effectArguments: { name: 'speed', amount: 1 } // Wrong effect name
 				}
 			];
 			// None of these upgrades count as vehicle unlock upgrades
 			expect(() => validateVehicleUpgradeRelationship(vehicles, upgrades)).toThrow(
-				/Need at least 1 vehicle unlock upgrades/
+				/Need at least 2 vehicle unlock upgrades/
 			);
 		});
 	});

@@ -45,7 +45,7 @@ export function getEmployeeVehicleConfig(employee: Employee) {
 			name: config.name,
 			capacity: config.capacity,
 			maxSpeed: config.roadSpeed,
-			baseCost: config.cost,
+			baseCost: config.purchaseCost,
 			minLicenseLevel: LicenseType.UNLICENSED, // Not in new config, use default
 			vehicleClass: VehicleClass.BIKE // Not in new config, default to BIKE
 		};

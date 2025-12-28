@@ -1,12 +1,24 @@
 upgrades:
+  - id: 'unlock_bike'
+    name: 'Bike'
+    upgradeRequirements: []
+    levelRequirements:
+      total: 0
+    description: 'Unlocks bike upgrade for all employees'
+    cost: 0
+    effect: set
+    effectArguments:
+      name: vehicleLevelMax
+      amount: 0
+
   - id: 'unlock_cargo_bike'
     name: 'Cargo Bike'
-    upgradeRequirements: []
+    upgradeRequirements: ['unlock_bike']
     levelRequirements:
       total: 1
     description: 'Unlocks cargo bike upgrade for all employees'
-    cost: 10
-    effect: increment
+    cost: 20
+    effect: set
     effectArguments:
       name: vehicleLevelMax
       amount: 1
@@ -17,11 +29,11 @@ upgrades:
     levelRequirements:
       total: 3
     description: 'Unlocks electric bike upgrade for all employees'
-    cost: 25
-    effect: increment
+    cost: 50
+    effect: set
     effectArguments:
       name: vehicleLevelMax
-      amount: 1
+      amount: 2
 
   - id: 'careful_driver'
     name: 'Careful Driver'

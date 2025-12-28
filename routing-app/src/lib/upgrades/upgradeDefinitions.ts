@@ -1,4 +1,43 @@
 import type { UpgradeConfig } from '$lib/config/types';
+import { VEHICLE_DEFINITIONS } from '$lib/vehicles/vehicleDefinitions';
+
+/**
+ * Generate vehicle unlock upgrades dynamically from vehicle definitions
+ */
+function generateVehicleUnlockUpgrades(): UpgradeConfig[] {
+	const upgrades: UpgradeConfig[] = [];
+
+	for (let i = 0; i < VEHICLE_DEFINITIONS.length; i++) {
+		const vehicle = VEHICLE_DEFINITIONS[i];
+		const upgradeId = `unlock_${vehicle.id}`;
+
+		// Determine dependencies: depends on previous vehicle's unlock upgrade
+		const upgradeRequirements: string[] = [];
+		if (i > 0) {
+			const previousVehicle = VEHICLE_DEFINITIONS[i - 1];
+			const previousUpgradeId = `unlock_${previousVehicle.id}`;
+			upgradeRequirements.push(previousUpgradeId);
+		}
+
+		upgrades.push({
+			id: upgradeId,
+			name: vehicle.name,
+			upgradeRequirements,
+			levelRequirements: {
+				total: vehicle.unlockLevelRequirement
+			},
+			description: `Unlocks ${vehicle.name.toLowerCase()} for all employees`,
+			cost: vehicle.unlockCost,
+			effect: 'set',
+			effectArguments: {
+				name: 'vehicleLevelMax',
+				amount: vehicle.level
+			}
+		});
+	}
+
+	return upgrades;
+}
 
 /**
  * Global upgrade definitions
@@ -6,219 +45,10 @@ import type { UpgradeConfig } from '$lib/config/types';
  */
 export const UPGRADE_DEFINITIONS: UpgradeConfig[] = [
 	// ============================================================================
-	// Vehicle Unlock Upgrades (14 upgrades)
-	// Each unlocks a vehicle level by incrementing vehicleLevelMax
+	// Vehicle Unlock Upgrades (generated dynamically from vehicle definitions)
+	// Each unlocks a vehicle level by setting vehicleLevelMax to the vehicle level
 	// ============================================================================
-	{
-		id: 'unlock_bike',
-		name: 'Bike',
-		upgradeRequirements: [],
-		levelRequirements: {
-			total: 0
-		},
-		description: 'Unlocks bike for all employees (starting vehicle)',
-		cost: 0,
-		effect: 'increment',
-		effectArguments: {
-			name: 'vehicleLevelMax',
-			amount: 1
-		}
-	},
-	{
-		id: 'unlock_pannier_bike',
-		name: 'Pannier Bike',
-		upgradeRequirements: ['unlock_bike'],
-		levelRequirements: {
-			total: 3
-		},
-		description: 'Unlocks pannier bike upgrade for all employees',
-		cost: 20,
-		effect: 'increment',
-		effectArguments: {
-			name: 'vehicleLevelMax',
-			amount: 1
-		}
-	},
-	{
-		id: 'unlock_e_bike',
-		name: 'E-Bike',
-		upgradeRequirements: ['unlock_pannier_bike'],
-		levelRequirements: {
-			total: 6
-		},
-		description: 'Unlocks e-bike upgrade for all employees',
-		cost: 60,
-		effect: 'increment',
-		effectArguments: {
-			name: 'vehicleLevelMax',
-			amount: 1
-		}
-	},
-	{
-		id: 'unlock_cargo_bike',
-		name: 'Cargo Bike',
-		upgradeRequirements: ['unlock_e_bike'],
-		levelRequirements: {
-			total: 10
-		},
-		description: 'Unlocks cargo bike upgrade for all employees',
-		cost: 150,
-		effect: 'increment',
-		effectArguments: {
-			name: 'vehicleLevelMax',
-			amount: 1
-		}
-	},
-	{
-		id: 'unlock_scooter',
-		name: 'Scooter',
-		upgradeRequirements: ['unlock_cargo_bike'],
-		levelRequirements: {
-			total: 15
-		},
-		description: 'Unlocks scooter upgrade for all employees',
-		cost: 400,
-		effect: 'increment',
-		effectArguments: {
-			name: 'vehicleLevelMax',
-			amount: 1
-		}
-	},
-	{
-		id: 'unlock_motorbike_125',
-		name: 'Motorbike 125',
-		upgradeRequirements: ['unlock_scooter'],
-		levelRequirements: {
-			total: 22
-		},
-		description: 'Unlocks motorbike 125 upgrade for all employees',
-		cost: 900,
-		effect: 'increment',
-		effectArguments: {
-			name: 'vehicleLevelMax',
-			amount: 1
-		}
-	},
-	{
-		id: 'unlock_compact_car',
-		name: 'Compact Car',
-		upgradeRequirements: ['unlock_motorbike_125'],
-		levelRequirements: {
-			total: 30
-		},
-		description: 'Unlocks compact car upgrade for all employees',
-		cost: 2000,
-		effect: 'increment',
-		effectArguments: {
-			name: 'vehicleLevelMax',
-			amount: 1
-		}
-	},
-	{
-		id: 'unlock_small_van',
-		name: 'Small Van',
-		upgradeRequirements: ['unlock_compact_car'],
-		levelRequirements: {
-			total: 40
-		},
-		description: 'Unlocks small van upgrade for all employees',
-		cost: 4500,
-		effect: 'increment',
-		effectArguments: {
-			name: 'vehicleLevelMax',
-			amount: 1
-		}
-	},
-	{
-		id: 'unlock_cargo_van',
-		name: 'Cargo Van',
-		upgradeRequirements: ['unlock_small_van'],
-		levelRequirements: {
-			total: 50
-		},
-		description: 'Unlocks cargo van upgrade for all employees',
-		cost: 10000,
-		effect: 'increment',
-		effectArguments: {
-			name: 'vehicleLevelMax',
-			amount: 1
-		}
-	},
-	{
-		id: 'unlock_box_truck',
-		name: 'Box Truck',
-		upgradeRequirements: ['unlock_cargo_van'],
-		levelRequirements: {
-			total: 60
-		},
-		description: 'Unlocks box truck upgrade for all employees',
-		cost: 22000,
-		effect: 'increment',
-		effectArguments: {
-			name: 'vehicleLevelMax',
-			amount: 1
-		}
-	},
-	{
-		id: 'unlock_tipper_truck',
-		name: 'Tipper Truck',
-		upgradeRequirements: ['unlock_box_truck'],
-		levelRequirements: {
-			total: 70
-		},
-		description: 'Unlocks tipper truck upgrade for all employees',
-		cost: 48000,
-		effect: 'increment',
-		effectArguments: {
-			name: 'vehicleLevelMax',
-			amount: 1
-		}
-	},
-	{
-		id: 'unlock_tanker',
-		name: 'Tanker',
-		upgradeRequirements: ['unlock_tipper_truck'],
-		levelRequirements: {
-			total: 80
-		},
-		description: 'Unlocks tanker upgrade for all employees',
-		cost: 100000,
-		effect: 'increment',
-		effectArguments: {
-			name: 'vehicleLevelMax',
-			amount: 1
-		}
-	},
-	{
-		id: 'unlock_hazmat_truck',
-		name: 'Hazmat Truck',
-		upgradeRequirements: ['unlock_tanker'],
-		levelRequirements: {
-			total: 90
-		},
-		description: 'Unlocks hazmat truck upgrade for all employees',
-		cost: 210000,
-		effect: 'increment',
-		effectArguments: {
-			name: 'vehicleLevelMax',
-			amount: 1
-		}
-	},
-	{
-		id: 'unlock_hazmat_semi',
-		name: 'Hazmat Semi',
-		upgradeRequirements: ['unlock_hazmat_truck'],
-		levelRequirements: {
-			total: 99
-		},
-		description: 'Unlocks hazmat semi upgrade for all employees',
-		cost: 450000,
-		effect: 'increment',
-		effectArguments: {
-			name: 'vehicleLevelMax',
-			amount: 1
-		}
-	},
+	...generateVehicleUnlockUpgrades(),
 
 	// ============================================================================
 	// Category Unlock Upgrades (5 upgrades)

@@ -98,9 +98,9 @@ export function getNextVehicleLevel(
  * Returns
  * -------
  * number
- *     Cost in euros, or 0 if vehicle not found
+ *     Purchase cost in euros, or 0 if vehicle not found
  */
 export function getVehicleUpgradeCost(vehicleLevel: number): number {
 	const vehicle = getVehicleConfig(vehicleLevel);
-	return vehicle?.cost ?? 0;
+	return vehicle?.purchaseCost ?? 0;
 }

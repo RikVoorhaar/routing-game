@@ -62,12 +62,16 @@ export interface UpgradesConfig {
  * Single vehicle configuration
  */
 export interface VehicleConfig {
+	id: string; // Unique identifier for the vehicle (used for upgrade ID generation)
 	level: number;
 	name: string;
 	capacity: number;
 	roadSpeed: number;
 	tier: number;
-	cost: number; // Cost in euros to upgrade to this vehicle level
+	purchaseCost: number; // Cost in euros for an employee to purchase this vehicle level
+	unlockCost: number; // Cost in euros to unlock this vehicle globally (via upgrade)
+	unlockLevelRequirement: number; // Minimum total level required to unlock this vehicle
+	purchaseLevelRequirement: number; // Minimum employee level required to purchase this vehicle
 }
 
 /**

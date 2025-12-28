@@ -222,7 +222,11 @@ export function validateUpgradesConfig(upgrades: UpgradeConfig[]): void {
 				errors.push(`upgrades[${index}].cost must be a non-negative number`);
 			}
 
-			if (upgrade.effect !== 'multiply' && upgrade.effect !== 'increment' && upgrade.effect !== 'set') {
+			if (
+				upgrade.effect !== 'multiply' &&
+				upgrade.effect !== 'increment' &&
+				upgrade.effect !== 'set'
+			) {
 				errors.push(`upgrades[${index}].effect must be either 'multiply', 'increment', or 'set'`);
 			}
 
@@ -303,20 +307,29 @@ export function validateVehicleUpgradeRelationship(
 	const vehicleLevels = vehicles.map((v) => v.level).filter((level) => level > 0);
 	const maxVehicleLevel = Math.max(...vehicleLevels, 0);
 
-	// Find all upgrades that increment vehicleLevelMax
+	// Find all upgrades that set vehicleLevelMax (using 'set' effect)
 	const vehicleUnlockUpgrades = upgrades.filter(
 		(upgrade) =>
-			upgrade.effect === 'increment' &&
-			upgrade.effectArguments.name === 'vehicleLevelMax' &&
-			upgrade.effectArguments.amount === 1
+			upgrade.effect === 'set' &&
+			upgrade.effectArguments.name === 'vehicleLevelMax'
 	);
 
-	// We need at least as many vehicle unlock upgrades as there are vehicle levels > 0
-	// Each upgrade increments vehicleLevelMax by 1, so N upgrades unlock levels 1 through N
-	if (vehicleUnlockUpgrades.length < maxVehicleLevel) {
+	// We need at least as many vehicle unlock upgrades as there are vehicle levels
+	// Each upgrade sets vehicleLevelMax to a specific level
+	if (vehicleUnlockUpgrades.length < maxVehicleLevel + 1) {
 		errors.push(
-			`Need at least ${maxVehicleLevel} vehicle unlock upgrades (incrementing vehicleLevelMax), but found ${vehicleUnlockUpgrades.length}`
+			`Need at least ${maxVehicleLevel + 1} vehicle unlock upgrades (setting vehicleLevelMax), but found ${vehicleUnlockUpgrades.length}`
 		);
+	}
+
+	// Verify that all vehicle levels have corresponding unlock upgrades
+	const unlockedLevels = new Set(
+		vehicleUnlockUpgrades.map((upgrade) => upgrade.effectArguments.amount as number)
+	);
+	for (let level = 0; level <= maxVehicleLevel; level++) {
+		if (!unlockedLevels.has(level)) {
+			errors.push(`Missing vehicle unlock upgrade for level ${level}`);
+		}
 	}
 
 	// Check that vehicle level 0 exists (it should be unlocked by default)

@@ -1,13 +1,13 @@
 upgrades:
-  # Only 1 vehicle unlock upgrade, but vehicles.yaml has levels 0-2 (needs 2 upgrades)
+  # Only 1 vehicle unlock upgrade, but vehicles.yaml has levels 0-2 (needs 3 upgrades: 0, 1, 2)
   - id: 'unlock_cargo_bike'
     name: 'Cargo Bike'
     upgradeRequirements: []
     levelRequirements:
       total: 1
     description: 'Unlocks cargo bike upgrade for all employees'
-    cost: 10
-    effect: increment
+    cost: 20
+    effect: set
     effectArguments:
       name: vehicleLevelMax
       amount: 1
