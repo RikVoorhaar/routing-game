@@ -391,7 +391,7 @@ The following steps can be taken (mostly) independently:
 
 Notes:
 - ✅ **Fixed:** Level requirements for purchasing vehicles now work - employees must meet the `purchaseLevelRequirement` to purchase a vehicle upgrade
-- Bike upgrade should be pre-unlocked (or it shouldn't be an upgrade at all)
+- ✅ **Fixed:** Bike upgrade is no longer defined as an upgrade - level 0 (Bike) is pre-unlocked by default in new game states
 - The order of the employees changes seemingly randomly when buying upgrades. The order should be based on the order in which employees were bought. This requires employees to have a number field, which requires a DB update and migration.
 - Vehicle upgrades should always be shown first in the upgrade panel and perhaps be pre-pended by (Vehicle) in the name.
 

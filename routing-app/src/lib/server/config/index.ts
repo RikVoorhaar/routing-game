@@ -312,19 +312,20 @@ export function validateVehicleUpgradeRelationship(
 		(upgrade) => upgrade.effect === 'set' && upgrade.effectArguments.name === 'vehicleLevelMax'
 	);
 
-	// We need at least as many vehicle unlock upgrades as there are vehicle levels
+	// Level 0 (Bike) is pre-unlocked, so we need upgrades for levels 1 through maxVehicleLevel
 	// Each upgrade sets vehicleLevelMax to a specific level
-	if (vehicleUnlockUpgrades.length < maxVehicleLevel + 1) {
+	if (vehicleUnlockUpgrades.length < maxVehicleLevel) {
 		errors.push(
-			`Need at least ${maxVehicleLevel + 1} vehicle unlock upgrades (setting vehicleLevelMax), but found ${vehicleUnlockUpgrades.length}`
+			`Need at least ${maxVehicleLevel} vehicle unlock upgrades (setting vehicleLevelMax) for levels 1-${maxVehicleLevel}, but found ${vehicleUnlockUpgrades.length}`
 		);
 	}
 
-	// Verify that all vehicle levels have corresponding unlock upgrades
+	// Verify that all vehicle levels > 0 have corresponding unlock upgrades
+	// Level 0 is pre-unlocked and doesn't need an upgrade
 	const unlockedLevels = new Set(
 		vehicleUnlockUpgrades.map((upgrade) => upgrade.effectArguments.amount as number)
 	);
-	for (let level = 0; level <= maxVehicleLevel; level++) {
+	for (let level = 1; level <= maxVehicleLevel; level++) {
 		if (!unlockedLevels.has(level)) {
 			errors.push(`Missing vehicle unlock upgrade for level ${level}`);
 		}

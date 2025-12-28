@@ -3,17 +3,20 @@ import { VEHICLE_DEFINITIONS } from '$lib/vehicles/vehicleDefinitions';
 
 /**
  * Generate vehicle unlock upgrades dynamically from vehicle definitions
+ * Note: Level 0 (Bike) is skipped as it's the starting vehicle and pre-unlocked
  */
 function generateVehicleUnlockUpgrades(): UpgradeConfig[] {
 	const upgrades: UpgradeConfig[] = [];
 
-	for (let i = 0; i < VEHICLE_DEFINITIONS.length; i++) {
+	// Skip level 0 (Bike) - it's the starting vehicle and should be pre-unlocked
+	for (let i = 1; i < VEHICLE_DEFINITIONS.length; i++) {
 		const vehicle = VEHICLE_DEFINITIONS[i];
 		const upgradeId = `unlock_${vehicle.id}`;
 
 		// Determine dependencies: depends on previous vehicle's unlock upgrade
+		// For level 1, there's no previous upgrade (bike is pre-unlocked)
 		const upgradeRequirements: string[] = [];
-		if (i > 0) {
+		if (i > 1) {
 			const previousVehicle = VEHICLE_DEFINITIONS[i - 1];
 			const previousUpgradeId = `unlock_${previousVehicle.id}`;
 			upgradeRequirements.push(previousUpgradeId);

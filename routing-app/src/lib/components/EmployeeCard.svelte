@@ -385,9 +385,7 @@
 			? getVehicleConfig(nextVehicleLevel)
 			: null;
 	$: meetsLevelRequirement =
-		nextVehicleConfig !== null
-			? employeeLevel >= nextVehicleConfig.purchaseLevelRequirement
-			: true;
+		nextVehicleConfig !== null ? employeeLevel >= nextVehicleConfig.purchaseLevelRequirement : true;
 	$: upgradeButtonState =
 		nextVehicleLevel === null || nextVehicleLevel === undefined
 			? 'max'

@@ -26,7 +26,7 @@ describe('Upgrade Purchase Logic', () => {
 				expect(typeof upgrade.id).toBe('string');
 				expect(typeof upgrade.name).toBe('string');
 				expect(typeof upgrade.cost).toBe('number');
-				expect(['multiply', 'increment']).toContain(upgrade.effect);
+				expect(['multiply', 'increment', 'set']).toContain(upgrade.effect);
 				expect(upgrade.effectArguments).toHaveProperty('name');
 				expect(upgrade.effectArguments).toHaveProperty('amount');
 				expect(Array.isArray(upgrade.upgradeRequirements)).toBe(true);
@@ -59,7 +59,11 @@ describe('Upgrade Purchase Logic', () => {
 				'moneyTimeFactor',
 				'moneyDistanceFactor',
 				'capacity',
-				'upgradeDiscount'
+				'upgradeDiscount',
+				'categoryUnlock',
+				'jobsPerTier',
+				'freeTravel',
+				'roadSpeedMin'
 			];
 
 			for (const upgrade of UPGRADE_DEFINITIONS) {
@@ -117,7 +121,7 @@ describe('Upgrade Purchase Logic', () => {
 			}
 		});
 
-		it('should have vehicle unlock upgrades that increment vehicleLevelMax', () => {
+		it('should have vehicle unlock upgrades that set vehicleLevelMax', () => {
 			const vehicleUnlockUpgrades = UPGRADE_DEFINITIONS.filter(
 				(u) => u.id.startsWith('unlock_') && u.effectArguments.name === 'vehicleLevelMax'
 			);
@@ -125,8 +129,9 @@ describe('Upgrade Purchase Logic', () => {
 			expect(vehicleUnlockUpgrades.length).toBeGreaterThan(0);
 
 			for (const upgrade of vehicleUnlockUpgrades) {
-				expect(upgrade.effect).toBe('increment');
-				expect(upgrade.effectArguments.amount).toBe(1);
+				expect(upgrade.effect).toBe('set');
+				// Amount should be the vehicle level (1, 2, 3, etc. - bike level 0 is pre-unlocked)
+				expect(upgrade.effectArguments.amount).toBeGreaterThan(0);
 			}
 		});
 	});
