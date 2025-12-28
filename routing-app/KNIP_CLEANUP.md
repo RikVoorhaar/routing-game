@@ -325,14 +325,33 @@ Knip suggests these are redundant in knip.json since they're auto-detected:
 
 ### ✅ Completed
 
-1. **Fixed unresolved imports** - All 5 broken imports fixed:
+1. **Removed unused exports** - Removed 44 unused exports:
+   - 12 functions from `employeeUtils.ts`
+   - 4 functions from `formatting.ts`
+   - 5 exports from `generateJobs.ts` (made internal)
+   - 2 functions from `jobAssignment.ts` (made internal)
+   - 1 constant from `jobCategories.ts` (made internal)
+   - 1 function from `jobUtils.ts` (made internal)
+   - 1 export from `queryJobs.ts`
+   - 1 default export from `logger.ts`
+   - 3 functions from `stores/errors.ts`
+   - 5 exports from `stores/gameData.ts`
+   - 2 exports from `stores/mapDisplay.ts`
+   - 2 exports from `stores/selectedEmployee.ts`
+   - 6 exports from `upgrades/vehicles.ts`
+   - 1 function from `vehicles/vehicleUtils.ts`
+   - 1 function from `vehicleUtils.ts`
+
+2. **Fixed unresolved imports** - All 5 broken imports fixed:
+
    - `src/lib/coordinateGrid.ts` - Fixed
    - `src/lib/geo.ts` - Fixed
    - `src/lib/server.ts` - Fixed
    - `src/scripts/analyze-address-distribution.ts` - Fixed
    - Test files (`geo.test.ts`, `integration/addresses.test.ts`, `integration/routing.test.ts`) - Fixed
 
-2. **Removed unused files** (10 files):
+3. **Removed unused files** (10 files):
+
    - 5 profiling scripts (cleanup-routes.ts, test-complete-cheat.ts, parallel-profile.ts, profile-job-generation.ts, simple-profile.ts)
    - 1 placeholder component (UpgradesPanelPlaceholder.svelte)
    - 1 unused barrel export (index.ts)
@@ -340,7 +359,8 @@ Knip suggests these are redundant in knip.json since they're auto-detected:
    - 1 duplicate spatial indexes file (server/db/spatial-indexes.ts)
    - 1 unused server utility (server/vehicleUtils.ts)
 
-3. **Removed unused dependencies** (7 packages):
+4. **Removed unused dependencies** (7 packages):
+
    - @oslojs/crypto
    - @oslojs/encoding
    - @tailwindcss/typography
@@ -349,16 +369,22 @@ Knip suggests these are redundant in knip.json since they're auto-detected:
    - clinic (dev)
    - ts-node (dev)
 
-4. **Added missing dependency**:
+5. **Added missing dependency**:
+
    - dotenv (was only in root package.json)
 
-5. **Updated knip.json**:
+6. **Updated knip.json**:
    - Removed redundant entry patterns
    - Added hooks.server.ts to ignore list
 
 ### ⏳ Remaining Work
 
-- **~50 unused exports** - These can be removed systematically. Most are utility functions that are clearly unused. This is a larger task that can be done incrementally.
+- **6 unused exports** - Reduced from 50! Remaining ones:
+  - `handle` from `src/auth.ts` - Used by hooks.server.ts (false positive)
+  - `UPGRADE_DEFINITIONS`, `VEHICLE_DEFINITIONS` from `src/lib/server/config/index.ts` - May be used via $lib
+  - `TIER_COLORS` from `src/lib/stores/mapDisplay.ts` - Used internally, export can be removed
+  - `getVehicleConfigByLevel`, `getVehicleCapacityByLevel` from `src/lib/vehicleUtils.ts` - Used internally, exports can be removed
+- **4 unused exported types** - Need review to see if they're actually used
 
 ### Notes
 

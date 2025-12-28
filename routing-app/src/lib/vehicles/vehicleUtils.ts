@@ -32,7 +32,7 @@ export function getVehicleConfig(level: number): VehicleConfig | null {
  * number
  *     Maximum vehicle level available (defaults to 0 if not set)
  */
-export function getMaxVehicleLevel(gameState: GameState): number {
+function getMaxVehicleLevel(gameState: GameState): number {
 	return gameState.upgradeEffects?.vehicleLevelMax ?? 0;
 }
 

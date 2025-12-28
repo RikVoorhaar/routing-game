@@ -11,9 +11,9 @@ import { config } from '$lib/server/config';
 
 type JobInsert = InferInsertModel<typeof jobs>;
 // Constants for job generation
-export const ROUTE_DISTANCES_KM = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+const ROUTE_DISTANCES_KM = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
 
-export const MAX_TIER = config.jobs.generation.maxTier;
+const MAX_TIER = config.jobs.generation.maxTier;
 
 // Category multipliers for value calculation - loaded from config
 function getCategoryMultipliers(): Record<JobCategory, number> {
@@ -68,7 +68,7 @@ const DEFAULT_TIME_FACTOR = config.jobs.value.timeFactor;
 /**
  * Gets available job categories for a given tier
  */
-export function getAvailableCategories(jobTier: number): JobCategory[] {
+function getAvailableCategories(jobTier: number): JobCategory[] {
 	const categories: JobCategory[] = [];
 
 	for (const category of Object.values(JobCategory)) {
@@ -83,7 +83,7 @@ export function getAvailableCategories(jobTier: number): JobCategory[] {
 /**
  * Computes job tier using probability formula: tier = min(maxTier, ceil(-log2(p)))
  */
-export function generateJobTier(): number {
+function generateJobTier(): number {
 	const p = Math.random();
 	const tier = Math.ceil(-Math.log2(p));
 	return Math.min(config.jobs.generation.maxTier, tier);
@@ -92,7 +92,7 @@ export function generateJobTier(): number {
 /**
  * Computes job value based on tier, category, distance, and time
  */
-export function computeApproximateJobValue(
+function computeApproximateJobValue(
 	jobTier: number,
 	jobCategory: JobCategory,
 	totalDistanceKm: number,

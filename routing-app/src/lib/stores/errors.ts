@@ -42,7 +42,3 @@ export function addError(
 export function dismissError(id: string) {
 	errors.update((currentErrors) => currentErrors.filter((error) => error.id !== id));
 }
-
-export function clearAllErrors() {
-	errors.set([]);
-}

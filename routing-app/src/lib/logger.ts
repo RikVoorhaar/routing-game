@@ -42,8 +42,6 @@ const logger = createConsola({
 // 4: debug
 // 5: trace
 
-export default logger;
-
 // Convenience exports for common patterns
 export const log = {
 	error: logger.error.bind(logger),

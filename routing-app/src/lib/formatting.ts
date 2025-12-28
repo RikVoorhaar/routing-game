@@ -42,24 +42,6 @@ export function formatDistance(distanceKm: string | number | null | undefined): 
 	return `${numValue.toFixed(1)} km`;
 }
 
-/**
- * Formats time duration in seconds for display (e.g., in job cards)
- * @param timeSeconds Duration in seconds (can be number or string)
- * @returns Formatted time string (e.g., "2h 30m", "25m")
- */
-export function formatTime(timeSeconds: string | number | null | undefined): string {
-	if (timeSeconds == null) return '0m';
-	const numValue = typeof timeSeconds === 'string' ? parseFloat(timeSeconds) : timeSeconds;
-	if (isNaN(numValue)) return '0m';
-	const hours = Math.floor(numValue / 3600);
-	const minutes = Math.floor((numValue % 3600) / 60);
-
-	if (hours > 0) {
-		return `${hours}h ${minutes}m`;
-	} else {
-		return `${minutes}m`;
-	}
-}
 
 /**
  * Formats time duration in seconds as hh:mm:ss or mm:ss (e.g., "1:23:45", "5:30")
@@ -140,41 +122,6 @@ export function formatTimeFromSeconds(seconds: number): string {
 	}
 }
 
-/**
- * Formats route duration for route cards - shows minutes and seconds with floored seconds
- * @param seconds Duration in seconds (can be float)
- * @returns Formatted time string (e.g., "2h 30m", "25m 34s", "45s")
- */
-export function formatRouteDuration(seconds: number): string {
-	const totalSeconds = Math.floor(seconds); // Floor to remove decimals
-	const hours = Math.floor(totalSeconds / 3600);
-	const minutes = Math.floor((totalSeconds % 3600) / 60);
-	const remainingSeconds = totalSeconds % 60;
-
-	if (hours > 0) {
-		// For hours, only show minutes (no seconds for readability)
-		return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
-	} else if (minutes > 0) {
-		// Show minutes and seconds
-		return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
-	} else {
-		// Show seconds only
-		return `${remainingSeconds}s`;
-	}
-}
-
-/**
- * Formats weight in kg to human readable format
- * @param weight Weight in kilograms (can be number or string)
- * @returns Formatted weight string (e.g., "1.5t", "500kg")
- */
-export function formatWeight(weight: number | string): string {
-	const numericWeight = typeof weight === 'string' ? parseFloat(weight) : weight;
-	if (numericWeight >= 1000) {
-		return `${(numericWeight / 1000).toFixed(1)}t`;
-	}
-	return `${numericWeight}kg`;
-}
 
 /**
  * Formats remaining time in seconds to human readable format (for ETA display)
@@ -198,20 +145,6 @@ export function formatTimeRemaining(seconds: number | string): string {
 	}
 }
 
-/**
- * Formats job value as compact currency (for job markers)
- * @param value The value to format (can be number or string)
- * @returns Compact formatted currency string (e.g., "€1.2k", "€500")
- */
-export function formatJobCurrency(value: string | number | undefined | null): string {
-	if (value === undefined || value === null) return '€0';
-	const numValue = typeof value === 'string' ? parseFloat(value) : value;
-	if (isNaN(numValue)) return '€0';
-	if (numValue >= 1000) {
-		return `€${(numValue / 1000).toFixed(1)}k`;
-	}
-	return `€${numValue.toFixed(0)}`;
-}
 
 /**
  * Converts a number to Roman numeral (for job tiers)

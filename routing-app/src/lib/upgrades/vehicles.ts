@@ -196,28 +196,7 @@ function buildVehicleConfigs(): Record<VehicleType, VehicleConfig> {
 	return configs;
 }
 
-export const VEHICLE_CONFIGS: Record<VehicleType, VehicleConfig> = buildVehicleConfigs();
-
-export function getNextVehicle(
-	currentVehicle: VehicleType,
-	licenseLevel: LicenseType
-): VehicleType | null {
-	for (
-		let vehicleType = currentVehicle + 1;
-		vehicleType <= VehicleType.DOUBLE_TRAILER_TRUCK;
-		vehicleType++
-	) {
-		const config = VEHICLE_CONFIGS[vehicleType as VehicleType];
-		if (config.minLicenseLevel <= licenseLevel) {
-			return vehicleType as VehicleType;
-		}
-	}
-	return null;
-}
-export function getNextLicense(currentLicense: LicenseType): LicenseType | null {
-	const nextLevel = currentLicense + 1;
-	return nextLevel <= LicenseType.TOXIC_GOODS ? (nextLevel as LicenseType) : null;
-}
+const VEHICLE_CONFIGS: Record<VehicleType, VehicleConfig> = buildVehicleConfigs();
 
 // License metadata (not in config - these are structural)
 const LICENSE_METADATA: Record<LicenseType, { name: string }> = {
@@ -282,34 +261,11 @@ function buildLicenseConfigs(): Record<LicenseType, LicenseConfig> {
 	return configs;
 }
 
-export const LICENSE_CONFIGS: Record<LicenseType, LicenseConfig> = buildLicenseConfigs();
+const LICENSE_CONFIGS: Record<LicenseType, LicenseConfig> = buildLicenseConfigs();
 
 /**
  * Get vehicle configuration by type
  */
 export function getVehicleConfig(vehicleType: VehicleType): VehicleConfig {
 	return VEHICLE_CONFIGS[vehicleType];
-}
-
-/**
- * Get license configuration by type
- */
-export function getLicenseConfig(licenseType: LicenseType): LicenseConfig {
-	return LICENSE_CONFIGS[licenseType];
-}
-
-/**
- * Get all vehicles available for a given license level
- */
-export function getAvailableVehicles(licenseLevel: LicenseType): VehicleType[] {
-	return Object.entries(VEHICLE_CONFIGS)
-		.filter(([_, config]) => config.minLicenseLevel <= licenseLevel)
-		.map(([vehicleType, _]) => parseInt(vehicleType) as VehicleType);
-}
-
-/**
- * Check if a vehicle is available for a given license level
- */
-export function isVehicleAvailable(vehicleType: VehicleType, licenseLevel: LicenseType): boolean {
-	return VEHICLE_CONFIGS[vehicleType].minLicenseLevel <= licenseLevel;
 }

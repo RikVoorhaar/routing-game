@@ -64,7 +64,7 @@ export function getTierColor(tier: number): string {
 /**
  * Route style presets
  */
-export const ROUTE_STYLES = {
+const ROUTE_STYLES = {
 	SELECTED: {
 		color: '#dc2626', // red
 		weight: 7,
@@ -224,6 +224,6 @@ export const mapDisplayActions = {
 /**
  * Derived store for currently selected route
  */
-export const selectedRouteDisplay = derived(displayedRoutes, ($displayedRoutes) => {
+const selectedRouteDisplay = derived(displayedRoutes, ($displayedRoutes) => {
 	return $displayedRoutes.find((r) => r.isSelected) || null;
 });

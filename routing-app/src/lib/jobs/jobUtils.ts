@@ -47,7 +47,7 @@ If the job is not started, return 0%
 If the job is in progress, return the percentage of the job duration that has elapsed as number between 0 and 100
 and the time left in milliseconds
 */
-export function getJobProgress(activeJob: ActiveJob): {
+function getJobProgress(activeJob: ActiveJob): {
 	progressPercent: number;
 	timeLeftMs: number | null;
 } {

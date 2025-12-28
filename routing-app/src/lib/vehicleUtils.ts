@@ -52,10 +52,3 @@ export function getVehicleRoadSpeedByLevel(level: number, vehicles: VehicleConfi
 	return vehicle?.roadSpeed ?? 15; // Default to 15 if not found
 }
 
-/**
- * Get vehicle name by level
- */
-export function getVehicleNameByLevel(level: number, vehicles: VehicleConfig[]): string {
-	const vehicle = getVehicleConfigByLevel(level, vehicles);
-	return vehicle?.name ?? 'Unknown Vehicle';
-}

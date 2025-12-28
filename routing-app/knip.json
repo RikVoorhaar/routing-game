@@ -1,9 +1,6 @@
 {
 	"$schema": "https://unpkg.com/knip@latest/schema.json",
-	"entry": [
-		"src/routes/**/*.{js,ts,svelte}",
-		"src/app.html"
-	],
+	"entry": ["src/routes/**/*.{js,ts,svelte}", "src/app.html"],
 	"project": ["**/*.{js,ts,svelte}"],
 	"ignore": [
 		"**/*.test.ts",
@@ -19,10 +16,6 @@
 		"src/hooks.server.ts"
 	],
 	"svelte": {
-		"entry": [
-			"src/routes/**/*.{js,ts,svelte}",
-			"src/app.html"
-		]
+		"entry": ["src/routes/**/*.{js,ts,svelte}", "src/app.html"]
 	}
 }
-

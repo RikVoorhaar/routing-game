@@ -40,7 +40,7 @@ export function employeeCanPerformJob(employee: Employee, job: Job): boolean {
 /**
  * Calculate geodesic distance between two points (rough approximation)
  */
-export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
 	const R = 6371; // Earth's radius in kilometers
 	const dLat = ((lat2 - lat1) * Math.PI) / 180;
 	const dLon = ((lon2 - lon1) * Math.PI) / 180;
@@ -57,7 +57,7 @@ export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2
 /**
  * Get employee position from location data
  */
-export function getEmployeePosition(employee: Employee): { lat: number; lon: number } | null {
+function getEmployeePosition(employee: Employee): { lat: number; lon: number } | null {
 	if (!employee.location) return null;
 
 	try {
