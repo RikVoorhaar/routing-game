@@ -2,7 +2,9 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { load } from 'js-yaml';
-import type { GameConfig } from '$lib/config/types';
+import type { GameConfig, UpgradeConfig, VehicleConfig } from '$lib/config/types';
+import { UPGRADE_DEFINITIONS } from '$lib/upgrades/upgradeDefinitions';
+import { VEHICLE_DEFINITIONS } from '$lib/vehicles/vehicleDefinitions';
 
 /**
  * Get the directory of the current file (for resolving config path)
@@ -13,10 +15,10 @@ const __dirname = dirname(__filename);
 /**
  * Resolve config path relative to the routing-app root
  */
-const configPath = join(__dirname, '../../../..', 'game-config.yaml');
+const configPath = join(__dirname, '../../../..', 'config', 'game-config.yaml');
 
 /**
- * Loads and validates the game configuration from game-config.yaml
+ * Loads and validates the game configuration from config/game-config.yaml
  */
 function loadConfig(): GameConfig {
 	try {
@@ -32,7 +34,7 @@ function loadConfig(): GameConfig {
 			if ('code' in error && error.code === 'ENOENT') {
 				throw new Error(
 					`Configuration file not found: ${configPath}\n` +
-						'Please create game-config.yaml in the routing-app root directory.'
+						'Please create config/game-config.yaml in the routing-app root directory.'
 				);
 			}
 			throw new Error(`Failed to load configuration: ${error.message}`);
@@ -146,30 +148,8 @@ function validateConfig(config: GameConfig): void {
 		}
 	}
 
-	// Validate upgrades section
-	if (!config.upgrades) {
-		errors.push('upgrades section is required');
-	} else {
-		if (typeof config.upgrades.baseCost !== 'number' || config.upgrades.baseCost < 0) {
-			errors.push('upgrades.baseCost must be a non-negative number');
-		}
-		if (typeof config.upgrades.costExponent !== 'number' || config.upgrades.costExponent <= 0) {
-			errors.push('upgrades.costExponent must be a positive number');
-		}
-		if (!config.upgrades.effects) {
-			errors.push('upgrades.effects section is required');
-		}
-	}
-
-	// Validate vehicles section
-	if (!config.vehicles || Object.keys(config.vehicles).length === 0) {
-		errors.push('vehicles section is required and must not be empty');
-	}
-
-	// Validate licenses section
-	if (!config.licenses || Object.keys(config.licenses).length === 0) {
-		errors.push('licenses section is required and must not be empty');
-	}
+	// Note: vehicles, licenses, and upgrades sections removed - these are now defined in TypeScript code
+	// Licenses are also defined in TypeScript code (src/lib/upgrades/vehicles.ts)
 
 	// Validate dev section
 	if (!config.dev) {
@@ -203,8 +183,183 @@ try {
 }
 
 /**
- * Exported config store - use this throughout the server-side code
+ * Validates the upgrades definitions structure and values
+ * Exported for testing purposes
  */
-export { config };
-// Re-export type from shared location for backward compatibility
+export function validateUpgradesConfig(upgrades: UpgradeConfig[]): void {
+	const errors: string[] = [];
+
+	if (!Array.isArray(upgrades)) {
+		errors.push('upgrades must be an array');
+	} else {
+		const upgradeIds = new Set<string>();
+		upgrades.forEach((upgrade: UpgradeConfig, index: number) => {
+			if (!upgrade.id || typeof upgrade.id !== 'string') {
+				errors.push(`upgrades[${index}].id must be a non-empty string`);
+			} else if (upgradeIds.has(upgrade.id)) {
+				errors.push(`Duplicate upgrade ID: ${upgrade.id}`);
+			} else {
+				upgradeIds.add(upgrade.id);
+			}
+
+			if (!upgrade.name || typeof upgrade.name !== 'string') {
+				errors.push(`upgrades[${index}].name must be a non-empty string`);
+			}
+
+			if (!Array.isArray(upgrade.upgradeRequirements)) {
+				errors.push(`upgrades[${index}].upgradeRequirements must be an array`);
+			}
+
+			if (!upgrade.levelRequirements || typeof upgrade.levelRequirements !== 'object') {
+				errors.push(`upgrades[${index}].levelRequirements must be an object`);
+			}
+
+			if (!upgrade.description || typeof upgrade.description !== 'string') {
+				errors.push(`upgrades[${index}].description must be a non-empty string`);
+			}
+
+			if (typeof upgrade.cost !== 'number' || upgrade.cost < 0) {
+				errors.push(`upgrades[${index}].cost must be a non-negative number`);
+			}
+
+			if (
+				upgrade.effect !== 'multiply' &&
+				upgrade.effect !== 'increment' &&
+				upgrade.effect !== 'set'
+			) {
+				errors.push(`upgrades[${index}].effect must be either 'multiply', 'increment', or 'set'`);
+			}
+
+			if (
+				!upgrade.effectArguments ||
+				typeof upgrade.effectArguments.name !== 'string' ||
+				typeof upgrade.effectArguments.amount !== 'number'
+			) {
+				errors.push(
+					`upgrades[${index}].effectArguments must be an object with 'name' (string) and 'amount' (number)`
+				);
+			}
+		});
+	}
+
+	if (errors.length > 0) {
+		throw new Error(
+			`Upgrades configuration validation failed:\n${errors.map((e) => `  - ${e}`).join('\n')}`
+		);
+	}
+}
+
+/**
+ * Validates the vehicle definitions structure and values
+ * Exported for testing purposes
+ */
+export function validateVehiclesConfig(vehicles: VehicleConfig[]): void {
+	const errors: string[] = [];
+
+	if (!Array.isArray(vehicles)) {
+		errors.push('vehicles must be an array');
+	} else {
+		const vehicleLevels = new Set<number>();
+		vehicles.forEach((vehicle: VehicleConfig, index: number) => {
+			if (typeof vehicle.level !== 'number' || vehicle.level < 0) {
+				errors.push(`vehicles[${index}].level must be a non-negative number`);
+			} else if (vehicleLevels.has(vehicle.level)) {
+				errors.push(`Duplicate vehicle level: ${vehicle.level}`);
+			} else {
+				vehicleLevels.add(vehicle.level);
+			}
+
+			if (!vehicle.name || typeof vehicle.name !== 'string') {
+				errors.push(`vehicles[${index}].name must be a non-empty string`);
+			}
+
+			if (typeof vehicle.capacity !== 'number' || vehicle.capacity <= 0) {
+				errors.push(`vehicles[${index}].capacity must be a positive number`);
+			}
+
+			if (typeof vehicle.roadSpeed !== 'number' || vehicle.roadSpeed <= 0) {
+				errors.push(`vehicles[${index}].roadSpeed must be a positive number`);
+			}
+
+			if (typeof vehicle.tier !== 'number' || vehicle.tier < 1) {
+				errors.push(`vehicles[${index}].tier must be >= 1`);
+			}
+		});
+	}
+
+	if (errors.length > 0) {
+		throw new Error(
+			`Vehicles configuration validation failed:\n${errors.map((e) => `  - ${e}`).join('\n')}`
+		);
+	}
+}
+
+/**
+ * Validates that each vehicle level (except 0) has a corresponding upgrade
+ * This checks that there are enough vehicle unlock upgrades to cover all vehicle levels
+ * Exported for testing purposes
+ */
+export function validateVehicleUpgradeRelationship(
+	vehicles: VehicleConfig[],
+	upgrades: UpgradeConfig[]
+): void {
+	const errors: string[] = [];
+	const vehicleLevels = vehicles.map((v) => v.level).filter((level) => level > 0);
+	const maxVehicleLevel = Math.max(...vehicleLevels, 0);
+
+	// Find all upgrades that set vehicleLevelMax (using 'set' effect)
+	const vehicleUnlockUpgrades = upgrades.filter(
+		(upgrade) => upgrade.effect === 'set' && upgrade.effectArguments.name === 'vehicleLevelMax'
+	);
+
+	// Level 0 (Bike) is pre-unlocked, so we need upgrades for levels 1 through maxVehicleLevel
+	// Each upgrade sets vehicleLevelMax to a specific level
+	if (vehicleUnlockUpgrades.length < maxVehicleLevel) {
+		errors.push(
+			`Need at least ${maxVehicleLevel} vehicle unlock upgrades (setting vehicleLevelMax) for levels 1-${maxVehicleLevel}, but found ${vehicleUnlockUpgrades.length}`
+		);
+	}
+
+	// Verify that all vehicle levels > 0 have corresponding unlock upgrades
+	// Level 0 is pre-unlocked and doesn't need an upgrade
+	const unlockedLevels = new Set(
+		vehicleUnlockUpgrades.map((upgrade) => upgrade.effectArguments.amount as number)
+	);
+	for (let level = 1; level <= maxVehicleLevel; level++) {
+		if (!unlockedLevels.has(level)) {
+			errors.push(`Missing vehicle unlock upgrade for level ${level}`);
+		}
+	}
+
+	// Check that vehicle level 0 exists (it should be unlocked by default)
+	const hasLevelZero = vehicles.some((v) => v.level === 0);
+	if (!hasLevelZero) {
+		errors.push('Vehicle level 0 must exist (unlocked by default)');
+	}
+
+	if (errors.length > 0) {
+		throw new Error(
+			`Vehicle-upgrade relationship validation failed:\n${errors.map((e) => `  - ${e}`).join('\n')}`
+		);
+	}
+}
+
+// Validate definitions on module load
+try {
+	validateUpgradesConfig(UPGRADE_DEFINITIONS);
+	validateVehiclesConfig(VEHICLE_DEFINITIONS);
+	// Validate relationship between vehicles and upgrades
+	validateVehicleUpgradeRelationship(VEHICLE_DEFINITIONS, UPGRADE_DEFINITIONS);
+} catch (error) {
+	console.error('Failed to validate upgrade/vehicle definitions:', error);
+	throw error;
+}
+
+/**
+ * Exported config and definitions - use this throughout the server-side code
+ * Note: Vehicle and upgrade definitions are imported directly from TypeScript code,
+ * not loaded from YAML files
+ */
+export { config, UPGRADE_DEFINITIONS, VEHICLE_DEFINITIONS };
+// Re-export types from shared location
 export type { GameConfig } from '$lib/config/types';

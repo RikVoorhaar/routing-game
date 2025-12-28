@@ -1,9 +1,24 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { getRandomAddressInAnnulus } from './addresses';
 import { DEFAULT_EMPLOYEE_LOCATION } from './employeeUtils';
 import type { Coordinate } from './server/db/schema';
 
-describe('addresses', () => {
+const skipIfCI = process.env.CI ? describe.skip : describe;
+
+skipIfCI('addresses', () => {
+	beforeAll(async () => {
+		// Try to connect to database to verify it's available
+		try {
+			// Import db here to avoid loading it if we're skipping
+			const { db } = await import('./server/db/standalone');
+			await db.execute('SELECT 1');
+		} catch {
+			throw new Error(
+				'Database is not available. Please start PostgreSQL before running these tests.'
+			);
+		}
+	});
+
 	describe('getRandomAddressInAnnulus', () => {
 		const center: Coordinate = {
 			lat: DEFAULT_EMPLOYEE_LOCATION.lat,

@@ -3,11 +3,11 @@
 	import { computeEmployeeCosts } from '$lib/employeeUtils';
 	import { formatMoney } from '$lib/formatting';
 	import EmployeeCard from './EmployeeCard.svelte';
-	import EmployeeDetails from './EmployeeDetails.svelte';
 	import ErrorOverlay from './ErrorOverlay.svelte';
 	import Cheats from './Cheats.svelte';
 	import RouteMap from './RouteMap.svelte';
 	import JobCard from './JobCard.svelte';
+	import LevelsAndUpgradesPanel from './LevelsAndUpgradesPanel.svelte';
 	import { faker } from '@faker-js/faker';
 	import { addError } from '$lib/stores/errors';
 	import {
@@ -28,12 +28,18 @@
 	export let initialEmployees: Employee[] = [];
 	export let cheatsEnabled: boolean = false;
 
+	// Ensure employees are sorted by order field for stable display ordering
+	$: sortedEmployeeData = [...$fullEmployeeData].sort(
+		(a, b) => (a.employee.order ?? 0) - (b.employee.order ?? 0)
+	);
+
 	let showHireModal = false;
 	let newEmployeeName = '';
 	let isHiring = false;
 	let hireError = '';
 
 	let configLoaded = false;
+	let activeRightTab: 'map' | 'levelsUpgrades' = 'map';
 
 	// Initialize stores with props data
 	onMount(async () => {
@@ -231,10 +237,6 @@
 						<div class="stat-title">Money</div>
 						<div class="stat-value text-success">{formatMoney($currentGameState?.money || 0)}</div>
 					</div>
-					<div class="stat">
-						<div class="stat-title">Route Level</div>
-						<div class="stat-value text-info">{$currentGameState?.routeLevel || 0}</div>
-					</div>
 				</div>
 			</div>
 		</div>
@@ -249,9 +251,6 @@
 				<div class="space-y-6 lg:col-span-1">
 					<!-- Selected Job Card -->
 					<JobCard />
-
-					<!-- Employee Details -->
-					<EmployeeDetails />
 
 					<!-- Employees List -->
 					<div class="space-y-3">
@@ -310,13 +309,11 @@
 							</div>
 						{:else}
 							<div class="max-h-80 space-y-2 overflow-y-auto pr-2">
-								{#each $fullEmployeeData as fed (fed.employee.id)}
+								{#each sortedEmployeeData as fed (fed.employee.id)}
 									{@const activeJob = fed.activeJob}
-									{@const activeRoute = fed.activeRoute}
 									<EmployeeCard
 										employee={fed.employee}
 										{activeJob}
-										{activeRoute}
 										gameStateId={$currentGameState?.id || ''}
 									/>
 								{/each}
@@ -325,16 +322,39 @@
 					</div>
 				</div>
 
-				<!-- Right Panel - Map -->
+				<!-- Right Panel - Map or Levels & Upgrades -->
 				<div class="lg:col-span-2">
-					<div class="card h-[700px] bg-base-100 shadow-lg">
-						<div class="card-body p-2">
-							<h3 class="card-title px-4 py-2">Route Map</h3>
-							<div class="flex-1">
-								<RouteMap />
+					<!-- Tab Navigation -->
+					<div class="tabs-boxed tabs mb-4">
+						<button
+							class="tab"
+							class:tab-active={activeRightTab === 'map'}
+							on:click={() => (activeRightTab = 'map')}
+						>
+							Map
+						</button>
+						<button
+							class="tab"
+							class:tab-active={activeRightTab === 'levelsUpgrades'}
+							on:click={() => (activeRightTab = 'levelsUpgrades')}
+						>
+							Levels & Upgrades
+						</button>
+					</div>
+
+					<!-- Tab Content -->
+					{#if activeRightTab === 'map'}
+						<div class="card h-[700px] bg-base-100 shadow-lg">
+							<div class="card-body p-2">
+								<h3 class="card-title px-4 py-2">Route Map</h3>
+								<div class="flex-1">
+									<RouteMap />
+								</div>
 							</div>
 						</div>
-					</div>
+					{:else}
+						<LevelsAndUpgradesPanel />
+					{/if}
 				</div>
 			</div>
 		</div>

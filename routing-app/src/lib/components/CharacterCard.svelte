@@ -49,11 +49,6 @@
 				<div class="stat-title">Money</div>
 				<div class="stat-value text-success">{formatMoney(character.money)}</div>
 			</div>
-
-			<div class="stat">
-				<div class="stat-title">Route Level</div>
-				<div class="stat-value text-info">{character.routeLevel}</div>
-			</div>
 		</div>
 
 		<div class="mt-2 text-sm text-base-content/70">

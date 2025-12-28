@@ -115,11 +115,14 @@ class AddressExtractor(osmium.SimpleHandler):
             
         session = create_db_session()
         try:
+            from sqlalchemy.dialects.postgresql import insert
+            
             for addr_data in self.addresses:
                 # Create PostGIS POINT geometry
                 point_wkt = f"POINT({addr_data['lon']} {addr_data['lat']})"
                 
-                address = Address(
+                # Use INSERT ... ON CONFLICT DO NOTHING to handle duplicates gracefully
+                stmt = insert(Address).values(
                     id=addr_data['id'],
                     street=addr_data['street'] if addr_data['street'] else None,
                     house_number=addr_data['house_number'] if addr_data['house_number'] else None,
@@ -129,7 +132,8 @@ class AddressExtractor(osmium.SimpleHandler):
                     lat=addr_data['lat'],
                     lon=addr_data['lon']
                 )
-                session.add(address)
+                stmt = stmt.on_conflict_do_nothing(index_elements=['id'])
+                session.execute(stmt)
             
             session.commit()
             self.addresses.clear()  # Clear batch

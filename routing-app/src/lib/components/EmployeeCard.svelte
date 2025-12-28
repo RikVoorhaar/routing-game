@@ -2,10 +2,24 @@
 	import { createEventDispatcher } from 'svelte';
 	import { onDestroy } from 'svelte';
 	import { selectedEmployee, selectEmployee } from '$lib/stores/selectedEmployee';
-	import type { Employee, ActiveJob, Address, UpgradeState } from '$lib/server/db/schema';
+	import type {
+		Employee,
+		ActiveJob,
+		Address,
+		UpgradeState,
+		GameState
+	} from '$lib/server/db/schema';
 	import { addError } from '$lib/stores/errors';
 	import { selectedRoute, clearSelection } from '$lib/stores/selectedRoute';
 	import { formatMoney, formatAddress, formatTimeFromMs } from '$lib/formatting';
+	import { currentGameState, gameDataActions, gameDataAPI } from '$lib/stores/gameData';
+	import { getLevelFromXp, getXpForLevel, getXpToNextLevel } from '$lib/xp/xpUtils';
+	import {
+		getVehicleConfig,
+		getNextVehicleLevel,
+		isVehicleLevelUnlocked,
+		getVehicleUpgradeCost
+	} from '$lib/vehicles/vehicleUtils';
 
 	export let employee: Employee;
 	export let availableRoutes: any[] = [];
@@ -25,6 +39,8 @@
 	let jobCompletionState: 'pending' | 'processing' | 'completed' | 'error' = 'pending';
 	let completionTimeout: any = null;
 	let progressUpdateInterval: NodeJS.Timeout | null = null;
+	let isPurchasingUpgrade = false;
+	let hoveredUpgradeButton = false;
 
 	// Cleanup timeout and interval on component destroy
 	onDestroy(() => {
@@ -130,10 +146,11 @@
 
 	// Tailwind class string for the card
 	$: cardClass = [
-		'card bg-base-200 shadow cursor-pointer transition-all duration-150',
-		'hover:shadow-lg hover:border-primary/60',
-		isSelected ? 'border-2 border-primary ring-1 ring-primary/30' : 'border border-transparent',
-		'w-full'
+		'bg-base-300 shadow cursor-pointer transition-all duration-150',
+		isSelected ? 'border-2 border-primary ring-1 ring-primary/30' : 'border border-base-content/30',
+		'hover:shadow-lg hover:bg-base-200',
+		isSelected ? '' : 'hover:border-primary/60',
+		'w-full rounded-lg'
 	].join(' ');
 
 	function calculateJobProgress(activeJob: ActiveJob) {
@@ -290,69 +307,245 @@
 		}
 	}
 
-	function getXPForNextLevel(level: number): number {
-		return level * 100;
+	async function handleVehicleUpgrade(e: MouseEvent) {
+		e.stopPropagation(); // Prevent card click
+		if (!nextVehicleLevel || !$currentGameState || isPurchasingUpgrade || !canAffordUpgrade) return;
+
+		// Store the vehicle we're upgrading TO before the upgrade happens
+		// (after upgrade, nextVehicle will point to the next level)
+		const vehicleBeingUpgradedTo = nextVehicle;
+
+		isPurchasingUpgrade = true;
+		try {
+			const response = await fetch('/api/employees/vehicle-upgrade', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					employeeId: employee.id,
+					gameStateId: $currentGameState.id
+				})
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.message || 'Failed to purchase vehicle upgrade');
+			}
+
+			const result = await response.json();
+			gameDataActions.setGameState(result.gameState);
+			await gameDataAPI.loadAllEmployeeData();
+
+			addError(`Vehicle upgraded to ${vehicleBeingUpgradedTo?.name || 'next level'}!`, 'info');
+		} catch (err) {
+			const errorMessage =
+				err instanceof Error ? err.message : 'Failed to purchase vehicle upgrade';
+			addError(errorMessage, 'error');
+		} finally {
+			isPurchasingUpgrade = false;
+		}
 	}
+
+	// Calculate employee level from XP
+	$: employeeLevel = typeof employee?.xp === 'number' ? getLevelFromXp(employee.xp) : 0;
+	$: xpForCurrentLevel = employeeLevel >= 0 ? getXpForLevel(employeeLevel) : 0;
+	$: xpForNextLevel =
+		employeeLevel >= 0 && employeeLevel < 120 ? getXpForLevel(employeeLevel + 1) : 0;
+	$: xpProgress =
+		typeof employee?.xp === 'number' ? Math.max(0, employee.xp - xpForCurrentLevel) : 0;
+	$: xpNeeded = xpForNextLevel > xpForCurrentLevel ? xpForNextLevel - xpForCurrentLevel : 1;
+	$: xpProgressPercent = xpNeeded > 0 ? (xpProgress / xpNeeded) * 100 : 0;
+
+	// Get current vehicle config
+	$: currentVehicle =
+		typeof employee?.vehicleLevel === 'number' ? getVehicleConfig(employee.vehicleLevel) : null;
+	$: vehicleCapacity = currentVehicle?.capacity ?? 0;
+	$: vehicleSpeed = currentVehicle?.roadSpeed ?? 0;
+	$: vehicleTier = currentVehicle?.tier ?? 0;
+	$: vehicleName = currentVehicle?.name ?? 'Unknown';
+
+	// Check upgrade availability (only when gameState is available)
+	$: gameState = $currentGameState;
+	$: nextVehicleLevel = gameState
+		? getNextVehicleLevel(employee.vehicleLevel ?? 0, gameState)
+		: null;
+	$: upgradeCost =
+		nextVehicleLevel !== null && nextVehicleLevel !== undefined
+			? getVehicleUpgradeCost(nextVehicleLevel)
+			: null;
+	$: canAffordUpgrade =
+		gameState && upgradeCost !== null && typeof gameState.money === 'number'
+			? gameState.money >= upgradeCost
+			: false;
+	$: isUpgradeUnlocked =
+		gameState && nextVehicleLevel !== null && nextVehicleLevel !== undefined
+			? isVehicleLevelUnlocked(nextVehicleLevel, gameState)
+			: false;
+	$: nextVehicleConfig =
+		nextVehicleLevel !== null && nextVehicleLevel !== undefined
+			? getVehicleConfig(nextVehicleLevel)
+			: null;
+	$: meetsLevelRequirement =
+		nextVehicleConfig !== null ? employeeLevel >= nextVehicleConfig.purchaseLevelRequirement : true;
+	$: upgradeButtonState =
+		nextVehicleLevel === null || nextVehicleLevel === undefined
+			? 'max'
+			: !isUpgradeUnlocked
+				? 'locked'
+				: !meetsLevelRequirement
+					? 'level_too_low'
+					: !canAffordUpgrade
+						? 'too_expensive'
+						: 'available';
+
+	// Get next vehicle stats for hover preview (reuse nextVehicleConfig)
+	$: nextVehicle = nextVehicleConfig;
 </script>
 
-<button
-	type="button"
+<div
 	class={cardClass}
+	class:h-24={true}
 	on:click={handleClick}
 	on:keydown={(e) => {
 		if (e.key === 'Enter' || e.key === ' ') {
 			handleClick();
 		}
 	}}
+	role="button"
+	tabindex="0"
 >
-	<div class="card-body p-3">
-		<!-- Employee Name -->
-		<h3 class="card-title mb-2 text-base font-semibold">{employee.name}</h3>
-
-		<!-- Current Job Progress -->
-		{#if activeJob && jobProgress}
-			<div class="mb-3">
-				<div class="mb-1 flex items-center justify-between">
-					<span class="text-xs text-base-content/70"> On Job </span>
-					<span class="text-xs text-base-content/70">
-						{Math.round(jobProgress.progress)}%
-					</span>
-				</div>
-
+	<div class="grid h-full grid-cols-2 gap-3 p-3">
+		<!-- Left Column: Name, Progress Bar, ETA -->
+		<div class="flex min-w-0 flex-col">
+			<h3 class="mb-1 truncate text-left text-sm font-semibold">{employee.name}</h3>
+			<div class="mb-1">
 				<progress
 					class="progress progress-primary h-2 w-full"
-					value={jobProgress.progress}
+					class:opacity-50={!activeJob || !jobProgress}
+					value={activeJob && jobProgress ? jobProgress.progress : 0}
 					max="100"
 				></progress>
-
-				{#if !jobProgress.isComplete}
-					<div class="mt-1 text-xs text-base-content/60">
-						ETA: {formatTimeFromMs(jobProgress.remainingTimeMs)}
-					</div>
+			</div>
+			<div class="text-left text-xs font-semibold text-base-content/80">
+				{#if activeJob && jobProgress && !jobProgress.isComplete}
+					ETA: {formatTimeFromMs(jobProgress.remainingTimeMs)}
+					{#if activeJob.reward && activeJob.xp}
+						<span class="ml-2 font-normal text-base-content/60">
+							• {formatMoney(activeJob.reward)} • {activeJob.xp} XP
+						</span>
+					{/if}
 				{:else}
-					<div class="mt-1 text-xs font-medium text-success">✅ Completed!</div>
+					Idle
 				{/if}
 			</div>
-		{:else}
-			<div class="mb-3">
-				<div class="text-xs italic text-base-content/60">Idle</div>
-			</div>
-		{/if}
+		</div>
 
-		<!-- Driving Level -->
-		<!-- TODO: Re-enable when Employee type is updated with new fields -->
-		<!-- 
-        <div class="space-y-1">
-            <div class="flex justify-between items-center">
-                <span class="text-xs font-medium text-base-content/80">🚗 Driving</span>
-                <span class="text-xs">Level {employee.drivingLevel.level}</span>
-            </div>
-            <progress 
-                class="progress progress-info w-full h-1.5" 
-                value={employee.drivingLevel.xp} 
-                max={getXPForNextLevel(employee.drivingLevel.level)}
-            ></progress>
-        </div>
-        -->
+		<!-- Right Column: Level, Stats, Vehicle Name, Upgrade Button -->
+		<div class="flex min-w-0 flex-col items-end justify-between gap-2">
+			<!-- Level and XP Progress -->
+			<div class="flex items-center gap-1">
+				<div class="text-xs font-semibold text-base-content/80">Lv {employeeLevel}</div>
+				<div class="flex items-center gap-1">
+					<progress class="progress progress-info h-2 w-16" value={xpProgress} max={xpNeeded}
+					></progress>
+					<span class="whitespace-nowrap text-xs text-base-content/60">
+						{Math.floor(xpProgress)}/{xpNeeded}
+					</span>
+				</div>
+			</div>
+
+			<!-- Stats (or preview stats on hover) -->
+			<div
+				class="flex items-center gap-2 text-xs {hoveredUpgradeButton && nextVehicle
+					? 'text-success'
+					: 'text-base-content/70'}"
+			>
+				{#if hoveredUpgradeButton && nextVehicle}
+					<span>C: {nextVehicle.capacity}kg</span>
+					<span
+						>t: {nextVehicle.tier === 1
+							? 'I'
+							: nextVehicle.tier === 2
+								? 'II'
+								: nextVehicle.tier === 3
+									? 'III'
+									: nextVehicle.tier === 4
+										? 'IV'
+										: nextVehicle.tier === 5
+											? 'V'
+											: nextVehicle.tier}</span
+					>
+					<span>s: {nextVehicle.roadSpeed}km/h</span>
+				{:else}
+					<span>C: {vehicleCapacity}kg</span>
+					<span
+						>t: {vehicleTier === 1
+							? 'I'
+							: vehicleTier === 2
+								? 'II'
+								: vehicleTier === 3
+									? 'III'
+									: vehicleTier === 4
+										? 'IV'
+										: vehicleTier === 5
+											? 'V'
+											: vehicleTier}</span
+					>
+					<span>s: {vehicleSpeed}km/h</span>
+				{/if}
+			</div>
+
+			<!-- Vehicle Name and Upgrade Button -->
+			<div class="flex items-center gap-2">
+				<span class="text-xs text-base-content/70">{vehicleName}</span>
+				{#if upgradeButtonState === 'max'}
+					<button
+						class="btn btn-xs cursor-not-allowed border border-base-content/20 bg-base-300 font-light !text-red-200"
+						disabled
+						on:click|stopPropagation
+					>
+						Max
+					</button>
+				{:else if upgradeButtonState === 'locked'}
+					<button
+						class="btn btn-xs cursor-not-allowed border border-base-content/20 bg-base-300 font-light !text-red-200"
+						disabled
+						on:click|stopPropagation
+					>
+						Upgrade locked
+					</button>
+				{:else if upgradeButtonState === 'level_too_low'}
+					<button
+						class="btn btn-xs cursor-not-allowed border border-base-content/20 bg-base-300 font-light !text-red-200"
+						disabled
+						on:click|stopPropagation
+						title="Requires level {nextVehicleConfig?.purchaseLevelRequirement ?? '?'}"
+					>
+						Lv {nextVehicleConfig?.purchaseLevelRequirement ?? '?'} required
+					</button>
+				{:else if upgradeButtonState === 'too_expensive'}
+					<button
+						class="btn btn-xs cursor-not-allowed border border-base-content/20 bg-base-300 font-light !text-red-200"
+						disabled={true}
+						on:click|stopPropagation
+					>
+						Upgrade {formatMoney(upgradeCost ?? 0)}
+					</button>
+				{:else if upgradeButtonState === 'available'}
+					<button
+						class="btn btn-success btn-xs"
+						disabled={isPurchasingUpgrade}
+						on:click|stopPropagation={handleVehicleUpgrade}
+						on:mouseenter={() => (hoveredUpgradeButton = true)}
+						on:mouseleave={() => (hoveredUpgradeButton = false)}
+					>
+						{#if isPurchasingUpgrade}
+							<span class="loading loading-spinner loading-xs"></span>
+						{:else}
+							Upgrade {formatMoney(upgradeCost ?? 0)}
+						{/if}
+					</button>
+				{/if}
+			</div>
+		</div>
 	</div>
-</button>
+</div>

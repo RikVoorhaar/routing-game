@@ -8,6 +8,7 @@ import type { Employee, Job, GameState, RoutingResult } from '$lib/server/db/sch
 import { getEmployeeMaxSpeed } from '$lib/employeeUtils';
 import { concatenateRoutes, applyMaxSpeed } from '$lib/routes/route-utils';
 import { config } from '$lib/server/config';
+import { computeJobXp } from '$lib/jobs/jobUtils';
 
 type ActiveJobInsert = InferInsertModel<typeof activeJobs>;
 type ActiveRouteInsert = InferInsertModel<typeof activeRoutes>;
@@ -66,11 +67,8 @@ function modifyRoute(
 ): RoutingResult {
 	const concatRoute = concatenateRoutes(routeToJob, jobRoute);
 
-	// Get employee's max speed including upgrades (using config values server-side)
-	const maxSpeedKmh = getEmployeeMaxSpeed(
-		employee,
-		config.upgrades.effects.FRAGILE_GOODS.maxSpeedPerLevel
-	);
+	// Get employee's max speed including upgrades
+	const maxSpeedKmh = getEmployeeMaxSpeed(employee);
 
 	const multiplier = getMultiplier(employee, gameState, job);
 
@@ -80,16 +78,6 @@ function modifyRoute(
 	const modifiedRoute = applyMaxSpeed(concatRoute, maxSpeedKmh, speedMultiplier);
 
 	return modifiedRoute;
-}
-
-function computeDrivingXp(job: Job, _employee: Employee, _gameState: GameState): number {
-	const baseXp = job.approximateTimeSeconds * config.xp.driving.perSecond;
-	return Math.floor(baseXp * config.dev.xpMultiplier);
-}
-
-function computeCategoryXp(job: Job, _employee: Employee, _gameState: GameState): number {
-	const baseXp = job.approximateValue * config.xp.category.perEuro;
-	return Math.floor(baseXp * config.dev.xpMultiplier);
 }
 
 /**
@@ -127,8 +115,7 @@ export async function computeActiveJob(
 	// Compute payout
 	const computedPayout = computeJobValue(job, employee, gameState);
 
-	const drivingXp = computeDrivingXp(job, employee, gameState);
-	const categoryXp = computeCategoryXp(job, employee, gameState);
+	const xp = computeJobXp(job, config, gameState);
 
 	// Create the active job data structure
 	const activeJob = {
@@ -139,9 +126,8 @@ export async function computeActiveJob(
 		activeJobRouteId: activeRouteId,
 		durationSeconds: modifiedRoute.travelTimeSeconds,
 		reward: computedPayout,
-		drivingXp: drivingXp,
+		xp,
 		jobCategory: job.jobCategory,
-		categoryXp: categoryXp,
 		employeeStartAddressId: employee.location.id,
 		jobAddressId: job.startAddressId,
 		employeeEndAddressId: job.endAddressId

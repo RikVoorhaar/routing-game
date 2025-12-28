@@ -68,12 +68,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			gameId: gameStateId,
 			name: employeeName.trim(),
 			vehicleLevel: employeeData.vehicleLevel,
-			licenseLevel: employeeData.licenseLevel,
-			categoryLevel: JSON.stringify(employeeData.categoryLevel),
-			drivingLevel: JSON.stringify(employeeData.drivingLevel),
-			upgradeState: JSON.stringify(employeeData.upgradeState),
-			location: JSON.stringify(DEFAULT_EMPLOYEE_LOCATION),
-			activeJobId: null
+			xp: employeeData.xp,
+			location: DEFAULT_EMPLOYEE_LOCATION as any, // JSONB field accepts Address object directly
+			order: employeeCount // Set order to current count (0-indexed: first employee = 0, second = 1, etc.)
 		};
 
 		// Use a transaction to ensure consistency

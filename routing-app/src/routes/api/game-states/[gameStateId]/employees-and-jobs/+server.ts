@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { employees, activeJobs, addresses, activeRoutes } from '$lib/server/db/schema';
 import type { FullEmployeeData } from '$lib/server/db/schema';
-import { eq, and, isNotNull, inArray } from 'drizzle-orm';
+import { eq, and, isNotNull, inArray, asc } from 'drizzle-orm';
 import { processCompletedJobs } from '$lib/jobs/jobCompletion';
 import { log } from '$lib/logger';
 import type { RequestHandler } from './$types';
@@ -20,8 +20,12 @@ export const GET: RequestHandler = async ({ params }) => {
 			log.debug('[EmployeesAndJobs] Processed', completionResult.processedJobs, 'completed jobs');
 		}
 
-		// Get all employees for this game state
-		const allEmployees = await db.select().from(employees).where(eq(employees.gameId, gameStateId));
+		// Get all employees for this game state, ordered by hire order
+		const allEmployees = await db
+			.select()
+			.from(employees)
+			.where(eq(employees.gameId, gameStateId))
+			.orderBy(asc(employees.order));
 
 		// Get all active jobs for this game state
 		const activeJobsData = await db

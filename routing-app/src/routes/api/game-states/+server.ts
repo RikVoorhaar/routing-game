@@ -65,7 +65,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			userId: session.user.id,
 			createdAt: new Date(Date.now()),
 			money: config.game.startingMoney.toString(),
-			routeLevel: 3
+			upgradeEffects: { vehicleLevelMax: 0 } // Bike (level 0) is pre-unlocked
 		};
 
 		const [created] = await db.insert(gameStates).values(newGameState).returning();

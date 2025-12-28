@@ -152,7 +152,7 @@ export const gameDataActions = {
 		}
 
 		if (data.fullEmployeeData) {
-			fullEmployeeData.set(data.fullEmployeeData);
+			gameDataActions.setFullEmployeeData(data.fullEmployeeData);
 		} else if (data.employees) {
 			// Backward compatibility: convert employees to FullEmployeeData format
 			const fedData: FullEmployeeData[] = data.employees.map((employee) => ({
@@ -163,7 +163,7 @@ export const gameDataActions = {
 				employeeEndAddress: null,
 				activeRoute: null
 			}));
-			fullEmployeeData.set(fedData);
+			gameDataActions.setFullEmployeeData(fedData);
 		}
 	},
 
@@ -215,7 +215,11 @@ export const gameDataActions = {
 
 	// Update full employee data
 	setFullEmployeeData(newFullEmployeeData: FullEmployeeData[]) {
-		fullEmployeeData.set(newFullEmployeeData);
+		// Sort by employee order to ensure consistent display ordering
+		const sorted = [...newFullEmployeeData].sort(
+			(a, b) => (a.employee.order ?? 0) - (b.employee.order ?? 0)
+		);
+		fullEmployeeData.set(sorted);
 		// Clear any existing timers
 		jobCompletionTimers.forEach((timer) => clearTimeout(timer));
 		jobCompletionTimers.clear();

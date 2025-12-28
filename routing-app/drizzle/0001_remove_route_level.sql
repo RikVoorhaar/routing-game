@@ -1,0 +1,1 @@
+ALTER TABLE "game_state" DROP COLUMN "route_level";

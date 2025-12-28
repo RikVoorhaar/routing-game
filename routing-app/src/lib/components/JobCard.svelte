@@ -15,11 +15,13 @@
 	} from '$lib/stores/gameData';
 	import { get } from 'svelte/store';
 	import { getCategoryName, getTierColor } from '$lib/jobs/jobCategories';
-	import { formatCurrency, formatDistance, formatTime } from '$lib/formatting';
+	import { formatCurrency, formatDistance, formatDuration } from '$lib/formatting';
 	import { employeeCanPerformJob, sortEmployeesByDistanceFromJob } from '$lib/jobs/jobAssignment';
 	import { addError } from '$lib/stores/errors';
-	import type { Employee } from '$lib/server/db/schema';
+	import type { Employee, Job } from '$lib/server/db/schema';
 	import { writable, derived } from 'svelte/store';
+	import { computeJobXp } from '$lib/jobs/jobUtils';
+	import { config } from '$lib/stores/config';
 
 	let selectedEmployeeId: string | null = null;
 	let isLoadingActiveJobs = false;
@@ -369,6 +371,12 @@
 			handleEmployeeSelection();
 		}
 	}
+
+	// Compute XP for the selected job
+	$: jobXp =
+		$config && $selectedJob && $currentGameState
+			? computeJobXp($selectedJob, $config, $currentGameState)
+			: 0;
 </script>
 
 {#if $selectedJob}
@@ -414,15 +422,19 @@
 
 				<div class="text-center">
 					<div class="text-xs font-medium text-base-content/60">Duration</div>
-					<div class="text-lg font-bold text-warning">
-						{formatTime($selectedJob.approximateTimeSeconds)}
-					</div>
+					{#if $selectedEmployeeActiveJobData?.activeJob?.durationSeconds !== undefined && $selectedEmployeeActiveJobData.activeJob.durationSeconds !== null}
+						<div class="font-mono text-lg font-bold text-warning">
+							{formatDuration($selectedEmployeeActiveJobData.activeJob.durationSeconds)}
+						</div>
+					{:else}
+						<div class="text-lg font-bold text-warning opacity-50">Computing...</div>
+					{/if}
 				</div>
 
 				<div class="text-center">
-					<div class="text-xs font-medium text-base-content/60">Job ID</div>
-					<div class="text-base font-bold text-base-content">
-						#{$selectedJob.id}
+					<div class="text-xs font-medium text-base-content/60">XP</div>
+					<div class="text-lg font-bold text-primary">
+						{$config ? jobXp.toLocaleString() : '...'}
 					</div>
 				</div>
 			</div>

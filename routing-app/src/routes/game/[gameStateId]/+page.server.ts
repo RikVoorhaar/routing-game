@@ -2,7 +2,7 @@ import { redirect, error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db';
 import { gameStates, employees, users } from '$lib/server/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, asc } from 'drizzle-orm';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const session = await locals.auth();
@@ -25,11 +25,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			throw error(404, 'Game state not found or access denied');
 		}
 
-		// Get all employees for this game state
+		// Get all employees for this game state, ordered by hire order
 		const gameEmployees = await db
 			.select()
 			.from(employees)
-			.where(eq(employees.gameId, gameStateId));
+			.where(eq(employees.gameId, gameStateId))
+			.orderBy(asc(employees.order));
 
 		// Get user's cheat status
 		const [user] = await db

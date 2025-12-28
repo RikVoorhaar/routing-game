@@ -16,11 +16,18 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { JobCategory } from '../../jobs/jobCategories';
 
 // JSONB Type Interfaces
+
+/**
+ * @deprecated This interface is being replaced by CategoryXp in the new upgrade system
+ */
 export interface LevelXP {
 	level: number;
 	xp: number;
 }
 
+/**
+ * @deprecated This interface is being replaced by CategoryXp in the new upgrade system
+ */
 export interface CategoryLevels {
 	[JobCategory.GROCERIES]: LevelXP;
 	[JobCategory.PACKAGES]: LevelXP;
@@ -33,6 +40,9 @@ export interface CategoryLevels {
 	[JobCategory.TOXIC_GOODS]: LevelXP;
 }
 
+/**
+ * @deprecated This interface is being replaced by UpgradeEffects in the new upgrade system
+ */
 export interface UpgradeState {
 	[JobCategory.GROCERIES]: number;
 	[JobCategory.PACKAGES]: number;
@@ -43,6 +53,31 @@ export interface UpgradeState {
 	[JobCategory.CONSTRUCTION]: number;
 	[JobCategory.LIQUIDS]: number;
 	[JobCategory.TOXIC_GOODS]: number;
+}
+
+/**
+ * Category XP structure - maps each job category to its XP value
+ * Used in gameState.xp JSONB field
+ */
+export type CategoryXp = Record<JobCategory, number>;
+
+/**
+ * Upgrade effects structure - maps effect names to their current values
+ * Used in gameState.upgradeEffects JSONB field
+ */
+export interface UpgradeEffects {
+	speed?: number;
+	vehicleLevelMax?: number;
+	vehicleLevelMin?: number;
+	employeeLevelStart?: number;
+	xpMultiplier?: number;
+	moneyTimeFactor?: number;
+	moneyDistanceFactor?: number;
+	capacity?: number;
+	upgradeDiscount?: number;
+	jobsPerTier?: number; // Increases number of jobs per tier (deferred; needs job system revamp)
+	freeTravel?: number; // Reduces non-job travel time (deferred; needs travel model)
+	roadSpeedMin?: number; // Overrides minimum road speed cap (deferred; needs speed-limit model decision)
 }
 
 // Users table - core user data
@@ -95,7 +130,18 @@ export const gameStates = pgTable(
 			.notNull()
 			.default(sql`CURRENT_TIMESTAMP`),
 		money: doublePrecision('money').notNull().default(0),
-		routeLevel: integer('route_level').notNull().default(3)
+		xp: jsonb('xp')
+			.$type<CategoryXp>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
+		upgradesPurchased: text('upgrades_purchased')
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
+		upgradeEffects: jsonb('upgrade_effects')
+			.$type<UpgradeEffects>()
+			.notNull()
+			.default(sql`'{}'::jsonb`)
 	},
 	(table) => [index('game_states_user_id_idx').on(table.userId)]
 );
@@ -140,9 +186,9 @@ export const activeJobs = pgTable(
 		),
 		durationSeconds: doublePrecision('duration_seconds').notNull(),
 		reward: doublePrecision('reward').notNull(),
-		drivingXp: integer('driving_xp').notNull(),
+		// Single XP value for the job (awarded to both employee XP and global category XP)
+		xp: integer('xp').notNull(),
 		jobCategory: integer('job_category').notNull(),
-		categoryXp: integer('category_xp').notNull(),
 		employeeStartAddressId: varchar('employee_start_address_id')
 			.notNull()
 			.references(() => addresses.id, { onDelete: 'cascade' }),
@@ -185,13 +231,14 @@ export const employees = pgTable(
 			.references(() => gameStates.id, { onDelete: 'cascade' }),
 		name: text('name').notNull(),
 		vehicleLevel: integer('vehicle_level').notNull().default(0), // VehicleType enum
-		licenseLevel: integer('license_level').notNull().default(0), // LicenseType enum
-		categoryLevel: jsonb('category_level').$type<CategoryLevels>().notNull(), // JSONB: Record<JobCategory, { level: number, xp: number }>
-		drivingLevel: jsonb('driving_level').$type<LevelXP>().notNull(), // JSONB: { level: number, xp: number }
-		upgradeState: jsonb('upgrade_state').$type<UpgradeState>().notNull(), // JSONB: Record<JobCategory, number> (upgrade levels)
-		location: jsonb('location').$type<Address>().notNull() // JSONB: Address
+		xp: integer('xp').notNull().default(0), // Single XP value for employee
+		location: jsonb('location').$type<Address>().notNull(), // JSONB: Address
+		order: integer('order').notNull().default(0) // Order in which employee was hired (for consistent display ordering)
 	},
-	(table) => [index('employees_game_id_idx').on(table.gameId)]
+	(table) => [
+		index('employees_game_id_idx').on(table.gameId),
+		index('employees_game_id_order_idx').on(table.gameId, table.order)
+	]
 );
 
 // Jobs table - generated jobs for the job market with spatial indexing

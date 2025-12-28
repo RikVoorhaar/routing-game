@@ -62,6 +62,29 @@ export function formatTime(timeSeconds: string | number | null | undefined): str
 }
 
 /**
+ * Formats time duration in seconds as hh:mm:ss or mm:ss (e.g., "1:23:45", "5:30")
+ * @param timeSeconds Duration in seconds (can be number or string)
+ * @returns Formatted time string in hh:mm:ss or mm:ss format (no leading zeros, hours only if > 0)
+ */
+export function formatDuration(timeSeconds: string | number | null | undefined): string {
+	if (timeSeconds == null) return '0:00';
+	const numValue = typeof timeSeconds === 'string' ? parseFloat(timeSeconds) : timeSeconds;
+	if (isNaN(numValue)) return '0:00';
+
+	const totalSeconds = Math.floor(numValue);
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	const seconds = totalSeconds % 60;
+
+	// Format without leading zeros: show hours only if > 0
+	if (hours > 0) {
+		return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+	} else {
+		return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+	}
+}
+
+/**
  * Formats an address object into a readable string
  * @param address The address object to format
  * @returns Formatted address string

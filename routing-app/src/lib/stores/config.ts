@@ -4,7 +4,10 @@ import type { GameConfig } from '$lib/config/types';
 /**
  * Client-side config store
  * Loads the config from the server on initialization
+ * Note: Vehicle and upgrade definitions are imported directly from TypeScript code,
+ * not loaded from the config store
  */
+
 const configStore = writable<GameConfig | null>(null);
 let isLoading = false;
 let loadPromise: Promise<void> | null = null;
@@ -67,7 +70,21 @@ export const config = {
 	}
 };
 
-// Auto-load config when module is imported (in browser only)
-if (typeof window !== 'undefined') {
+// Auto-load config when module is imported
+// On server, populate with server config immediately
+// On client, load from API
+if (typeof window === 'undefined') {
+	// Server-side: use server config directly
+	// Use dynamic import for ES module compatibility
+	(async () => {
+		try {
+			const serverConfig = await import('$lib/server/config');
+			configStore.set(serverConfig.config);
+		} catch (error) {
+			console.error('Failed to load server config:', error);
+		}
+	})();
+} else {
+	// Client-side: load from API
 	loadConfig();
 }

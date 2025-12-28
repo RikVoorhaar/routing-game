@@ -49,7 +49,7 @@ export const CATEGORY_NAMES: Record<JobCategory, string> = {
 export const CATEGORY_ICONS: Record<JobCategory, string> = {
 	[JobCategory.GROCERIES]: '🛒',
 	[JobCategory.PACKAGES]: '📦',
-	[JobCategory.FOOD]: '🍕',
+	[JobCategory.FOOD]: '🍽️',
 	[JobCategory.FURNITURE]: '🪑',
 	[JobCategory.PEOPLE]: '👥',
 	[JobCategory.FRAGILE_GOODS]: '⚠️',

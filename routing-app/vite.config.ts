@@ -6,8 +6,8 @@ export default defineConfig({
 	plugins: [sveltekit()],
 	server: {
 		watch: {
-			// Watch the config file for changes
-			ignored: ['!**/game-config.yaml']
+			// Watch the config folder for changes
+			ignored: ['!**/config/**/*.yaml']
 		}
 	},
 	test: {

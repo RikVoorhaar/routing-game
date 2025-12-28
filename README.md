@@ -19,7 +19,7 @@ mv your-region-latest.osm.pbf osm_files/
 Use the OSM utilities to extract the largest connected component:
 ```bash
 cd osm_utils
-uv run scripts/trim_to_largest_component.py ../osm_files/your-region-latest.osm.pbf ../osm_files/trimmed-region.osm.pbf
+uv run scripts/trim_to_largest_component.py ../osm_files/your-region-latest.osm.pbf -o ../osm_files/trimmed-region.osm.pbf
 ```
 
 ### 3. Start Routing Server and Database
@@ -49,8 +49,11 @@ This will:
 Extract addresses from the OSM file and populate the database:
 ```bash
 cd osm_utils
-uv run scripts/extract_addresses.py ../osm_files/trimmed-region.osm.pbf
+uv run scripts/extract_addresses.py ../osm_files/region.osm.pbf
 ```
+(Adjust the path to the OSM file as needed, for dev we use `utrecht-latest.osm.pbf`)
+
+> **Note:** This will take a while to complete, depending on the size of the OSM file. In addition, _do not use the trimmed version of the OSM file_, since the trimming gets rid of most of the address nodes.
 
 ### 6. Generate Jobs
 Populate the database with delivery jobs:
