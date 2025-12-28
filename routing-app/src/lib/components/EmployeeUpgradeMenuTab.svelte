@@ -12,7 +12,6 @@
 	import { computeUpgradeCost, getUpgradeInfo } from '$lib/upgrades/upgrades';
 	import { JobCategory, CATEGORY_NAMES, CATEGORY_ICONS } from '$lib/jobs/jobCategories';
 	import type { Employee } from '$lib/server/db/schema';
-	import { config } from '$lib/stores/config';
 
 	export let employee: Employee | null = null;
 
@@ -28,10 +27,8 @@
 		// TODO: Implement upgrade purchase
 	}
 
-	// Get employee capacity using config values if available
-	$: employeeCapacity = employee
-		? getEmployeeCapacity(employee, $config?.upgrades.effects.FURNITURE.capacityPerLevel ?? 0.05)
-		: 0;
+	// Get employee capacity (using default value - legacy code)
+	$: employeeCapacity = employee ? getEmployeeCapacity(employee, 0.05) : 0;
 </script>
 
 {#if employee}
@@ -103,8 +100,8 @@
 				{@const upgradeCost = computeUpgradeCost(
 					category,
 					currentLevel + 1,
-					$config?.upgrades.baseCost ?? 50,
-					$config?.upgrades.costExponent ?? 2
+					50, // baseCost (legacy - not used in new upgrade system)
+					2 // costExponent (legacy - not used in new upgrade system)
 				)}
 				{@const canUpgrade = categoryLevel.level > currentLevel}
 				{@const categoryName = CATEGORY_NAMES[category]}

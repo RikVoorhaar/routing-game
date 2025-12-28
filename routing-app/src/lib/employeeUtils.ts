@@ -5,6 +5,12 @@
 import { JobCategory } from './jobs/jobCategories';
 import type { Employee } from '$lib/server/db/schema';
 import { VehicleType, VehicleClass, LicenseType, getVehicleConfig } from './upgrades/vehicles';
+import { VEHICLE_DEFINITIONS } from './vehicles/vehicleDefinitions';
+import {
+	getVehicleConfigByLevel,
+	getVehicleCapacityByLevel,
+	getVehicleRoadSpeedByLevel
+} from './vehicleUtils';
 
 export interface NewEmployeeData {
 	gameId: string;
@@ -29,65 +35,26 @@ export function createDefaultEmployee(
 
 /**
  * Get employee's current vehicle configuration
- * Uses vehicle definitions on server-side, falls back to old VehicleType enum on client-side
+ * Uses vehicle definitions directly (available on both client and server)
  */
 export function getEmployeeVehicleConfig(employee: Employee) {
-	// Try to use server-side vehicle definitions if available
-	if (typeof window === 'undefined') {
-		// Server-side: use vehicle definitions via direct import
-		// Use a function that can be called synchronously
-		try {
-			// eslint-disable-next-line @typescript-eslint/no-var-requires
-			const vehicleUtils = require('$lib/server/vehicleUtils');
-			const config = vehicleUtils.getVehicleConfigByLevel(employee.vehicleLevel);
-			if (config) {
-				// Convert new VehicleConfig format to old format for compatibility
-				return {
-					name: config.name,
-					capacity: config.capacity,
-					maxSpeed: config.roadSpeed,
-					baseCost: 0, // Not in new config, use 0
-					minLicenseLevel: LicenseType.UNLICENSED, // Not in new config, use default
-					vehicleClass: VehicleClass.BIKE // Not in new config, default to BIKE
-				};
-			}
-		} catch {
-			// Fall through to fallback
-		}
+	const config = getVehicleConfigByLevel(employee.vehicleLevel, VEHICLE_DEFINITIONS);
+	if (config) {
+		// Convert new VehicleConfig format to old format for compatibility
+		return {
+			name: config.name,
+			capacity: config.capacity,
+			maxSpeed: config.roadSpeed,
+			baseCost: config.cost,
+			minLicenseLevel: LicenseType.UNLICENSED, // Not in new config, use default
+			vehicleClass: VehicleClass.BIKE // Not in new config, default to BIKE
+		};
 	}
 
 	// Fallback: Cast vehicle level to VehicleType enum for compatibility
 	// This works because VehicleType enum values match vehicle levels (0=BIKE, 1=BACKPACK, etc.)
 	const vehicleType = employee.vehicleLevel as VehicleType;
 	return getVehicleConfig(vehicleType);
-}
-
-/**
- * Get employee's current vehicle class
- * Uses vehicle definitions on server-side, falls back to old VehicleType enum on client-side
- */
-export function getEmployeeVehicleClass(employee: Employee): VehicleClass {
-	// Try to use server-side vehicle definitions if available
-	if (typeof window === 'undefined') {
-		try {
-			// eslint-disable-next-line @typescript-eslint/no-var-requires
-			const vehicleUtils = require('$lib/server/vehicleUtils');
-			const config = vehicleUtils.getVehicleConfigByLevel(employee.vehicleLevel);
-			if (config) {
-				// Map tier to vehicle class (simplified mapping)
-				// Tier 1-2 = BIKE, Tier 3 = SCOOTER, Tier 4+ = CAR/VAN/TRUCK
-				if (config.tier <= 2) return VehicleClass.BIKE;
-				if (config.tier === 3) return VehicleClass.SCOOTER;
-				return VehicleClass.CAR; // Default for higher tiers
-			}
-		} catch {
-			// Fall through to fallback
-		}
-	}
-
-	// Fallback: Cast vehicle level to VehicleType enum
-	const vehicleType = employee.vehicleLevel as VehicleType;
-	return getVehicleConfig(vehicleType).vehicleClass;
 }
 
 /**
@@ -107,46 +74,20 @@ export function canEmployeeDoJobCategory(_employee: Employee, _jobCategory: JobC
  * Get employee's capacity including upgrades
  * Note: In the new upgrade system, upgrades are global (in gameState.upgradeEffects)
  * For now, this returns base capacity without upgrades
- * Uses vehicle definitions on server-side
+ * Uses vehicle definitions directly (available on both client and server)
  */
 export function getEmployeeCapacity(employee: Employee, _capacityPerLevel: number = 0.05): number {
-	// Try to use server-side vehicle definitions if available
-	if (typeof window === 'undefined') {
-		try {
-			// eslint-disable-next-line @typescript-eslint/no-var-requires
-			const vehicleUtils = require('$lib/server/vehicleUtils');
-			return vehicleUtils.getVehicleCapacityByLevel(employee.vehicleLevel);
-		} catch {
-			// Fall through to fallback
-		}
-	}
-
-	// Fallback: Cast vehicle level to VehicleType enum
-	const vehicleType = employee.vehicleLevel as VehicleType;
-	return getVehicleConfig(vehicleType).capacity;
+	return getVehicleCapacityByLevel(employee.vehicleLevel, VEHICLE_DEFINITIONS);
 }
 
 /**
  * Get employee's effective max speed including upgrades
  * Note: In the new upgrade system, upgrades are global (in gameState.upgradeEffects)
  * For now, this returns base max speed without upgrades
- * Uses vehicle definitions on server-side
+ * Uses vehicle definitions directly (available on both client and server)
  */
-export function getEmployeeMaxSpeed(employee: Employee, _maxSpeedPerLevel: number = 5): number {
-	// Try to use server-side vehicle definitions if available
-	if (typeof window === 'undefined') {
-		try {
-			// eslint-disable-next-line @typescript-eslint/no-var-requires
-			const vehicleUtils = require('$lib/server/vehicleUtils');
-			return vehicleUtils.getVehicleRoadSpeedByLevel(employee.vehicleLevel);
-		} catch {
-			// Fall through to fallback
-		}
-	}
-
-	// Fallback: Cast vehicle level to VehicleType enum
-	const vehicleType = employee.vehicleLevel as VehicleType;
-	return getVehicleConfig(vehicleType).maxSpeed;
+export function getEmployeeMaxSpeed(employee: Employee): number {
+	return getVehicleRoadSpeedByLevel(employee.vehicleLevel, VEHICLE_DEFINITIONS);
 }
 
 /**

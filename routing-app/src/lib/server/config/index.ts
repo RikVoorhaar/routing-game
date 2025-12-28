@@ -148,27 +148,8 @@ function validateConfig(config: GameConfig): void {
 		}
 	}
 
-	// Validate upgrades section
-	if (!config.upgrades) {
-		errors.push('upgrades section is required');
-	} else {
-		if (typeof config.upgrades.baseCost !== 'number' || config.upgrades.baseCost < 0) {
-			errors.push('upgrades.baseCost must be a non-negative number');
-		}
-		if (typeof config.upgrades.costExponent !== 'number' || config.upgrades.costExponent <= 0) {
-			errors.push('upgrades.costExponent must be a positive number');
-		}
-		if (!config.upgrades.effects) {
-			errors.push('upgrades.effects section is required');
-		}
-	}
-
-	// Note: vehicles section validation removed - vehicles are now defined in TypeScript code
-
-	// Validate licenses section
-	if (!config.licenses || Object.keys(config.licenses).length === 0) {
-		errors.push('licenses section is required and must not be empty');
-	}
+	// Note: vehicles, licenses, and upgrades sections removed - these are now defined in TypeScript code
+	// Licenses are also defined in TypeScript code (src/lib/upgrades/vehicles.ts)
 
 	// Validate dev section
 	if (!config.dev) {

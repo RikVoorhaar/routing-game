@@ -67,11 +67,8 @@ function modifyRoute(
 ): RoutingResult {
 	const concatRoute = concatenateRoutes(routeToJob, jobRoute);
 
-	// Get employee's max speed including upgrades (using config values server-side)
-	const maxSpeedKmh = getEmployeeMaxSpeed(
-		employee,
-		config.upgrades.effects.FRAGILE_GOODS.maxSpeedPerLevel
-	);
+	// Get employee's max speed including upgrades
+	const maxSpeedKmh = getEmployeeMaxSpeed(employee);
 
 	const multiplier = getMultiplier(employee, gameState, job);
 
