@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { distance, randomCoordinateInAnnulus } from './geo';
-import type { Coordinate } from './types';
+import type { Coordinate } from '$lib/server/db/schema';
 
 describe('geospatial utilities', () => {
 	describe('distance', () => {

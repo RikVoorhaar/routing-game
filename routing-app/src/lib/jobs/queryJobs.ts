@@ -1,6 +1,6 @@
 import { type InferSelectModel } from 'drizzle-orm';
 import { jobs } from '$lib/server/db/schema';
-import { db, client } from '$lib/server/db/standalone';
+import { db } from '$lib/server/db/standalone';
 import { sql, desc } from 'drizzle-orm';
 import { getTileBounds } from '$lib/geo';
 
@@ -31,6 +31,3 @@ export async function getJobsInTile(
 
 	return result;
 }
-
-// Export client for connection management
-export { client };

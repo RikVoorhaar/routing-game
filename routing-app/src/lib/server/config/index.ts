@@ -360,6 +360,4 @@ try {
  * Note: Vehicle and upgrade definitions are imported directly from TypeScript code,
  * not loaded from YAML files
  */
-export { config, UPGRADE_DEFINITIONS, VEHICLE_DEFINITIONS };
-// Re-export types from shared location
-export type { GameConfig } from '$lib/config/types';
+export { config };

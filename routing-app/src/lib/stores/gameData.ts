@@ -106,24 +106,10 @@ function scheduleJobCompletion(employeeId: string, activeJob: ActiveJob) {
 	}
 }
 
-// Derived store for all active jobs (flattened)
-export const allActiveJobs = derived(activeJobsByEmployee, ($activeJobsByEmployee) => {
-	const activeJobs: ActiveJob[] = [];
-	Object.values($activeJobsByEmployee).forEach((activeJob) => {
-		if (activeJob) {
-			activeJobs.push(activeJob);
-		}
-	});
-	return activeJobs;
-});
-
 // Derived store to check if cheats are enabled
 export const cheatsEnabled = derived(currentUser, ($currentUser) => {
 	return $currentUser?.cheatsEnabled || false;
 });
-
-// Current map jobs store
-export const currentMapJobs = writable<Job[]>([]);
 
 // Store actions for updating data
 export const gameDataActions = {
@@ -652,25 +638,3 @@ export const gameDataAPI = {
 		}
 	}
 };
-
-// Helper to get current employee active job
-export function getEmployeeActiveJob(employeeId: string) {
-	return derived(activeJobsByEmployee, ($activeJobsByEmployee) => {
-		return $activeJobsByEmployee[employeeId] || null;
-	});
-}
-
-// Helper to get full employee data for a specific employee
-export function getFullEmployeeData(employeeId: string) {
-	return derived(fullEmployeeData, ($fullEmployeeData) => {
-		return $fullEmployeeData.find((fed) => fed.employee.id === employeeId) || null;
-	});
-}
-
-// Helper to get active route for a specific employee
-export function getEmployeeActiveRoute(employeeId: string) {
-	return derived(fullEmployeeData, ($fullEmployeeData) => {
-		const employeeData = $fullEmployeeData.find((fed) => fed.employee.id === employeeId);
-		return employeeData?.activeRoute || null;
-	});
-}

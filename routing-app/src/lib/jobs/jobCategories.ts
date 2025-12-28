@@ -16,7 +16,7 @@ export enum JobCategory {
 /**
  * Tier colors for consistent job tier styling
  */
-export const TIER_COLORS = [
+const TIER_COLORS = [
 	'#6b7280', // tier 0 (shouldn't exist)
 	'#10b981', // tier 1 - green
 	'#3b82f6', // tier 2 - blue

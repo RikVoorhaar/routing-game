@@ -5,6 +5,8 @@ import { gameStates, users } from '$lib/server/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { config } from '$lib/server/config';
+import { log } from '$lib/logger';
+import { updateRequestContext } from '$lib/server/logging/requestContext';
 
 // GET /api/game-states - Get all game states for the current user
 export const GET: RequestHandler = async ({ locals }) => {
@@ -20,9 +22,32 @@ export const GET: RequestHandler = async ({ locals }) => {
 			.from(gameStates)
 			.where(eq(gameStates.userId, session.user.id));
 
+		log.api.debug(
+			{
+				event: 'game_state.list',
+				user_id: session.user.id,
+				count: userGameStates.length
+			},
+			`Fetched ${userGameStates.length} game states`
+		);
+
 		return json(userGameStates);
 	} catch (err) {
-		console.error('Error fetching game states:', err);
+		log.api.error(
+			{
+				event: 'game_state.list.error',
+				user_id: session.user.id,
+				err:
+					err instanceof Error
+						? {
+								name: err.name,
+								message: err.message,
+								stack: err.stack
+							}
+						: err
+			},
+			'Error fetching game states'
+		);
 		return error(500, 'Failed to fetch game states');
 	}
 };
@@ -42,9 +67,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return error(400, 'Character name is required');
 		}
 
-		// Debug: Check if user exists in database
-		console.log('Session user ID:', session.user.id);
-
 		// Verify the user exists in the users table
 		const existingUser = await db
 			.select()
@@ -53,26 +75,58 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			.limit(1);
 
 		if (existingUser.length === 0) {
-			console.error('User not found in database:', session.user.id);
+			log.api.error(
+				{
+					event: 'game_state.create.error',
+					reason: 'user_not_found',
+					user_id: session.user.id
+				},
+				'User not found in database'
+			);
 			return error(400, 'User not found. Please log out and log back in.');
 		}
 
-		console.log('User found:', existingUser[0]);
+		const gameStateId = nanoid();
+		updateRequestContext({ gameStateId });
 
 		const newGameState = {
-			id: nanoid(),
+			id: gameStateId,
 			name: name.trim(),
 			userId: session.user.id,
 			createdAt: new Date(Date.now()),
-			money: config.game.startingMoney.toString(),
+			money: parseFloat(config.game.startingMoney.toString()),
 			upgradeEffects: { vehicleLevelMax: 0 } // Bike (level 0) is pre-unlocked
 		};
 
 		const [created] = await db.insert(gameStates).values(newGameState).returning();
 
+		log.api.info(
+			{
+				event: 'game_state.created',
+				game_state_id: gameStateId,
+				user_id: session.user.id,
+				name: name.trim()
+			},
+			'Game state created'
+		);
+
 		return json(created, { status: 201 });
 	} catch (err) {
-		console.error('Error creating game state:', err);
+		log.api.error(
+			{
+				event: 'game_state.create.error',
+				user_id: session.user.id,
+				err:
+					err instanceof Error
+						? {
+								name: err.name,
+								message: err.message,
+								stack: err.stack
+							}
+						: err
+			},
+			'Error creating game state'
+		);
 		return error(500, 'Failed to create game state');
 	}
 };
@@ -85,8 +139,10 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 		return error(401, 'Unauthorized');
 	}
 
+	let gameStateId: string | undefined;
 	try {
-		const { gameStateId } = await request.json();
+		const body = await request.json();
+		gameStateId = body.gameStateId;
 
 		if (!gameStateId || typeof gameStateId !== 'string') {
 			return error(400, 'Game state ID is required');
@@ -105,9 +161,33 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 
 		await db.delete(gameStates).where(eq(gameStates.id, gameStateId));
 
+		log.api.info(
+			{
+				event: 'game_state.deleted',
+				game_state_id: gameStateId,
+				user_id: session.user.id
+			},
+			'Game state deleted'
+		);
+
 		return json({ success: true });
 	} catch (err) {
-		console.error('Error deleting game state:', err);
+		log.api.error(
+			{
+				event: 'game_state.delete.error',
+				game_state_id: gameStateId,
+				user_id: session.user.id,
+				err:
+					err instanceof Error
+						? {
+								name: err.name,
+								message: err.message,
+								stack: err.stack
+							}
+						: err
+			},
+			'Error deleting game state'
+		);
 		return error(500, 'Failed to delete game state');
 	}
 };

@@ -122,7 +122,7 @@
 							iconAnchor: [70, 40]
 						});
 						marker.setIcon(markerIcon);
-						marker.setTitle(`${employee.name} (${Math.round(progress)}% complete, ETA: ${eta})`);
+						marker.options.title = `${employee.name} (${Math.round(progress)}% complete, ETA: ${eta})`;
 					}
 				}
 			} else {
@@ -143,7 +143,7 @@
 							iconAnchor: [70, 25]
 						});
 						marker.setIcon(markerIcon);
-						marker.setTitle(`${employee.name} (idle)`);
+						marker.options.title = `${employee.name} (idle)`;
 					}
 				}
 			}

@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from './schema.js';
+import { PinoDrizzleLogger } from '../logging/drizzleLogger.js';
 
 // For standalone scripts, use environment variables directly
 const DATABASE_URL =
@@ -9,5 +10,8 @@ const DATABASE_URL =
 
 const client = postgres(DATABASE_URL);
 
-export const db = drizzle(client, { schema });
+export const db = drizzle(client, {
+	schema,
+	logger: new PinoDrizzleLogger()
+});
 export { client };

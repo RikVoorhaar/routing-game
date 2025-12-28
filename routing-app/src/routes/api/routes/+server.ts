@@ -4,6 +4,7 @@ import { db } from '$lib/server/db';
 import { routes, addresses } from '$lib/server/db/schema';
 import { inArray, eq } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
+import { log } from '$lib/logger';
 
 // GET /api/routes?ids=id1,id2,id3 - Get multiple routes by IDs with address data
 export const GET: RequestHandler = async ({ url, locals }) => {
@@ -72,9 +73,34 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			endTime: null
 		}));
 
+		log.api.debug(
+			{
+				event: 'routes.fetch',
+				user_id: session.user.id,
+				route_count: transformedRoutes.length,
+				route_ids: routeIds
+			},
+			`Fetched ${transformedRoutes.length} routes`
+		);
+
 		return json(transformedRoutes);
 	} catch (err) {
-		console.error('Error fetching routes:', err);
+		log.api.error(
+			{
+				event: 'routes.fetch.error',
+				user_id: session.user.id,
+				route_ids: routeIds,
+				err:
+					err instanceof Error
+						? {
+								name: err.name,
+								message: err.message,
+								stack: err.stack
+							}
+						: err
+			},
+			'Error fetching routes'
+		);
 		return error(500, 'Failed to fetch routes');
 	}
 };
