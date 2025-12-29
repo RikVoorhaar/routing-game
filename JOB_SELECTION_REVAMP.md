@@ -7,8 +7,9 @@ In this feature we are going to revamp the job system a bit. Proposed features:
 - Update `trim_to_largest_component.py` to work in two steps: first extract all the nodes that are part of ways, save the trimmed to file, and then (perhaps) find connected components in the trimmed file. 
 - Add region data geoJSON
 - Try running the routing server with all of the Netherlands, and then with full Europe map to see what kind of resources we need for that.
-- Add column with region name to addresses table.
+- Add column with region name to addresses tablej.
 - Update map display to show outlines
+- Note: the `trim_and_extract_addresses.py` script is slow, for the Nehterlands it takes 40m, for all of Europe had to abort, 4h in it took 17GB of memory. Thinking about multi-threaded Cpp implementation.
 
 **Game mechanics**
 - Only show 3 jobs per unlocked tier for currently selected employee. To do a job, you first select an employee and then select a job.
