@@ -4,7 +4,6 @@
 #include <osmium/io/pbf_output.hpp>
 #include <osmium/io/reader.hpp>
 #include <osmium/io/writer.hpp>
-#include <osmium/index/map/sparse_mem_map.hpp>
 #include <osmium/osm/node.hpp>
 #include <osmium/osm/way.hpp>
 #include <osmium/osm/location.hpp>
@@ -40,26 +39,56 @@ struct Address {
     std::string city;
 };
 
-class WayProcessor : public osmium::handler::Handler {
+// Helper functions for address extraction (shared between handlers)
+bool has_address_tags(const osmium::TagList& tags) {
+    for (const auto& tag : tags) {
+        if (std::strncmp(tag.key(), "addr:", 5) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+Address extract_address_data(const osmium::Node& node) {
+    Address addr;
+    addr.id = std::to_string(node.id());
+    addr.lat = node.location().lat();
+    addr.lon = node.location().lon();
+    addr.street = "";
+    addr.house_number = "";
+    addr.postcode = "";
+    addr.city = "";
+    
+    for (const auto& tag : node.tags()) {
+        const char* key = tag.key();
+        const char* value = tag.value();
+        
+        if (std::strcmp(key, "addr:street") == 0) {
+            addr.street = value;
+        } else if (std::strcmp(key, "addr:housenumber") == 0) {
+            addr.house_number = value;
+        } else if (std::strcmp(key, "addr:postcode") == 0) {
+            addr.postcode = value;
+        } else if (std::strcmp(key, "addr:city") == 0) {
+            addr.city = value;
+        }
+    }
+    
+    return addr;
+}
+
+// Pass 1: Collect node IDs from routable ways and extract addresses
+class Pass1Handler : public osmium::handler::Handler {
 private:
-    osmium::io::Writer& m_writer;
     std::ofstream& m_csv_file;
+    std::unordered_set<osmium::object_id_type> m_nodes_needed;
     
-    // Node location index (sparse, only stores nodes we need)
-    // Uses sparsehash internally for memory efficiency
-    osmium::index::map::SparseMemMap<osmium::unsigned_object_id_type, osmium::Location> m_location_handler;
-    
-    // Tracking
-    std::unordered_set<osmium::object_id_type> m_nodes_written;
     uint64_t m_processed_nodes = 0;
     uint64_t m_processed_ways = 0;
-    uint64_t m_written_ways = 0;
-    uint64_t m_written_nodes = 0;
     uint64_t m_addresses_found = 0;
     
     // Progress tracking
     uint64_t m_file_size = 0;
-    uint64_t m_bytes_read = 0;
     std::chrono::steady_clock::time_point m_start_time;
     std::chrono::steady_clock::time_point m_last_progress_time;
     
@@ -67,67 +96,38 @@ private:
     uint64_t m_nodes_at_way_start = 0;
     bool m_seen_ways = false;
     
-public:
-    // Getter for start time (needed for final statistics)
-    std::chrono::steady_clock::time_point start_time() const { return m_start_time; }
-    
-    // File position tracking - we'll update this based on elements processed
-    // Since osmium doesn't expose file position directly, we estimate based on
-    // typical PBF file structure: nodes (~70% of file) come first, then ways (~30%)
-    void update_file_position_estimate() {
+    void update_file_position_estimate(uint64_t& bytes_read) {
         if (m_file_size == 0) return;
         
         if (!m_seen_ways) {
-            // Still processing nodes - estimate based on node count
-            // In typical OSM files, nodes:ways ratio is roughly 10:1 to 20:1
-            // We'll estimate progress through the node section (70% of file)
-            // Use a heuristic: assume we're roughly halfway through nodes when we've processed
-            // enough nodes. As we process more, gradually increase estimate.
             if (m_processed_nodes < 10000) {
-                // Very early: conservative estimate
-                m_bytes_read = static_cast<uint64_t>(0.05 * m_file_size);
+                bytes_read = static_cast<uint64_t>(0.05 * m_file_size);
             } else if (m_processed_nodes < 100000) {
-                // Early processing: estimate 10-30% through node section
                 double progress_through_nodes = std::min(0.3, static_cast<double>(m_processed_nodes) / 500000.0);
-                m_bytes_read = static_cast<uint64_t>(0.7 * m_file_size * progress_through_nodes);
+                bytes_read = static_cast<uint64_t>(0.7 * m_file_size * progress_through_nodes);
             } else {
-                // Later in node processing: use a more dynamic estimate
-                // Estimate total nodes based on typical ratios (assume ~15 nodes per way)
-                // Since we haven't seen ways yet, estimate we're 60-95% through nodes
                 double progress_through_nodes = std::min(0.95, 0.6 + (static_cast<double>(m_processed_nodes - 100000) / 2000000.0));
-                m_bytes_read = static_cast<uint64_t>(0.7 * m_file_size * progress_through_nodes);
+                bytes_read = static_cast<uint64_t>(0.7 * m_file_size * progress_through_nodes);
             }
         } else {
-            // Processing ways - we're past the node section
-            // Store node count when we first see ways for better estimation
             if (m_nodes_at_way_start == 0) {
                 m_nodes_at_way_start = m_processed_nodes;
             }
-            
-            // Estimate total ways based on node count (typical ratio: 10-20 nodes per way, use 15 as average)
-            // This gives us a reasonable estimate of total ways
             double estimated_total_ways = static_cast<double>(m_nodes_at_way_start) / 15.0;
-            
             if (estimated_total_ways > 0 && m_processed_ways > 0) {
-                // Calculate progress through ways section (30% of file)
                 double way_progress = std::min(1.0, static_cast<double>(m_processed_ways) / estimated_total_ways);
-                // Nodes section (70%) + ways progress (30%)
-                m_bytes_read = static_cast<uint64_t>(0.7 * m_file_size + 0.3 * m_file_size * way_progress);
+                bytes_read = static_cast<uint64_t>(0.7 * m_file_size + 0.3 * m_file_size * way_progress);
             } else {
-                // Fallback: we're in the ways section, so at least 70% done
-                m_bytes_read = static_cast<uint64_t>(0.7 * m_file_size);
+                bytes_read = static_cast<uint64_t>(0.7 * m_file_size);
             }
         }
-        
-        // Cap at file size
-        m_bytes_read = std::min(m_bytes_read, m_file_size);
+        bytes_read = std::min(bytes_read, m_file_size);
     }
     
     void update_progress() {
         auto now = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_last_progress_time);
         
-        // Update progress every 100ms or every 10k nodes / 1k ways
         if (elapsed.count() < 100 && m_processed_nodes % 10000 != 0 && m_processed_ways % 1000 != 0) {
             return;
         }
@@ -136,11 +136,8 @@ public:
         
         auto total_elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - m_start_time);
         int64_t elapsed_sec = total_elapsed.count();
-        
-        // Calculate nodes per second
         double nodes_per_sec = elapsed_sec > 0 ? static_cast<double>(m_processed_nodes) / static_cast<double>(elapsed_sec) : 0.0;
         
-        // Format time spent as hh:mm:ss (e.g., 10s, 4m2s, 1h21m3s)
         int64_t hours_spent = elapsed_sec / 3600;
         int64_t minutes_spent = (elapsed_sec % 3600) / 60;
         int64_t seconds_spent = elapsed_sec % 60;
@@ -154,22 +151,18 @@ public:
             time_oss << seconds_spent << "s";
         }
         
-        // Build the progress string (no percentage, just element counts and stats)
         std::ostringstream progress_oss;
-        progress_oss << "Nodes " << m_processed_nodes
+        progress_oss << "Pass 1/2: Nodes " << m_processed_nodes
                      << " | Ways " << m_processed_ways
-                     << " | Wrote " << m_written_ways << "w/" << m_written_nodes << "n"
+                     << " | Needed " << m_nodes_needed.size() << " nodes"
                      << " | Addr " << m_addresses_found
                      << " | " << std::fixed << std::setprecision(0) << nodes_per_sec << " nodes/s"
                      << " | " << time_oss.str();
         
         std::string progress_str = progress_oss.str();
         
-        // Check if stdout is a TTY before trying to overwrite line
         static bool is_tty = isatty(STDOUT_FILENO);
-        
         if (is_tty) {
-            // Truncate to terminal width to avoid wrapping (wrapping looks like "printing every line")
             winsize ws{};
             size_t cols = 0;
             if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0) {
@@ -179,50 +172,10 @@ public:
                 const size_t keep = (cols > 4) ? (cols - 4) : 0;
                 progress_str = progress_str.substr(0, keep) + "...";
             }
-
-            // Clear entire line then rewrite it.
             std::cout << "\r\033[2K" << progress_str << std::flush;
         } else {
-            // Not a TTY, just print new line
             std::cout << progress_str << "\n" << std::flush;
         }
-    }
-    
-    bool has_address_tags(const osmium::TagList& tags) {
-        for (const auto& tag : tags) {
-            if (std::strncmp(tag.key(), "addr:", 5) == 0) {
-                return true;
-            }
-        }
-        return false;
-    }
-    
-    Address extract_address_data(const osmium::Node& node) {
-        Address addr;
-        addr.id = std::to_string(node.id());
-        addr.lat = node.location().lat();
-        addr.lon = node.location().lon();
-        addr.street = "";
-        addr.house_number = "";
-        addr.postcode = "";
-        addr.city = "";
-        
-        for (const auto& tag : node.tags()) {
-            const char* key = tag.key();
-            const char* value = tag.value();
-            
-            if (std::strcmp(key, "addr:street") == 0) {
-                addr.street = value;
-            } else if (std::strcmp(key, "addr:housenumber") == 0) {
-                addr.house_number = value;
-            } else if (std::strcmp(key, "addr:postcode") == 0) {
-                addr.postcode = value;
-            } else if (std::strcmp(key, "addr:city") == 0) {
-                addr.city = value;
-            }
-        }
-        
-        return addr;
     }
     
     void write_address_csv(const Address& addr) {
@@ -234,11 +187,10 @@ public:
                    << "\"" << addr.postcode << "\","
                    << "\"" << addr.city << "\"\n";
     }
-
+    
 public:
-    WayProcessor(osmium::io::Writer& writer, std::ofstream& csv_file, uint64_t file_size)
-        : m_writer(writer)
-        , m_csv_file(csv_file)
+    Pass1Handler(std::ofstream& csv_file, uint64_t file_size)
+        : m_csv_file(csv_file)
         , m_file_size(file_size)
         , m_start_time(std::chrono::steady_clock::now())
         , m_last_progress_time(m_start_time) {
@@ -247,23 +199,16 @@ public:
     void node(const osmium::Node& node) {
         m_processed_nodes++;
         
-        // Store node location in sparse index
-        if (node.location().valid()) {
-            m_location_handler.set(node.id(), node.location());
-        }
-        
         // Extract addresses if present and location is valid
         if (has_address_tags(node.tags()) && node.location().valid()) {
             Address addr = extract_address_data(node);
-            if (addr.lat != 0.0 || addr.lon != 0.0) {  // Valid coordinates
+            if (addr.lat != 0.0 || addr.lon != 0.0) {
                 write_address_csv(addr);
                 m_addresses_found++;
             }
         }
         
-        // Update progress periodically
         if (m_processed_nodes % 10000 == 0) {
-            update_file_position_estimate();
             update_progress();
         }
     }
@@ -271,75 +216,166 @@ public:
     void way(const osmium::Way& way) {
         m_processed_ways++;
         
-        // Mark that we've seen ways (transition from node to way processing)
         if (!m_seen_ways) {
             m_seen_ways = true;
         }
         
-        // Extract tags and check if routable
-        if (!RoutableWays::is_routable_way(way.tags())) {
-            // Update progress estimate
-            if (m_processed_ways % 1000 == 0) {
-                update_file_position_estimate();
-                update_progress();
-            }
-            return;
-        }
-        
-        // Get node references
-        if (way.nodes().size() < 2) {
-            return;  // Need at least 2 nodes for a valid way
-        }
-        
-        // Write nodes that haven't been written yet
-        // Note: OSM files are structured with nodes first, then ways, so all node
-        // locations have already been stored in the index by the time we process ways.
-        for (const auto& node_ref : way.nodes()) {
-            if (m_nodes_written.find(node_ref.ref()) == m_nodes_written.end()) {
-                try {
-                    osmium::Location location = m_location_handler.get(node_ref.ref());
-                    if (location.valid()) {
-                        // Create node object and write it
-                        osmium::memory::Buffer buffer(1024, osmium::memory::Buffer::auto_grow::yes);
-                        {
-                            osmium::builder::NodeBuilder builder(buffer);
-                            builder.set_id(node_ref.ref());
-                            builder.set_location(location);
-                        }
-                        osmium::Node& node = static_cast<osmium::Node&>(buffer.get<osmium::memory::Item>(0));
-                        m_writer(node);
-                        m_nodes_written.insert(node_ref.ref());
-                        m_written_nodes++;
-                    }
-                } catch (...) {
-                    // Node location not found in index
-                }
+        // Collect node IDs from routable ways
+        if (RoutableWays::is_routable_way(way.tags())) {
+            for (const auto& node_ref : way.nodes()) {
+                // Ensure we use the same type as node.id() returns
+                m_nodes_needed.insert(static_cast<osmium::object_id_type>(node_ref.ref()));
             }
         }
         
-        // Write the way
-        m_writer(way);
-        m_written_ways++;
-        
-        // Update progress
         if (m_processed_ways % 1000 == 0) {
-            update_file_position_estimate();
             update_progress();
         }
     }
     
-    // Getters for statistics
+    // Getters
+    const std::unordered_set<osmium::object_id_type>& nodes_needed() const { return m_nodes_needed; }
+    uint64_t processed_nodes() const { return m_processed_nodes; }
+    uint64_t processed_ways() const { return m_processed_ways; }
+    uint64_t addresses_found() const { return m_addresses_found; }
+    std::chrono::steady_clock::time_point start_time() const { return m_start_time; }
+    
+    void finalize_progress() {
+        update_progress();
+        std::cout << "\n";
+    }
+};
+
+// Pass 2: Write nodes (if in set) and routable ways
+class Pass2Handler : public osmium::handler::Handler {
+private:
+    const std::unordered_set<osmium::object_id_type>& m_nodes_needed;
+    osmium::io::Writer& m_writer;
+    
+    uint64_t m_processed_nodes = 0;
+    uint64_t m_processed_ways = 0;
+    uint64_t m_written_ways = 0;
+    uint64_t m_written_nodes = 0;
+    
+    // Progress tracking
+    uint64_t m_file_size = 0;
+    std::chrono::steady_clock::time_point m_start_time;
+    std::chrono::steady_clock::time_point m_last_progress_time;
+    
+    void update_progress() {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_last_progress_time);
+        
+        if (elapsed.count() < 100 && m_processed_nodes % 10000 != 0 && m_processed_ways % 1000 != 0) {
+            return;
+        }
+        
+        m_last_progress_time = now;
+        
+        auto total_elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - m_start_time);
+        int64_t elapsed_sec = total_elapsed.count();
+        double nodes_per_sec = elapsed_sec > 0 ? static_cast<double>(m_processed_nodes) / static_cast<double>(elapsed_sec) : 0.0;
+        
+        int64_t hours_spent = elapsed_sec / 3600;
+        int64_t minutes_spent = (elapsed_sec % 3600) / 60;
+        int64_t seconds_spent = elapsed_sec % 60;
+        
+        std::ostringstream time_oss;
+        if (hours_spent > 0) {
+            time_oss << hours_spent << "h" << minutes_spent << "m" << seconds_spent << "s";
+        } else if (minutes_spent > 0) {
+            time_oss << minutes_spent << "m" << seconds_spent << "s";
+        } else {
+            time_oss << seconds_spent << "s";
+        }
+        
+        std::ostringstream progress_oss;
+        progress_oss << "Pass 2/2: Nodes " << m_processed_nodes
+                     << " | Ways " << m_processed_ways
+                     << " | Wrote " << m_written_ways << "w/" << m_written_nodes << "n"
+                     << " | " << std::fixed << std::setprecision(0) << nodes_per_sec << " nodes/s"
+                     << " | " << time_oss.str();
+        
+        std::string progress_str = progress_oss.str();
+        
+        static bool is_tty = isatty(STDOUT_FILENO);
+        if (is_tty) {
+            winsize ws{};
+            size_t cols = 0;
+            if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0) {
+                cols = static_cast<size_t>(ws.ws_col);
+            }
+            if (cols > 0 && progress_str.size() >= cols) {
+                const size_t keep = (cols > 4) ? (cols - 4) : 0;
+                progress_str = progress_str.substr(0, keep) + "...";
+            }
+            std::cout << "\r\033[2K" << progress_str << std::flush;
+        } else {
+            std::cout << progress_str << "\n" << std::flush;
+        }
+    }
+    
+public:
+    Pass2Handler(const std::unordered_set<osmium::object_id_type>& nodes_needed, osmium::io::Writer& writer, uint64_t file_size)
+        : m_nodes_needed(nodes_needed)
+        , m_writer(writer)
+        , m_file_size(file_size)
+        , m_start_time(std::chrono::steady_clock::now())
+        , m_last_progress_time(m_start_time) {
+    }
+    
+    void node(const osmium::Node& node) {
+        m_processed_nodes++;
+        
+        // Write node if it's referenced by a routable way
+        // Ensure we use the same type for comparison
+        osmium::object_id_type node_id = static_cast<osmium::object_id_type>(node.id());
+        if (m_nodes_needed.find(node_id) != m_nodes_needed.end()) {
+            // Only write nodes with valid locations (matching Python behavior)
+            if (node.location().valid()) {
+                // Create minimal node with just ID and location (matching Python implementation)
+                osmium::memory::Buffer buffer(1024, osmium::memory::Buffer::auto_grow::yes);
+                {
+                    osmium::builder::NodeBuilder builder(buffer);
+                    builder.set_id(node.id());
+                    builder.set_location(node.location());
+                    // No tags - minimal node like Python implementation
+                }
+                osmium::Node& minimal_node = static_cast<osmium::Node&>(buffer.get<osmium::memory::Item>(0));
+                m_writer(minimal_node);
+                m_written_nodes++;
+            }
+        }
+        
+        if (m_processed_nodes % 10000 == 0) {
+            update_progress();
+        }
+    }
+    
+    void way(const osmium::Way& way) {
+        m_processed_ways++;
+        
+        // Write routable ways
+        if (RoutableWays::is_routable_way(way.tags())) {
+            m_writer(way);
+            m_written_ways++;
+        }
+        
+        if (m_processed_ways % 1000 == 0) {
+            update_progress();
+        }
+    }
+    
+    // Getters
     uint64_t processed_nodes() const { return m_processed_nodes; }
     uint64_t processed_ways() const { return m_processed_ways; }
     uint64_t written_ways() const { return m_written_ways; }
     uint64_t written_nodes() const { return m_written_nodes; }
-    uint64_t addresses_found() const { return m_addresses_found; }
+    std::chrono::steady_clock::time_point start_time() const { return m_start_time; }
     
     void finalize_progress() {
-        // Set to 100% when done
-        m_bytes_read = m_file_size;
         update_progress();
-        std::cout << "\n";  // New line after progress
+        std::cout << "\n";
     }
 };
 
@@ -471,7 +507,7 @@ int main(int argc, char* argv[]) {
     // Create temporary CSV file
     fs::path temp_csv = fs::temp_directory_path() / ("addresses_" + std::to_string(std::time(nullptr)) + ".csv");
     
-    std::cout << "Processing ways and extracting addresses...\n";
+    std::cout << "Processing ways and extracting addresses (two-pass approach)...\n";
     
     // Ensure stdout is unbuffered for proper line overwriting
     std::cout.setf(std::ios::unitbuf);
@@ -486,26 +522,32 @@ int main(int argc, char* argv[]) {
         // Write CSV header
         csv_file << "id,lat,lon,street,house_number,postcode,city\n";
         
-        // Open OSM files
-        osmium::io::Reader reader(input_file);
+        // ===== PASS 1: Collect node IDs and extract addresses =====
+        std::cout << "\nPass 1/2: Collecting node IDs from routable ways and extracting addresses...\n";
+        osmium::io::Reader reader1(input_file);
+        Pass1Handler pass1_handler(csv_file, file_size);
+        osmium::apply(reader1, pass1_handler);
+        reader1.close();
+        pass1_handler.finalize_progress();
+        
+        std::cout << "Pass 1 complete. Found " << pass1_handler.nodes_needed().size() 
+                  << " nodes needed for routable ways.\n";
+        
+        // ===== PASS 2: Write nodes and ways =====
+        std::cout << "\nPass 2/2: Writing nodes and routable ways...\n";
+        osmium::io::Reader reader2(input_file);
         osmium::io::Writer writer(output_file);
-        
-        // Create processor
-        WayProcessor processor(writer, csv_file, file_size);
-        
-        // Process file
-        osmium::apply(reader, processor);
-        
-        // Finalize progress (set to 100%)
-        processor.finalize_progress();
-        
-        // Close files
-        reader.close();
+        Pass2Handler pass2_handler(pass1_handler.nodes_needed(), writer, file_size);
+        osmium::apply(reader2, pass2_handler);
+        reader2.close();
         writer.close();
-        csv_file.close();
+        pass2_handler.finalize_progress();
         
-        // Print final progress
-        std::cout << "\n";
+        // Debug: Check if we wrote all expected nodes
+        std::cout << "Debug: Expected " << pass1_handler.nodes_needed().size() 
+                  << " nodes, wrote " << pass2_handler.written_nodes() << " nodes\n";
+        
+        csv_file.close();
         
         // Compress CSV file
         std::cout << "\nCompressing addresses CSV...\n";
@@ -514,11 +556,11 @@ int main(int argc, char* argv[]) {
         // Remove temporary CSV
         fs::remove(temp_csv);
         
-        // Calculate final statistics
+        // Calculate final statistics (total time from pass 1 start)
         auto final_time = std::chrono::steady_clock::now();
-        auto total_elapsed = std::chrono::duration_cast<std::chrono::seconds>(final_time - processor.start_time());
+        auto total_elapsed = std::chrono::duration_cast<std::chrono::seconds>(final_time - pass1_handler.start_time());
         int64_t total_seconds = total_elapsed.count();
-        double nodes_per_sec = total_seconds > 0 ? static_cast<double>(processor.processed_nodes()) / static_cast<double>(total_seconds) : 0.0;
+        double nodes_per_sec = total_seconds > 0 ? static_cast<double>(pass1_handler.processed_nodes()) / static_cast<double>(total_seconds) : 0.0;
         
         // Format total time as hh:mm:ss (e.g., 10s, 4m2s, 1h21m3s)
         int64_t hours = total_seconds / 3600;
@@ -536,13 +578,11 @@ int main(int argc, char* argv[]) {
         
         // Print statistics
         std::cout << "\nProcessing complete!\n";
-        std::cout << "Processed: " << processor.processed_nodes() << " nodes, " 
-                  << processor.processed_ways() << " ways\n";
-        std::cout << "Written: " << processor.written_ways() << " ways, " 
-                  << processor.written_nodes() << " nodes\n";
-        std::cout << "Found: " << processor.addresses_found() << " addresses\n";
-        std::cout << "Speed: " << std::fixed << std::setprecision(0) << nodes_per_sec << " nodes/s\n";
-        std::cout << "Time: " << time_oss.str() << "\n";
+        std::cout << "Processed: " << pass1_handler.processed_nodes() << " nodes, " 
+                  << pass1_handler.processed_ways() << " ways\n";
+        std::cout << "Written: " << pass2_handler.written_ways() << " ways, " 
+                  << pass2_handler.written_nodes() << " nodes\n";
+        std::cout << "Found: " << pass1_handler.addresses_found() << " addresses\n";
         std::cout << "Speed: " << std::fixed << std::setprecision(0) << nodes_per_sec << " nodes/s\n";
         std::cout << "Time: " << time_oss.str() << "\n";
         
