@@ -23,6 +23,9 @@
 #include <cstring>
 #include <algorithm>
 #include <ctime>
+#include <unistd.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 namespace fs = std::filesystem;
 
@@ -60,31 +63,58 @@ private:
     std::chrono::steady_clock::time_point m_start_time;
     std::chrono::steady_clock::time_point m_last_progress_time;
     
+    // Track when we transition from nodes to ways for better estimation
+    uint64_t m_nodes_at_way_start = 0;
+    bool m_seen_ways = false;
+    
+public:
+    // Getter for start time (needed for final statistics)
+    std::chrono::steady_clock::time_point start_time() const { return m_start_time; }
+    
     // File position tracking - we'll update this based on elements processed
     // Since osmium doesn't expose file position directly, we estimate based on
     // typical PBF file structure: nodes (~70% of file) come first, then ways (~30%)
     void update_file_position_estimate() {
         if (m_file_size == 0) return;
         
-        // Estimate based on elements processed
-        // In typical OSM files, nodes take up most of the space
-        // We process nodes first, then ways
-        if (m_processed_ways == 0) {
+        if (!m_seen_ways) {
             // Still processing nodes - estimate based on node count
-            // Assume nodes are ~70% of file, estimate progress within that section
-            double estimated_total_nodes = m_processed_nodes * 1.5; // Rough estimate
-            if (estimated_total_nodes > 0) {
-                double node_progress = std::min(1.0, static_cast<double>(m_processed_nodes) / estimated_total_nodes);
-                m_bytes_read = static_cast<uint64_t>(0.7 * m_file_size * node_progress);
+            // In typical OSM files, nodes:ways ratio is roughly 10:1 to 20:1
+            // We'll estimate progress through the node section (70% of file)
+            // Use a heuristic: assume we're roughly halfway through nodes when we've processed
+            // enough nodes. As we process more, gradually increase estimate.
+            if (m_processed_nodes < 10000) {
+                // Very early: conservative estimate
+                m_bytes_read = static_cast<uint64_t>(0.05 * m_file_size);
+            } else if (m_processed_nodes < 100000) {
+                // Early processing: estimate 10-30% through node section
+                double progress_through_nodes = std::min(0.3, static_cast<double>(m_processed_nodes) / 500000.0);
+                m_bytes_read = static_cast<uint64_t>(0.7 * m_file_size * progress_through_nodes);
+            } else {
+                // Later in node processing: use a more dynamic estimate
+                // Estimate total nodes based on typical ratios (assume ~15 nodes per way)
+                // Since we haven't seen ways yet, estimate we're 60-95% through nodes
+                double progress_through_nodes = std::min(0.95, 0.6 + (static_cast<double>(m_processed_nodes - 100000) / 2000000.0));
+                m_bytes_read = static_cast<uint64_t>(0.7 * m_file_size * progress_through_nodes);
             }
         } else {
             // Processing ways - we're past the node section
-            // Estimate: nodes section (70%) + ways progress (30%)
-            double estimated_total_ways = m_processed_ways * 2.0; // Rough estimate
-            if (estimated_total_ways > 0) {
+            // Store node count when we first see ways for better estimation
+            if (m_nodes_at_way_start == 0) {
+                m_nodes_at_way_start = m_processed_nodes;
+            }
+            
+            // Estimate total ways based on node count (typical ratio: 10-20 nodes per way, use 15 as average)
+            // This gives us a reasonable estimate of total ways
+            double estimated_total_ways = static_cast<double>(m_nodes_at_way_start) / 15.0;
+            
+            if (estimated_total_ways > 0 && m_processed_ways > 0) {
+                // Calculate progress through ways section (30% of file)
                 double way_progress = std::min(1.0, static_cast<double>(m_processed_ways) / estimated_total_ways);
+                // Nodes section (70%) + ways progress (30%)
                 m_bytes_read = static_cast<uint64_t>(0.7 * m_file_size + 0.3 * m_file_size * way_progress);
             } else {
+                // Fallback: we're in the ways section, so at least 70% done
                 m_bytes_read = static_cast<uint64_t>(0.7 * m_file_size);
             }
         }
@@ -104,20 +134,58 @@ private:
         
         m_last_progress_time = now;
         
-        double percent = m_file_size > 0 ? (100.0 * m_bytes_read) / m_file_size : 0.0;
-        double mb_read = m_bytes_read / (1024.0 * 1024.0);
-        double mb_total = m_file_size / (1024.0 * 1024.0);
+        auto total_elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - m_start_time);
+        int64_t elapsed_sec = total_elapsed.count();
         
-        auto total_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_start_time);
-        double mb_per_sec = total_elapsed.count() > 0 ? mb_read / (total_elapsed.count() / 1000.0) : 0.0;
+        // Calculate nodes per second
+        double nodes_per_sec = elapsed_sec > 0 ? static_cast<double>(m_processed_nodes) / static_cast<double>(elapsed_sec) : 0.0;
         
-        std::cout << "\rProcessing: " << std::fixed << std::setprecision(1) << percent << "% "
-                  << "(" << std::setprecision(1) << mb_read << " MB / " << mb_total << " MB) | "
-                  << "Nodes: " << std::setprecision(0) << m_processed_nodes << " | "
-                  << "Ways: " << m_processed_ways << " | "
-                  << "Written: " << m_written_ways << " ways, " << m_written_nodes << " nodes | "
-                  << "Addresses: " << m_addresses_found << " | "
-                  << "Speed: " << std::setprecision(1) << mb_per_sec << " MB/s" << std::flush;
+        // Format time spent as hh:mm:ss (e.g., 10s, 4m2s, 1h21m3s)
+        int64_t hours_spent = elapsed_sec / 3600;
+        int64_t minutes_spent = (elapsed_sec % 3600) / 60;
+        int64_t seconds_spent = elapsed_sec % 60;
+        
+        std::ostringstream time_oss;
+        if (hours_spent > 0) {
+            time_oss << hours_spent << "h" << minutes_spent << "m" << seconds_spent << "s";
+        } else if (minutes_spent > 0) {
+            time_oss << minutes_spent << "m" << seconds_spent << "s";
+        } else {
+            time_oss << seconds_spent << "s";
+        }
+        
+        // Build the progress string (no percentage, just element counts and stats)
+        std::ostringstream progress_oss;
+        progress_oss << "Nodes " << m_processed_nodes
+                     << " | Ways " << m_processed_ways
+                     << " | Wrote " << m_written_ways << "w/" << m_written_nodes << "n"
+                     << " | Addr " << m_addresses_found
+                     << " | " << std::fixed << std::setprecision(0) << nodes_per_sec << " nodes/s"
+                     << " | " << time_oss.str();
+        
+        std::string progress_str = progress_oss.str();
+        
+        // Check if stdout is a TTY before trying to overwrite line
+        static bool is_tty = isatty(STDOUT_FILENO);
+        
+        if (is_tty) {
+            // Truncate to terminal width to avoid wrapping (wrapping looks like "printing every line")
+            winsize ws{};
+            size_t cols = 0;
+            if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0) {
+                cols = static_cast<size_t>(ws.ws_col);
+            }
+            if (cols > 0 && progress_str.size() >= cols) {
+                const size_t keep = (cols > 4) ? (cols - 4) : 0;
+                progress_str = progress_str.substr(0, keep) + "...";
+            }
+
+            // Clear entire line then rewrite it.
+            std::cout << "\r\033[2K" << progress_str << std::flush;
+        } else {
+            // Not a TTY, just print new line
+            std::cout << progress_str << "\n" << std::flush;
+        }
     }
     
     bool has_address_tags(const osmium::TagList& tags) {
@@ -202,6 +270,11 @@ public:
     
     void way(const osmium::Way& way) {
         m_processed_ways++;
+        
+        // Mark that we've seen ways (transition from node to way processing)
+        if (!m_seen_ways) {
+            m_seen_ways = true;
+        }
         
         // Extract tags and check if routable
         if (!RoutableWays::is_routable_way(way.tags())) {
@@ -398,7 +471,10 @@ int main(int argc, char* argv[]) {
     // Create temporary CSV file
     fs::path temp_csv = fs::temp_directory_path() / ("addresses_" + std::to_string(std::time(nullptr)) + ".csv");
     
-    std::cout << "\nProcessing ways and extracting addresses...\n";
+    std::cout << "Processing ways and extracting addresses...\n";
+    
+    // Ensure stdout is unbuffered for proper line overwriting
+    std::cout.setf(std::ios::unitbuf);
     
     try {
         // Open CSV file for writing
@@ -438,6 +514,26 @@ int main(int argc, char* argv[]) {
         // Remove temporary CSV
         fs::remove(temp_csv);
         
+        // Calculate final statistics
+        auto final_time = std::chrono::steady_clock::now();
+        auto total_elapsed = std::chrono::duration_cast<std::chrono::seconds>(final_time - processor.start_time());
+        int64_t total_seconds = total_elapsed.count();
+        double nodes_per_sec = total_seconds > 0 ? static_cast<double>(processor.processed_nodes()) / static_cast<double>(total_seconds) : 0.0;
+        
+        // Format total time as hh:mm:ss (e.g., 10s, 4m2s, 1h21m3s)
+        int64_t hours = total_seconds / 3600;
+        int64_t minutes = (total_seconds % 3600) / 60;
+        int64_t seconds = total_seconds % 60;
+        
+        std::ostringstream time_oss;
+        if (hours > 0) {
+            time_oss << hours << "h" << minutes << "m" << seconds << "s";
+        } else if (minutes > 0) {
+            time_oss << minutes << "m" << seconds << "s";
+        } else {
+            time_oss << seconds << "s";
+        }
+        
         // Print statistics
         std::cout << "\nProcessing complete!\n";
         std::cout << "Processed: " << processor.processed_nodes() << " nodes, " 
@@ -445,6 +541,10 @@ int main(int argc, char* argv[]) {
         std::cout << "Written: " << processor.written_ways() << " ways, " 
                   << processor.written_nodes() << " nodes\n";
         std::cout << "Found: " << processor.addresses_found() << " addresses\n";
+        std::cout << "Speed: " << std::fixed << std::setprecision(0) << nodes_per_sec << " nodes/s\n";
+        std::cout << "Time: " << time_oss.str() << "\n";
+        std::cout << "Speed: " << std::fixed << std::setprecision(0) << nodes_per_sec << " nodes/s\n";
+        std::cout << "Time: " << time_oss.str() << "\n";
         
         // Calculate file sizes
         double input_size_mb = file_size / (1024.0 * 1024.0);
