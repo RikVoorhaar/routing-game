@@ -36,9 +36,9 @@
 			{
 				activeJob: any;
 				activeRoute?: any;
-				employeeStartAddress?: any;
-				jobAddress?: any;
-				employeeEndAddress?: any;
+				employeeStartLocation?: any;
+				jobPickupAddress?: any;
+				jobDeliverAddress?: any;
 			}
 		>
 	>({});
@@ -111,16 +111,16 @@
 		const data = $selectedEmployeeActiveJobData;
 		if (
 			data.activeJob &&
-			data.employeeStartAddress &&
-			data.jobAddress &&
-			data.employeeEndAddress &&
+			data.employeeStartLocation &&
+			data.jobPickupAddress &&
+			data.jobDeliverAddress &&
 			data.activeRoute
 		) {
 			setSelectedActiveJobData({
 				activeJob: data.activeJob,
-				employeeStartAddress: data.employeeStartAddress,
-				jobAddress: data.jobAddress,
-				employeeEndAddress: data.employeeEndAddress,
+				employeeStartLocation: data.employeeStartLocation,
+				jobPickupAddress: data.jobPickupAddress,
+				jobDeliverAddress: data.jobDeliverAddress,
 				activeRoute: data.activeRoute
 			});
 		}
@@ -219,9 +219,9 @@
 					{
 						activeJob: any;
 						activeRoute?: any;
-						employeeStartAddress?: any;
-						jobAddress?: any;
-						employeeEndAddress?: any;
+						employeeStartLocation?: any;
+						jobPickupAddress?: any;
+						jobDeliverAddress?: any;
 					}
 				> = {};
 
@@ -282,9 +282,9 @@
 						[selectedEmployeeId!]: {
 							activeJob: result.activeJob,
 							activeRoute: result.activeRoute,
-							employeeStartAddress: result.employeeStartAddress,
-							jobAddress: result.jobAddress,
-							employeeEndAddress: result.employeeEndAddress
+							employeeStartLocation: result.employeeStartLocation,
+							jobPickupAddress: result.jobPickupAddress,
+							jobDeliverAddress: result.jobDeliverAddress
 						}
 					}));
 				}

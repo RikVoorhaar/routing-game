@@ -74,7 +74,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			name: employeeName.trim(),
 			vehicleLevel: employeeData.vehicleLevel,
 			xp: employeeData.xp,
-			location: DEFAULT_EMPLOYEE_LOCATION as any, // JSONB field accepts Address object directly
+			location: DEFAULT_EMPLOYEE_LOCATION, // JSONB field stores Coordinate (lat/lon)
 			order: employeeCount // Set order to current count (0-indexed: first employee = 0, second = 1, etc.)
 		};
 

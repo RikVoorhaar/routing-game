@@ -1,4 +1,4 @@
-import type { Employee, Job } from '$lib/server/db/schema';
+import type { Employee, Job, Coordinate } from '$lib/server/db/schema';
 import { JobCategory } from '$lib/jobs/jobCategories';
 import { getVehicleTierByLevel } from '$lib/vehicleUtils';
 import { VEHICLE_DEFINITIONS } from '$lib/vehicles/vehicleDefinitions';
@@ -55,17 +55,17 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 /**
- * Get employee position from location data
+ * Get employee position from location data (Coordinate)
  */
 function getEmployeePosition(employee: Employee): { lat: number; lon: number } | null {
 	if (!employee.location) return null;
 
 	try {
-		let locationData;
+		let locationData: Coordinate;
 		if (typeof employee.location === 'string') {
 			locationData = JSON.parse(employee.location);
 		} else {
-			locationData = employee.location;
+			locationData = employee.location as Coordinate;
 		}
 
 		return {

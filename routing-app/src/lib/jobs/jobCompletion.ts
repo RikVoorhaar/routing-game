@@ -62,7 +62,7 @@ export async function completeActiveJob(
 
 	// Get the job end location for updating employee position
 	const endAddress = await db.query.addresses.findFirst({
-		where: eq(addresses.id, activeJob.employeeEndAddressId)
+		where: eq(addresses.id, activeJob.jobDeliverAddress)
 	});
 
 	if (!endAddress) {
@@ -73,12 +73,12 @@ export async function completeActiveJob(
 		// Delete the completed active job
 		await tx.delete(activeJobs).where(eq(activeJobs.id, activeJobId));
 
-		// Update employee - atomically increment XP and update location
+		// Update employee - atomically increment XP and update location (store Coordinate, not Address)
 		const [updatedEmployee] = await tx
 			.update(employees)
 			.set({
 				xp: sql`${employees.xp} + ${employeeXpGained}`,
-				location: endAddress
+				location: { lat: endAddress.lat, lon: endAddress.lon }
 			})
 			.where(eq(employees.id, employee.id))
 			.returning();

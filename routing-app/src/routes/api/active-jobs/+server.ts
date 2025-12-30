@@ -90,27 +90,22 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		if (existingActiveJob) {
 			// Get complete data for existing active job
-			const [employeeStartAddress, jobAddress, employeeEndAddress, activeRoute] = await Promise.all(
-				[
-					db.query.addresses.findFirst({
-						where: eq(addresses.id, existingActiveJob.employeeStartAddressId)
-					}),
-					db.query.addresses.findFirst({ where: eq(addresses.id, existingActiveJob.jobAddressId) }),
-					db.query.addresses.findFirst({
-						where: eq(addresses.id, existingActiveJob.employeeEndAddressId)
-					}),
-					db.query.activeRoutes.findFirst({
-						where: eq(activeRoutes.activeJobId, existingActiveJob.id)
-					})
-				]
-			);
+			const [jobPickupAddress, jobDeliverAddress, activeRoute] = await Promise.all([
+				db.query.addresses.findFirst({ where: eq(addresses.id, existingActiveJob.jobPickupAddress) }),
+				db.query.addresses.findFirst({
+					where: eq(addresses.id, existingActiveJob.jobDeliverAddress)
+				}),
+				db.query.activeRoutes.findFirst({
+					where: eq(activeRoutes.activeJobId, existingActiveJob.id)
+				})
+			]);
 
 			return json({
 				activeJob: existingActiveJob,
 				activeRoute,
-				employeeStartAddress,
-				jobAddress,
-				employeeEndAddress,
+				employeeStartLocation: existingActiveJob.employeeStartLocation,
+				jobPickupAddress,
+				jobDeliverAddress,
 				isExisting: true
 			});
 		}
@@ -128,10 +123,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const { activeJob, activeRoute } = await computeActiveJob(employee, job, gameState);
 
 		// Get the addresses for the computed active job
-		const [employeeStartAddress, jobAddress, employeeEndAddress] = await Promise.all([
-			db.query.addresses.findFirst({ where: eq(addresses.id, activeJob.employeeStartAddressId) }),
-			db.query.addresses.findFirst({ where: eq(addresses.id, activeJob.jobAddressId) }),
-			db.query.addresses.findFirst({ where: eq(addresses.id, activeJob.employeeEndAddressId) })
+		const [jobPickupAddress, jobDeliverAddress] = await Promise.all([
+			db.query.addresses.findFirst({ where: eq(addresses.id, activeJob.jobPickupAddress) }),
+			db.query.addresses.findFirst({ where: eq(addresses.id, activeJob.jobDeliverAddress) })
 		]);
 
 		// Insert the computed active job and active route into the database
@@ -143,9 +137,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({
 			activeJob: activeJob,
 			activeRoute: activeRoute,
-			employeeStartAddress,
-			jobAddress,
-			employeeEndAddress
+			employeeStartLocation: activeJob.employeeStartLocation,
+			jobPickupAddress,
+			jobDeliverAddress
 		});
 	} catch (err) {
 		console.error('Error creating active job:', err);
@@ -216,20 +210,16 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 		});
 
 		// Get the updated active job and complete data
-		const [updatedActiveJob, employeeStartAddress, jobAddress, employeeEndAddress, activeRoute] =
-			await Promise.all([
-				db.query.activeJobs.findFirst({
-					where: eq(activeJobs.id, activeJob.id)
-				}),
-				db.query.addresses.findFirst({
-					where: eq(addresses.id, activeJob.employeeStartAddressId)
-				}),
-				db.query.addresses.findFirst({ where: eq(addresses.id, activeJob.jobAddressId) }),
-				db.query.addresses.findFirst({
-					where: eq(addresses.id, activeJob.employeeEndAddressId)
-				}),
-				db.query.activeRoutes.findFirst({ where: eq(activeRoutes.activeJobId, activeJob.id) })
-			]);
+		const [updatedActiveJob, jobPickupAddress, jobDeliverAddress, activeRoute] = await Promise.all([
+			db.query.activeJobs.findFirst({
+				where: eq(activeJobs.id, activeJob.id)
+			}),
+			db.query.addresses.findFirst({ where: eq(addresses.id, activeJob.jobPickupAddress) }),
+			db.query.addresses.findFirst({
+				where: eq(addresses.id, activeJob.jobDeliverAddress)
+			}),
+			db.query.activeRoutes.findFirst({ where: eq(activeRoutes.activeJobId, activeJob.id) })
+		]);
 
 		if (!updatedActiveJob) {
 			return error(404, 'Active job not found after update');
@@ -238,9 +228,9 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 		return json({
 			activeJob: updatedActiveJob,
 			activeRoute,
-			employeeStartAddress,
-			jobAddress,
-			employeeEndAddress
+			employeeStartLocation: updatedActiveJob.employeeStartLocation,
+			jobPickupAddress,
+			jobDeliverAddress
 		});
 	} catch (err) {
 		console.error('Error accepting active job:', err);

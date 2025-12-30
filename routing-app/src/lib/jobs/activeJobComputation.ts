@@ -28,7 +28,7 @@ async function computeRouteToJob(
 	employee: Employee,
 	jobStartAddressId: string
 ): Promise<RoutingResult> {
-	// Parse employee location (which should be an Address object)
+	// Employee location is a Coordinate (lat/lon)
 	const employeeLocation = employee.location;
 
 	// Get the job start address
@@ -128,9 +128,9 @@ export async function computeActiveJob(
 		reward: computedPayout,
 		xp,
 		jobCategory: job.jobCategory,
-		employeeStartAddressId: employee.location.id,
-		jobAddressId: job.startAddressId,
-		employeeEndAddressId: job.endAddressId
+		employeeStartLocation: employee.location,
+		jobPickupAddress: job.startAddressId,
+		jobDeliverAddress: job.endAddressId
 	};
 
 	return { activeJob, activeRoute };

@@ -411,11 +411,11 @@
 
 		if (employee.location) {
 			try {
-				let locationData: Address;
+				let locationData: Coordinate;
 				if (typeof employee.location === 'string') {
 					locationData = JSON.parse(employee.location);
 				} else if (typeof employee.location === 'object') {
-					locationData = employee.location as Address;
+					locationData = employee.location as Coordinate;
 				} else {
 					throw new Error('Invalid location format');
 				}
