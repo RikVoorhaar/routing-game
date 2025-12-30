@@ -189,9 +189,7 @@ async function generateJobsWithProgress() {
 		const totalTime = (performance.now() - startTime) / 1000;
 		console.log(`\n${COLORS.bright}${COLORS.green}🎉 Job Generation Complete!${COLORS.reset}\n`);
 		console.log(`${COLORS.bright}Final Statistics:${COLORS.reset}`);
-		console.log(
-			`  Total Jobs: ${COLORS.blue}${completed.toLocaleString()}${COLORS.reset}`
-		);
+		console.log(`  Total Jobs: ${COLORS.blue}${completed.toLocaleString()}${COLORS.reset}`);
 		console.log(
 			`  Successful: ${COLORS.green}${successCount.toLocaleString()}${COLORS.reset} (${((successCount / completed) * 100).toFixed(1)}%)`
 		);

@@ -19,14 +19,14 @@ const MAX_TIER = 8;
 // Tier n: min = 2.5^(n-1) / 10, max = 2.5^(n+1) / 10 (rounded to nice numbers)
 // This creates overlap: tier n's max overlaps with tier n+1's min, and tier n's min overlaps with tier n-1's max
 const ROUTE_DISTANCES_KM: Record<number, { min: number; max: number }> = {
-	1: { min: 0.1, max: 0.6 }, 
-	2: { min: 0.25, max: 1.5 }, 
-	3: { min: 0.6, max: 4 }, 
-	4: { min: 1.5, max: 10 }, 
-	5: { min: 4, max: 25 }, 
-	6: { min: 10, max: 60 }, 
-	7: { min: 25, max: 150 }, 
-	8: { min: 60, max: 950 } 
+	1: { min: 0.1, max: 0.6 },
+	2: { min: 0.25, max: 1.5 },
+	3: { min: 0.6, max: 4 },
+	4: { min: 1.5, max: 10 },
+	5: { min: 4, max: 25 },
+	6: { min: 10, max: 60 },
+	7: { min: 25, max: 150 },
+	8: { min: 60, max: 950 }
 };
 
 // Category multipliers for value calculation - loaded from config
