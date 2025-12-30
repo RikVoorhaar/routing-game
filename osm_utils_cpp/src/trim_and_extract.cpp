@@ -10,11 +10,11 @@
 #include <osmium/builder/osm_object_builder.hpp>
 #include <osmium/memory/buffer.hpp>
 
+#include <ankerl/unordered_dense.h>
 #include <iostream>
 #include <fstream>
 #include <filesystem>
 #include <string>
-#include <unordered_set>
 #include <chrono>
 #include <iomanip>
 #include <sstream>
@@ -24,9 +24,66 @@
 #include <ctime>
 #include <unistd.h>
 #include <sys/ioctl.h>
-#include <unistd.h>
 
 namespace fs = std::filesystem;
+
+// Memory reporting helper (Linux-specific)
+struct MemoryStats {
+    uint64_t rss_kb = 0;      // Resident Set Size in KB
+    uint64_t peak_rss_kb = 0; // Peak RSS in KB (VmHWM)
+    
+    static MemoryStats get_current() {
+        MemoryStats stats;
+#ifdef __linux__
+        std::ifstream status_file("/proc/self/status");
+        if (status_file.is_open()) {
+            std::string line;
+            while (std::getline(status_file, line)) {
+                if (line.substr(0, 6) == "VmRSS:") {
+                    std::istringstream iss(line.substr(6));
+                    iss >> stats.rss_kb;
+                } else if (line.substr(0, 6) == "VmHWM:") {
+                    std::istringstream iss(line.substr(6));
+                    iss >> stats.peak_rss_kb;
+                }
+            }
+        }
+#endif
+        return stats;
+    }
+    
+    std::string format() const {
+        std::ostringstream oss;
+        if (rss_kb > 0) {
+            if (rss_kb >= 1024 * 1024) {
+                oss << std::fixed << std::setprecision(1) << (rss_kb / (1024.0 * 1024.0)) << " GB";
+            } else if (rss_kb >= 1024) {
+                oss << std::fixed << std::setprecision(1) << (rss_kb / 1024.0) << " MB";
+            } else {
+                oss << rss_kb << " KB";
+            }
+        } else {
+            oss << "N/A";
+        }
+        return oss.str();
+    }
+    
+    std::string format_peak() const {
+        std::ostringstream oss;
+        if (peak_rss_kb > 0) {
+            if (peak_rss_kb >= 1024 * 1024) {
+                oss << std::fixed << std::setprecision(1) << (peak_rss_kb / (1024.0 * 1024.0)) << " GB";
+            } else if (peak_rss_kb >= 1024) {
+                oss << std::fixed << std::setprecision(1) << (peak_rss_kb / 1024.0) << " MB";
+            } else {
+                oss << peak_rss_kb << " KB";
+            }
+        } else {
+            oss << "N/A";
+        }
+        return oss.str();
+    }
+};
 
 // Address data structure
 struct Address {
@@ -81,7 +138,7 @@ Address extract_address_data(const osmium::Node& node) {
 class Pass1Handler : public osmium::handler::Handler {
 private:
     std::ofstream& m_csv_file;
-    std::unordered_set<osmium::object_id_type> m_nodes_needed;
+    ankerl::unordered_dense::set<osmium::object_id_type> m_nodes_needed;
     
     uint64_t m_processed_nodes = 0;
     uint64_t m_processed_ways = 0;
@@ -234,7 +291,7 @@ public:
     }
     
     // Getters
-    const std::unordered_set<osmium::object_id_type>& nodes_needed() const { return m_nodes_needed; }
+    const ankerl::unordered_dense::set<osmium::object_id_type>& nodes_needed() const { return m_nodes_needed; }
     uint64_t processed_nodes() const { return m_processed_nodes; }
     uint64_t processed_ways() const { return m_processed_ways; }
     uint64_t addresses_found() const { return m_addresses_found; }
@@ -243,13 +300,16 @@ public:
     void finalize_progress() {
         update_progress();
         std::cout << "\n";
+        // Report memory usage at end of pass 1
+        MemoryStats mem = MemoryStats::get_current();
+        std::cout << "Pass 1 memory: RSS=" << mem.format() << ", Peak=" << mem.format_peak() << "\n";
     }
 };
 
 // Pass 2: Write nodes (if in set) and routable ways
 class Pass2Handler : public osmium::handler::Handler {
 private:
-    const std::unordered_set<osmium::object_id_type>& m_nodes_needed;
+    const ankerl::unordered_dense::set<osmium::object_id_type>& m_nodes_needed;
     osmium::io::Writer& m_writer;
     
     uint64_t m_processed_nodes = 0;
@@ -316,7 +376,7 @@ private:
     }
     
 public:
-    Pass2Handler(const std::unordered_set<osmium::object_id_type>& nodes_needed, osmium::io::Writer& writer, uint64_t file_size)
+    Pass2Handler(const ankerl::unordered_dense::set<osmium::object_id_type>& nodes_needed, osmium::io::Writer& writer, uint64_t file_size)
         : m_nodes_needed(nodes_needed)
         , m_writer(writer)
         , m_file_size(file_size)
@@ -376,6 +436,9 @@ public:
     void finalize_progress() {
         update_progress();
         std::cout << "\n";
+        // Report memory usage at end of pass 2
+        MemoryStats mem = MemoryStats::get_current();
+        std::cout << "Pass 2 memory: RSS=" << mem.format() << ", Peak=" << mem.format_peak() << "\n";
     }
 };
 

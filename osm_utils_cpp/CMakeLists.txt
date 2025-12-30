@@ -16,6 +16,7 @@ find_package(ZLIB REQUIRED)
 include_directories(
     /usr/include
     ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/third_party
     ${ZLIB_INCLUDE_DIRS}
 )
 
