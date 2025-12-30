@@ -65,6 +65,28 @@ The application uses:
 - JSONB for storing complex data structures
 - Schema includes user, game state, employee, and route tables
 
+## Drizzle migrations workflow
+
+This repo uses **Drizzle migrations** (SQL files in `routing-app/drizzle/`) applied by **`drizzle-kit migrate`**.
+
+- **Generate a migration** (after editing `src/lib/server/db/schema.ts`):
+
+  ```bash
+  npx drizzle-kit generate
+  ```
+
+- **Apply migrations** to the configured database:
+
+  ```bash
+  npx drizzle-kit migrate
+  ```
+
+- **Do not hand-edit** `routing-app/drizzle/meta/_journal.json`.
+  - Drizzle uses the `when` timestamps in that file to decide what is “new”.
+  - If a migration’s `when` is **older** than the most recently-applied migration, `drizzle-kit migrate` will **silently skip it** (even if the SQL file exists and the DB schema is missing the changes).
+
+- **If you must rename a migration file/tag**, also update the corresponding journal entry (and ensure its `when` stays **monotonically increasing**).
+
 ## Routes
 
 - `/` - Home page
