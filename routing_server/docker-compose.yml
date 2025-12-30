@@ -12,8 +12,8 @@ services:
     #   - OSM_FILE=/data/osm/utrecht-latest.ways.osm.pbf
     #   - ADDRESS_FILE=/data/osm/utrecht-latest.addresses.csv.gz
     environment:
-      - OSM_FILE=/data/osm/utrecht-latest.simplified.osm.pbf
-      - ADDRESS_FILE=/data/osm/utrecht-latest.addresses.csv.gz
+      - OSM_FILE=/data/osm/netherlands-latest.simplified.ways.osm.pbf
+      - ADDRESS_FILE=/data/osm/netherlands-latest.addresses.csv.gz
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s

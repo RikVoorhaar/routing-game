@@ -4,6 +4,8 @@
 #include <osmium/io/pbf_output.hpp>
 #include <osmium/io/reader.hpp>
 #include <osmium/io/writer.hpp>
+#include <osmium/handler/node_locations_for_ways.hpp>
+#include <osmium/index/map/sparse_file_array.hpp>
 #include <osmium/osm/node.hpp>
 #include <osmium/osm/way.hpp>
 #include <osmium/osm/location.hpp>
@@ -15,6 +17,8 @@
 #include <fstream>
 #include <filesystem>
 #include <string>
+#include <vector>
+#include <optional>
 #include <chrono>
 #include <iomanip>
 #include <sstream>
@@ -22,10 +26,63 @@
 #include <cstring>
 #include <algorithm>
 #include <ctime>
+#include <cmath>
 #include <unistd.h>
 #include <sys/ioctl.h>
 
 namespace fs = std::filesystem;
+
+static double haversine_m(const osmium::Location& a, const osmium::Location& b) {
+    // Great-circle distance. Assumes inputs are valid locations.
+    constexpr double R = 6371000.0;
+    const double lat1 = a.lat() * M_PI / 180.0;
+    const double lon1 = a.lon() * M_PI / 180.0;
+    const double lat2 = b.lat() * M_PI / 180.0;
+    const double lon2 = b.lon() * M_PI / 180.0;
+    const double dlat = lat2 - lat1;
+    const double dlon = lon2 - lon1;
+    const double sin_dlat = std::sin(dlat / 2.0);
+    const double sin_dlon = std::sin(dlon / 2.0);
+    const double h = sin_dlat * sin_dlat + std::cos(lat1) * std::cos(lat2) * sin_dlon * sin_dlon;
+    const double c = 2.0 * std::atan2(std::sqrt(h), std::sqrt(1.0 - h));
+    return R * c;
+}
+
+static std::optional<double> parse_maxspeed_kmh(const osmium::TagList& tags) {
+    const char* raw = tags.get_value_by_key("maxspeed");
+    if (!raw) {
+        return std::nullopt;
+    }
+    std::string s(raw);
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+
+    const bool is_mph = (s.find("mph") != std::string::npos);
+
+    // Parse leading number (handles "50", "50 km/h", "30mph", "30 mph").
+    size_t i = 0;
+    while (i < s.size() && std::isspace(static_cast<unsigned char>(s[i]))) {
+        ++i;
+    }
+    const size_t start = i;
+    while (i < s.size() && (std::isdigit(static_cast<unsigned char>(s[i])) || s[i] == '.')) {
+        ++i;
+    }
+    if (i == start) {
+        return std::nullopt;
+    }
+
+    try {
+        const double value = std::stod(s.substr(start, i - start));
+        if (value <= 0.0) {
+            return std::nullopt;
+        }
+        return is_mph ? (value * 1.609344) : value;
+    } catch (...) {
+        return std::nullopt;
+    }
+}
 
 // Memory reporting helper (Linux-specific)
 struct MemoryStats {
@@ -139,6 +196,7 @@ class Pass1Handler : public osmium::handler::Handler {
 private:
     std::ofstream& m_csv_file;
     ankerl::unordered_dense::set<osmium::object_id_type> m_nodes_needed;
+    bool m_simplify = false;
     
     uint64_t m_processed_nodes = 0;
     uint64_t m_processed_ways = 0;
@@ -211,7 +269,7 @@ private:
         std::ostringstream progress_oss;
         progress_oss << "Pass 1/2: Nodes " << m_processed_nodes
                      << " | Ways " << m_processed_ways
-                     << " | Needed " << m_nodes_needed.size() << " nodes"
+                     << " | " << (m_simplify ? "Kept " : "Needed ") << m_nodes_needed.size() << " nodes"
                      << " | Addr " << m_addresses_found
                      << " | " << std::fixed << std::setprecision(0) << nodes_per_sec << " nodes/s"
                      << " | " << time_oss.str();
@@ -246,8 +304,9 @@ private:
     }
     
 public:
-    Pass1Handler(std::ofstream& csv_file, uint64_t file_size)
+    Pass1Handler(std::ofstream& csv_file, uint64_t file_size, bool simplify)
         : m_csv_file(csv_file)
+        , m_simplify(simplify)
         , m_file_size(file_size)
         , m_start_time(std::chrono::steady_clock::now())
         , m_last_progress_time(m_start_time) {
@@ -279,9 +338,16 @@ public:
         
         // Collect node IDs from routable ways
         if (RoutableWays::is_routable_way(way.tags())) {
-            for (const auto& node_ref : way.nodes()) {
-                // Ensure we use the same type as node.id() returns
-                m_nodes_needed.insert(static_cast<osmium::object_id_type>(node_ref.ref()));
+            if (!m_simplify) {
+                for (const auto& node_ref : way.nodes()) {
+                    m_nodes_needed.insert(static_cast<osmium::object_id_type>(node_ref.ref()));
+                }
+            } else {
+                const auto& nodes = way.nodes();
+                if (nodes.size() >= 2) {
+                    m_nodes_needed.insert(static_cast<osmium::object_id_type>(nodes.front().ref()));
+                    m_nodes_needed.insert(static_cast<osmium::object_id_type>(nodes.back().ref()));
+                }
             }
         }
         
@@ -311,6 +377,7 @@ class Pass2Handler : public osmium::handler::Handler {
 private:
     const ankerl::unordered_dense::set<osmium::object_id_type>& m_nodes_needed;
     osmium::io::Writer& m_writer;
+    bool m_simplify = false;
     
     uint64_t m_processed_nodes = 0;
     uint64_t m_processed_ways = 0;
@@ -376,9 +443,10 @@ private:
     }
     
 public:
-    Pass2Handler(const ankerl::unordered_dense::set<osmium::object_id_type>& nodes_needed, osmium::io::Writer& writer, uint64_t file_size)
+    Pass2Handler(const ankerl::unordered_dense::set<osmium::object_id_type>& nodes_needed, osmium::io::Writer& writer, uint64_t file_size, bool simplify)
         : m_nodes_needed(nodes_needed)
         , m_writer(writer)
+        , m_simplify(simplify)
         , m_file_size(file_size)
         , m_start_time(std::chrono::steady_clock::now())
         , m_last_progress_time(m_start_time) {
@@ -417,7 +485,84 @@ public:
         
         // Write routable ways
         if (RoutableWays::is_routable_way(way.tags())) {
-            m_writer(way);
+            if (!m_simplify) {
+                m_writer(way);
+                m_written_ways++;
+                return;
+            }
+
+            const auto& nodes = way.nodes();
+            if (nodes.size() < 2) {
+                return;
+            }
+
+            // Rewrite node list to only kept nodes (endpoints always included).
+            std::vector<osmium::object_id_type> simplified_refs;
+            simplified_refs.reserve(16);
+
+            const osmium::object_id_type first = static_cast<osmium::object_id_type>(nodes.front().ref());
+            const osmium::object_id_type last = static_cast<osmium::object_id_type>(nodes.back().ref());
+
+            simplified_refs.push_back(first);
+            if (nodes.size() > 2) {
+                for (auto it = std::next(nodes.begin()); it != std::prev(nodes.end()); ++it) {
+                    const osmium::object_id_type ref = static_cast<osmium::object_id_type>(it->ref());
+                    if (m_nodes_needed.find(ref) != m_nodes_needed.end() && ref != simplified_refs.back()) {
+                        simplified_refs.push_back(ref);
+                    }
+                }
+            }
+            if (last != simplified_refs.back()) {
+                simplified_refs.push_back(last);
+            }
+            if (simplified_refs.size() < 2) {
+                return;
+            }
+
+            // Compute true polyline length across all original nodes (requires NodeLocationsForWays).
+            double total_m = 0.0;
+            for (auto it = nodes.begin(); std::next(it) != nodes.end(); ++it) {
+                const auto& a = it->location();
+                const auto& b = std::next(it)->location();
+                if (a.valid() && b.valid()) {
+                    total_m += haversine_m(a, b);
+                }
+            }
+            const auto length_m = static_cast<unsigned long long>(std::llround(total_m));
+
+            osmium::memory::Buffer buffer(1024, osmium::memory::Buffer::auto_grow::yes);
+            {
+                osmium::builder::WayBuilder way_builder(buffer);
+                way_builder.set_id(way.id());
+
+                {
+                    osmium::builder::WayNodeListBuilder wnl_builder(buffer, &way_builder);
+                    for (const auto ref : simplified_refs) {
+                        wnl_builder.add_node_ref(ref);
+                    }
+                }
+
+                {
+                    osmium::builder::TagListBuilder tag_builder(buffer, &way_builder);
+                    for (const auto& tag : way.tags()) {
+                        tag_builder.add_tag(tag.key(), tag.value());
+                    }
+                    tag_builder.add_tag("length_m", std::to_string(length_m));
+                    tag_builder.add_tag("orig_nodes", std::to_string(nodes.size()));
+                    tag_builder.add_tag("kept_nodes", std::to_string(simplified_refs.size()));
+
+                    if (const auto speed_kmh = parse_maxspeed_kmh(way.tags())) {
+                        if (*speed_kmh > 0.0) {
+                            const double duration_s = (static_cast<double>(length_m) / 1000.0) / (*speed_kmh) * 3600.0;
+                            const auto dur = static_cast<unsigned long long>(std::llround(duration_s));
+                            tag_builder.add_tag("duration_s", std::to_string(dur));
+                        }
+                    }
+                }
+            }
+
+            osmium::Way& out_way = static_cast<osmium::Way&>(buffer.get<osmium::memory::Item>(0));
+            m_writer(out_way);
             m_written_ways++;
         }
         
@@ -493,13 +638,14 @@ std::string get_default_csv_name(const std::string& input_file) {
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <input_file> [--output <osm_file>] [--output-dir <dir>]\n";
+        std::cerr << "Usage: " << argv[0] << " <input_file> [--output <osm_file>] [--output-dir <dir>] [--simplify]\n";
         return 1;
     }
     
     std::string input_file = argv[1];
     std::string output_file;
     std::string output_dir;
+    bool simplify = false;
     
     // Parse command line arguments
     for (int i = 2; i < argc; i++) {
@@ -518,6 +664,8 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Error: --output-dir requires a directory\n";
                 return 1;
             }
+        } else if (arg == "--simplify") {
+            simplify = true;
         }
     }
     
@@ -554,6 +702,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Processing routable ways from: " << input_file << "\n";
     std::cout << "Output OSM file: " << output_file << "\n";
     std::cout << "Output addresses CSV: " << csv_output_path.string() << "\n";
+    std::cout << "Simplify ways: " << (simplify ? "yes" : "no") << "\n";
     std::cout << "Input file size: " << std::fixed << std::setprecision(1) 
               << (file_size / (1024.0 * 1024.0)) << " MB\n";
     
@@ -588,20 +737,33 @@ int main(int argc, char* argv[]) {
         // ===== PASS 1: Collect node IDs and extract addresses =====
         std::cout << "\nPass 1/2: Collecting node IDs from routable ways and extracting addresses...\n";
         osmium::io::Reader reader1(input_file);
-        Pass1Handler pass1_handler(csv_file, file_size);
+        Pass1Handler pass1_handler(csv_file, file_size, simplify);
         osmium::apply(reader1, pass1_handler);
         reader1.close();
         pass1_handler.finalize_progress();
         
-        std::cout << "Pass 1 complete. Found " << pass1_handler.nodes_needed().size() 
-                  << " nodes needed for routable ways.\n";
+        if (simplify) {
+            std::cout << "Pass 1 complete. Found " << pass1_handler.nodes_needed().size()
+                      << " kept endpoint nodes for simplified routable ways.\n";
+        } else {
+            std::cout << "Pass 1 complete. Found " << pass1_handler.nodes_needed().size()
+                      << " nodes needed for routable ways.\n";
+        }
         
         // ===== PASS 2: Write nodes and ways =====
         std::cout << "\nPass 2/2: Writing nodes and routable ways...\n";
         osmium::io::Reader reader2(input_file);
         osmium::io::Writer writer(output_file);
-        Pass2Handler pass2_handler(pass1_handler.nodes_needed(), writer, file_size);
-        osmium::apply(reader2, pass2_handler);
+        Pass2Handler pass2_handler(pass1_handler.nodes_needed(), writer, file_size, simplify);
+        if (simplify) {
+            using index_type = osmium::index::map::SparseFileArray<osmium::unsigned_object_id_type, osmium::Location>;
+            index_type index;
+            osmium::handler::NodeLocationsForWays<index_type> location_handler(index);
+            location_handler.ignore_errors();
+            osmium::apply(reader2, location_handler, pass2_handler);
+        } else {
+            osmium::apply(reader2, pass2_handler);
+        }
         reader2.close();
         writer.close();
         pass2_handler.finalize_progress();
