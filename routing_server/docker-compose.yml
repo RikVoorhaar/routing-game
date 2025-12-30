@@ -8,8 +8,11 @@ services:
       - "8050:8080"
     volumes:
       - ../osm_files:/data/osm
+    # environment:
+    #   - OSM_FILE=/data/osm/utrecht-latest.ways.osm.pbf
+    #   - ADDRESS_FILE=/data/osm/utrecht-latest.addresses.csv.gz
     environment:
-      - OSM_FILE=/data/osm/utrecht-latest.trimmed.osm.pbf
+      - OSM_FILE=/data/osm/utrecht-latest.simplified.osm.pbf
       - ADDRESS_FILE=/data/osm/utrecht-latest.addresses.csv.gz
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
