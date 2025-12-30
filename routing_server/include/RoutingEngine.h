@@ -85,7 +85,8 @@ RoutingKit::OSMWayDirectionCategory get_custom_profile_direction_category(uint64
 class RoutingEngine {
 public:
     // Initialize with OSM data file
-    explicit RoutingEngine(const std::string& osm_file);
+    // Optionally provide path to pre-built contraction hierarchy file (for geo distance)
+    explicit RoutingEngine(const std::string& osm_file, const std::string& ch_geo_file = "");
     
     // Load addresses from CSV file
     bool loadAddressesFromCSV(const std::string& csv_file);

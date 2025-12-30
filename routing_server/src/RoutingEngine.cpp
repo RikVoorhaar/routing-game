@@ -9,8 +9,68 @@
 #include <set>
 #include <limits>
 #include <numeric>
+#include <filesystem>
+#include <iomanip>
 
 namespace RoutingServer {
+
+// Memory reporting helper (Linux-specific)
+struct MemoryStats {
+    uint64_t rss_kb = 0;      // Resident Set Size in KB
+    uint64_t peak_rss_kb = 0; // Peak RSS in KB (VmHWM)
+    
+    static MemoryStats get_current() {
+        MemoryStats stats;
+#ifdef __linux__
+        std::ifstream status_file("/proc/self/status");
+        if (status_file.is_open()) {
+            std::string line;
+            while (std::getline(status_file, line)) {
+                if (line.substr(0, 6) == "VmRSS:") {
+                    std::istringstream iss(line.substr(6));
+                    iss >> stats.rss_kb;
+                } else if (line.substr(0, 6) == "VmHWM:") {
+                    std::istringstream iss(line.substr(6));
+                    iss >> stats.peak_rss_kb;
+                }
+            }
+        }
+#endif
+        return stats;
+    }
+    
+    std::string format() const {
+        std::ostringstream oss;
+        if (rss_kb > 0) {
+            if (rss_kb >= 1024 * 1024) {
+                oss << std::fixed << std::setprecision(1) << (rss_kb / (1024.0 * 1024.0)) << " GB";
+            } else if (rss_kb >= 1024) {
+                oss << std::fixed << std::setprecision(1) << (rss_kb / 1024.0) << " MB";
+            } else {
+                oss << rss_kb << " KB";
+            }
+        } else {
+            oss << "N/A";
+        }
+        return oss.str();
+    }
+    
+    std::string format_peak() const {
+        std::ostringstream oss;
+        if (peak_rss_kb > 0) {
+            if (peak_rss_kb >= 1024 * 1024) {
+                oss << std::fixed << std::setprecision(1) << (peak_rss_kb / (1024.0 * 1024.0)) << " GB";
+            } else if (peak_rss_kb >= 1024) {
+                oss << std::fixed << std::setprecision(1) << (peak_rss_kb / 1024.0) << " MB";
+            } else {
+                oss << peak_rss_kb << " KB";
+            }
+        } else {
+            oss << "N/A";
+        }
+        return oss.str();
+    }
+};
 
 // Helper to check if string ends with a suffix (replacement for C++20's ends_with)
 inline bool ends_with(const std::string& str, const std::string& suffix) {
@@ -298,8 +358,22 @@ static void processAddressLine(const std::string& line, std::vector<Address>& ad
     addresses.push_back(addr);
 }
 
-RoutingEngine::RoutingEngine(const std::string& osm_file) {
+RoutingEngine::RoutingEngine(const std::string& osm_file, const std::string& ch_geo_file) {
     LOG("Loading OSM routing graph with custom profile...");
+    
+    // Determine CH file path: use provided path, or derive from OSM file name
+    std::string ch_file_path = ch_geo_file;
+    if (ch_file_path.empty()) {
+        // Derive CH filename from OSM filename by replacing extension
+        std::filesystem::path osm_path(osm_file);
+        std::filesystem::path ch_path = osm_path;
+        ch_path.replace_extension(".ch_geo.bin");
+        ch_file_path = ch_path.string();
+        LOG("Auto-derived CH file path: " << ch_file_path);
+    }
+    
+    MemoryStats mem_before = MemoryStats::get_current();
+    LOG("Memory before loading: RSS=" << mem_before.format() << ", Peak=" << mem_before.format_peak());
     
     // Load the ID mapping with our custom profile
     auto mapping = RoutingKit::load_osm_id_mapping_from_pbf(
@@ -311,7 +385,9 @@ RoutingEngine::RoutingEngine(const std::string& osm_file) {
         [](const std::string& msg) { LOG(msg); }
     );
     
+    MemoryStats mem_after_mapping = MemoryStats::get_current();
     LOG("ID mapping loaded, " << mapping.is_routing_way.population_count() << " routing ways found");
+    LOG("Memory after ID mapping: RSS=" << mem_after_mapping.format() << ", Peak=" << mem_after_mapping.format_peak());
     
     // Prepare speed storage
     unsigned routing_way_count = mapping.is_routing_way.population_count();
@@ -331,6 +407,9 @@ RoutingEngine::RoutingEngine(const std::string& osm_file) {
     );
     
     LOG("Routing graph loaded with " << graph_.node_count() << " nodes and " << graph_.arc_count() << " arcs");
+    
+    MemoryStats mem_after_graph = MemoryStats::get_current();
+    LOG("Memory after graph loading: RSS=" << mem_after_graph.format() << ", Peak=" << mem_after_graph.format_peak());
     
     // Build travel time array from geo_distance and way speeds
     std::vector<unsigned> travel_time(graph_.arc_count());
@@ -383,7 +462,7 @@ RoutingEngine::RoutingEngine(const std::string& osm_file) {
     
     LOG("Travel time statistics: min=" << min_time << "ms, max=" << max_time << "ms, inf_count=" << inf_count << ", zero_count=" << zero_count);
     
-    LOG("Building contraction hierarchies...");
+    LOG("Building/loading contraction hierarchies...");
     
     try {
         // Build the tail array from the first_out array
@@ -391,16 +470,49 @@ RoutingEngine::RoutingEngine(const std::string& osm_file) {
         auto tail = RoutingKit::invert_inverse_vector(graph_.first_out);
         LOG("Tail array built successfully");
         
-        // Build contraction hierarchy for geo distance first to test
-        LOG("Building contraction hierarchy for geo distance...");
-        ch_geo_ = std::make_unique<RoutingKit::ContractionHierarchy>(
-            RoutingKit::ContractionHierarchy::build(
-                graph_.node_count(),
-                tail, graph_.head,
-                graph_.geo_distance
-            )
-        );
-        LOG("Geo distance contraction hierarchy built successfully");
+        // Try to load pre-built CH, or build it if not available
+        if (std::filesystem::exists(ch_file_path)) {
+            LOG("Loading pre-built contraction hierarchy from: " << ch_file_path);
+            MemoryStats mem_before_ch_load = MemoryStats::get_current();
+            ch_geo_ = std::make_unique<RoutingKit::ContractionHierarchy>(
+                RoutingKit::ContractionHierarchy::load_file(ch_file_path)
+            );
+            MemoryStats mem_after_ch_load = MemoryStats::get_current();
+            LOG("Contraction hierarchy loaded successfully");
+            LOG("Memory before CH load: RSS=" << mem_before_ch_load.format() << ", Peak=" << mem_before_ch_load.format_peak());
+            LOG("Memory after CH load: RSS=" << mem_after_ch_load.format() << ", Peak=" << mem_after_ch_load.format_peak());
+        } else {
+            LOG("CH file not found: " << ch_file_path << ", building instead...");
+            // Build contraction hierarchy for geo distance
+            LOG("Building contraction hierarchy for geo distance...");
+            MemoryStats mem_before_ch_build = MemoryStats::get_current();
+            ch_geo_ = std::make_unique<RoutingKit::ContractionHierarchy>(
+                RoutingKit::ContractionHierarchy::build(
+                    graph_.node_count(),
+                    tail, graph_.head,
+                    graph_.geo_distance
+                )
+            );
+            MemoryStats mem_after_ch_build = MemoryStats::get_current();
+            LOG("Geo distance contraction hierarchy built successfully");
+            LOG("Memory before CH build: RSS=" << mem_before_ch_build.format() << ", Peak=" << mem_before_ch_build.format_peak());
+            LOG("Memory after CH build: RSS=" << mem_after_ch_build.format() << ", Peak=" << mem_after_ch_build.format_peak());
+            
+            // Save the CH to disk for future use
+            LOG("Saving contraction hierarchy to: " << ch_file_path);
+            try {
+                // Ensure parent directory exists
+                std::filesystem::path ch_path_obj(ch_file_path);
+                if (ch_path_obj.has_parent_path()) {
+                    std::filesystem::create_directories(ch_path_obj.parent_path());
+                }
+                ch_geo_->save_file(ch_file_path);
+                LOG("Contraction hierarchy saved successfully");
+            } catch (const std::exception& e) {
+                LOG("Warning: Failed to save contraction hierarchy: " << e.what());
+                // Don't fail the entire initialization if saving fails
+            }
+        }
         
         // Build contraction hierarchy for travel time
         LOG("Skipping travel time contraction hierarchy for now due to crash");
@@ -431,7 +543,9 @@ RoutingEngine::RoutingEngine(const std::string& osm_file) {
         graph_.latitude, graph_.longitude
     );
     
+    MemoryStats mem_final = MemoryStats::get_current();
     LOG("Routing engine initialization complete");
+    LOG("Final memory: RSS=" << mem_final.format() << ", Peak=" << mem_final.format_peak());
 }
 
 unsigned RoutingEngine::findNearestNode(double latitude, double longitude, unsigned max_radius) const {
