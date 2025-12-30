@@ -82,6 +82,7 @@ This repo uses **Drizzle migrations** (SQL files in `routing-app/drizzle/`) appl
   ```
 
 - **Do not hand-edit** `routing-app/drizzle/meta/_journal.json`.
+
   - Drizzle uses the `when` timestamps in that file to decide what is “new”.
   - If a migration’s `when` is **older** than the most recently-applied migration, `drizzle-kit migrate` will **silently skip it** (even if the SQL file exists and the DB schema is missing the changes).
 

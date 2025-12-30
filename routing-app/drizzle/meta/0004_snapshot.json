@@ -81,12 +81,8 @@
 					"name": "account_user_id_user_id_fk",
 					"tableFrom": "account",
 					"tableTo": "user",
-					"columnsFrom": [
-						"user_id"
-					],
-					"columnsTo": [
-						"id"
-					],
+					"columnsFrom": ["user_id"],
+					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
 				}
@@ -94,10 +90,7 @@
 			"compositePrimaryKeys": {
 				"account_provider_provider_account_id_pk": {
 					"name": "account_provider_provider_account_id_pk",
-					"columns": [
-						"provider",
-						"provider_account_id"
-					]
+					"columns": ["provider", "provider_account_id"]
 				}
 			},
 			"uniqueConstraints": {},
@@ -277,12 +270,8 @@
 					"name": "active_job_employee_id_employee_id_fk",
 					"tableFrom": "active_job",
 					"tableTo": "employee",
-					"columnsFrom": [
-						"employee_id"
-					],
-					"columnsTo": [
-						"id"
-					],
+					"columnsFrom": ["employee_id"],
+					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
 				},
@@ -290,12 +279,8 @@
 					"name": "active_job_job_id_job_id_fk",
 					"tableFrom": "active_job",
 					"tableTo": "job",
-					"columnsFrom": [
-						"job_id"
-					],
-					"columnsTo": [
-						"id"
-					],
+					"columnsFrom": ["job_id"],
+					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
 				},
@@ -303,12 +288,8 @@
 					"name": "active_job_game_state_id_game_state_id_fk",
 					"tableFrom": "active_job",
 					"tableTo": "game_state",
-					"columnsFrom": [
-						"game_state_id"
-					],
-					"columnsTo": [
-						"id"
-					],
+					"columnsFrom": ["game_state_id"],
+					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
 				},
@@ -316,12 +297,8 @@
 					"name": "active_job_job_pickup_address_address_id_fk",
 					"tableFrom": "active_job",
 					"tableTo": "address",
-					"columnsFrom": [
-						"job_pickup_address"
-					],
-					"columnsTo": [
-						"id"
-					],
+					"columnsFrom": ["job_pickup_address"],
+					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
 				},
@@ -329,12 +306,8 @@
 					"name": "active_job_job_deliver_address_address_id_fk",
 					"tableFrom": "active_job",
 					"tableTo": "address",
-					"columnsFrom": [
-						"job_deliver_address"
-					],
-					"columnsTo": [
-						"id"
-					],
+					"columnsFrom": ["job_deliver_address"],
+					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
 				}
@@ -390,12 +363,8 @@
 					"name": "active_route_active_job_id_active_job_id_fk",
 					"tableFrom": "active_route",
 					"tableTo": "active_job",
-					"columnsFrom": [
-						"active_job_id"
-					],
-					"columnsTo": [
-						"id"
-					],
+					"columnsFrom": ["active_job_id"],
+					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
 				}
@@ -563,12 +532,8 @@
 					"name": "credential_user_id_user_id_fk",
 					"tableFrom": "credential",
 					"tableTo": "user",
-					"columnsFrom": [
-						"user_id"
-					],
-					"columnsTo": [
-						"id"
-					],
+					"columnsFrom": ["user_id"],
+					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
 				}
@@ -578,9 +543,7 @@
 				"credential_user_id_unique": {
 					"name": "credential_user_id_unique",
 					"nullsNotDistinct": false,
-					"columns": [
-						"user_id"
-					]
+					"columns": ["user_id"]
 				}
 			},
 			"policies": {},
@@ -680,12 +643,8 @@
 					"name": "employee_game_id_game_state_id_fk",
 					"tableFrom": "employee",
 					"tableTo": "game_state",
-					"columnsFrom": [
-						"game_id"
-					],
-					"columnsTo": [
-						"id"
-					],
+					"columnsFrom": ["game_id"],
+					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
 				}
@@ -776,12 +735,8 @@
 					"name": "game_state_user_id_user_id_fk",
 					"tableFrom": "game_state",
 					"tableTo": "user",
-					"columnsFrom": [
-						"user_id"
-					],
-					"columnsTo": [
-						"id"
-					],
+					"columnsFrom": ["user_id"],
+					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
 				}
@@ -946,12 +901,8 @@
 					"name": "job_start_address_id_address_id_fk",
 					"tableFrom": "job",
 					"tableTo": "address",
-					"columnsFrom": [
-						"start_address_id"
-					],
-					"columnsTo": [
-						"id"
-					],
+					"columnsFrom": ["start_address_id"],
+					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
 				},
@@ -959,12 +910,8 @@
 					"name": "job_end_address_id_address_id_fk",
 					"tableFrom": "job",
 					"tableTo": "address",
-					"columnsFrom": [
-						"end_address_id"
-					],
-					"columnsTo": [
-						"id"
-					],
+					"columnsFrom": ["end_address_id"],
+					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
 				},
@@ -972,12 +919,8 @@
 					"name": "job_route_id_route_id_fk",
 					"tableFrom": "job",
 					"tableTo": "route",
-					"columnsFrom": [
-						"route_id"
-					],
-					"columnsTo": [
-						"id"
-					],
+					"columnsFrom": ["route_id"],
+					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
 				}
@@ -1060,12 +1003,8 @@
 					"name": "route_start_address_id_address_id_fk",
 					"tableFrom": "route",
 					"tableTo": "address",
-					"columnsFrom": [
-						"start_address_id"
-					],
-					"columnsTo": [
-						"id"
-					],
+					"columnsFrom": ["start_address_id"],
+					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
 				},
@@ -1073,12 +1012,8 @@
 					"name": "route_end_address_id_address_id_fk",
 					"tableFrom": "route",
 					"tableTo": "address",
-					"columnsFrom": [
-						"end_address_id"
-					],
-					"columnsTo": [
-						"id"
-					],
+					"columnsFrom": ["end_address_id"],
+					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
 				}
@@ -1144,16 +1079,12 @@
 				"user_email_unique": {
 					"name": "user_email_unique",
 					"nullsNotDistinct": false,
-					"columns": [
-						"email"
-					]
+					"columns": ["email"]
 				},
 				"user_username_unique": {
 					"name": "user_username_unique",
 					"nullsNotDistinct": false,
-					"columns": [
-						"username"
-					]
+					"columns": ["username"]
 				}
 			},
 			"policies": {},
@@ -1188,10 +1119,7 @@
 			"compositePrimaryKeys": {
 				"verification_token_identifier_token_pk": {
 					"name": "verification_token_identifier_token_pk",
-					"columns": [
-						"identifier",
-						"token"
-					]
+					"columns": ["identifier", "token"]
 				}
 			},
 			"uniqueConstraints": {},
