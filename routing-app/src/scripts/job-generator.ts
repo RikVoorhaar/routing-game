@@ -21,8 +21,6 @@ const COLORS = {
 	gray: '\x1b[90m'
 };
 
-const args = process.argv.slice(2);
-
 // Set up error logging
 const LOG_DIR = 'logs';
 const ERROR_LOG_FILE = path.join(
@@ -68,33 +66,7 @@ async function generateJobWithErrorLogging(address: Address): Promise<boolean> {
 	}
 }
 
-// Parse arguments
-function parseArgs() {
-	let fraction = 0.01; // Default 1%
-
-	// Look for fraction argument: --fraction=0.02 or -f 0.02
-	for (let i = 0; i < args.length; i++) {
-		const arg = args[i];
-		if (arg.startsWith('--fraction=')) {
-			fraction = parseFloat(arg.split('=')[1]);
-		} else if (arg === '-f' || arg === '--fraction') {
-			if (i + 1 < args.length) {
-				fraction = parseFloat(args[i + 1]);
-				i++; // Skip next argument since we consumed it
-			}
-		}
-	}
-
-	// Validate fraction
-	if (isNaN(fraction) || fraction <= 0 || fraction > 1) {
-		console.error('Error: Fraction must be a number between 0 and 1');
-		process.exit(1);
-	}
-
-	return { fraction };
-}
-
-async function generateJobsWithProgress(fraction: number = 0.01) {
+async function generateJobsWithProgress() {
 	try {
 		// Get total address count first
 		const totalAddressCountResult = await db.execute(sql`SELECT COUNT(*) as count FROM address`);
@@ -105,21 +77,17 @@ async function generateJobsWithProgress(fraction: number = 0.01) {
 			process.exit(1);
 		}
 
-		// Calculate target number of jobs
-		const TARGET_JOBS = Math.ceil(totalAddresses * fraction);
+		const PAGE_SIZE = 1000; // Configurable batch size for pagination
 		const CONCURRENCY = 20; // Optimal from our testing
 
 		console.log(`${COLORS.bright}${COLORS.blue}🎯 Job Generation Configuration${COLORS.reset}`);
 		console.log(
 			`  Total Addresses: ${COLORS.cyan}${totalAddresses.toLocaleString()}${COLORS.reset}`
 		);
-		console.log(
-			`  Sample Fraction: ${COLORS.yellow}${(fraction * 100).toFixed(1)}%${COLORS.reset}`
-		);
-		console.log(`  Target Jobs: ${COLORS.cyan}${TARGET_JOBS.toLocaleString()}${COLORS.reset}`);
+		console.log(`  Page Size: ${COLORS.yellow}${PAGE_SIZE.toLocaleString()}${COLORS.reset}`);
 		console.log(`  Concurrency: ${COLORS.yellow}${CONCURRENCY}${COLORS.reset}`);
 		console.log(
-			`  Expected Time: ${COLORS.gray}~${Math.ceil((TARGET_JOBS * 30) / 1000 / CONCURRENCY)}s${COLORS.reset}`
+			`  Expected Time: ${COLORS.gray}~${Math.ceil((totalAddresses * 30) / 1000 / CONCURRENCY)}s${COLORS.reset}`
 		);
 		console.log(`  Error Log: ${COLORS.gray}${ERROR_LOG_FILE}${COLORS.reset}\n`);
 
@@ -129,21 +97,6 @@ async function generateJobsWithProgress(fraction: number = 0.01) {
 		await clearAllJobs();
 		const clearTime = performance.now() - clearStart;
 		console.log(`${COLORS.green}✅ Cleared jobs in ${clearTime.toFixed(0)}ms${COLORS.reset}\n`);
-
-		// Get random sample of addresses using SQL
-		console.log(
-			`${COLORS.gray}📍 Randomly selecting ${TARGET_JOBS.toLocaleString()} addresses...${COLORS.reset}`
-		);
-		const selectStart = performance.now();
-		const sampleAddresses = (await db.execute(sql`
-            SELECT * FROM address 
-            ORDER BY RANDOM() 
-            LIMIT ${TARGET_JOBS}
-        `)) as unknown as Array<Address>;
-		const selectTime = performance.now() - selectStart;
-		console.log(
-			`${COLORS.green}✅ Selected ${sampleAddresses.length.toLocaleString()} random addresses in ${selectTime.toFixed(0)}ms${COLORS.reset}\n`
-		);
 
 		// Initialize progress bar
 		const progressBar = new cliProgress.SingleBar(
@@ -157,7 +110,7 @@ async function generateJobsWithProgress(fraction: number = 0.01) {
 			cliProgress.Presets.shades_classic
 		);
 
-		progressBar.start(sampleAddresses.length, 0, {
+		progressBar.start(totalAddresses, 0, {
 			eta_formatted: '0s',
 			success: '0.0'
 		});
@@ -166,47 +119,68 @@ async function generateJobsWithProgress(fraction: number = 0.01) {
 		let completed = 0;
 		const startTime = performance.now();
 
-		// Process addresses in parallel batches
-		for (let i = 0; i < sampleAddresses.length; i += CONCURRENCY) {
-			const batch = sampleAddresses.slice(i, i + CONCURRENCY);
+		// Pagination loop: fetch and process addresses in pages
+		let offset = 0;
+		let hasMore = true;
 
-			// Process batch in parallel
-			const promises = batch.map(async (address) => {
-				return await generateJobWithErrorLogging(address);
-			});
+		while (hasMore) {
+			// Fetch a page of addresses
+			const pageAddresses = (await db.execute(sql`
+				SELECT * FROM address 
+				ORDER BY id 
+				LIMIT ${PAGE_SIZE} 
+				OFFSET ${offset}
+			`)) as unknown as Array<Address>;
 
-			const results = await Promise.all(promises);
-
-			// Update counters for the entire batch
-			const batchSuccesses = results.filter((success) => success).length;
-			completed += results.length;
-			successCount += batchSuccesses;
-
-			// Calculate ETA once per batch
-			const elapsed = (performance.now() - startTime) / 1000;
-			const rate = completed / elapsed;
-			const remaining = sampleAddresses.length - completed;
-			const etaSeconds = remaining / rate;
-
-			// Format ETA
-			let etaFormatted;
-			if (remaining === 0) {
-				etaFormatted = 'Done';
-			} else if (etaSeconds < 60) {
-				etaFormatted = `${Math.round(etaSeconds)}s`;
-			} else if (etaSeconds < 3600) {
-				etaFormatted = `${Math.floor(etaSeconds / 60)}m ${Math.round(etaSeconds % 60)}s`;
-			} else {
-				etaFormatted = `${Math.floor(etaSeconds / 3600)}h ${Math.floor((etaSeconds % 3600) / 60)}m`;
+			if (pageAddresses.length === 0) {
+				hasMore = false;
+				break;
 			}
 
-			const successRate = (successCount / completed) * 100;
+			// Process addresses in this page in parallel batches
+			for (let i = 0; i < pageAddresses.length; i += CONCURRENCY) {
+				const batch = pageAddresses.slice(i, i + CONCURRENCY);
 
-			// Update progress bar once per batch
-			progressBar.update(completed, {
-				eta_formatted: etaFormatted,
-				success: successRate.toFixed(1)
-			});
+				// Process batch in parallel
+				const promises = batch.map(async (address) => {
+					return await generateJobWithErrorLogging(address);
+				});
+
+				const results = await Promise.all(promises);
+
+				// Update counters for the entire batch
+				const batchSuccesses = results.filter((success) => success).length;
+				completed += results.length;
+				successCount += batchSuccesses;
+
+				// Calculate ETA once per batch
+				const elapsed = (performance.now() - startTime) / 1000;
+				const rate = completed / elapsed;
+				const remaining = totalAddresses - completed;
+				const etaSeconds = remaining / rate;
+
+				// Format ETA
+				let etaFormatted;
+				if (remaining === 0) {
+					etaFormatted = 'Done';
+				} else if (etaSeconds < 60) {
+					etaFormatted = `${Math.round(etaSeconds)}s`;
+				} else if (etaSeconds < 3600) {
+					etaFormatted = `${Math.floor(etaSeconds / 60)}m ${Math.round(etaSeconds % 60)}s`;
+				} else {
+					etaFormatted = `${Math.floor(etaSeconds / 3600)}h ${Math.floor((etaSeconds % 3600) / 60)}m`;
+				}
+
+				const successRate = (successCount / completed) * 100;
+
+				// Update progress bar once per batch
+				progressBar.update(completed, {
+					eta_formatted: etaFormatted,
+					success: successRate.toFixed(1)
+				});
+			}
+
+			offset += PAGE_SIZE;
 		}
 
 		progressBar.stop();
@@ -216,17 +190,17 @@ async function generateJobsWithProgress(fraction: number = 0.01) {
 		console.log(`\n${COLORS.bright}${COLORS.green}🎉 Job Generation Complete!${COLORS.reset}\n`);
 		console.log(`${COLORS.bright}Final Statistics:${COLORS.reset}`);
 		console.log(
-			`  Total Jobs: ${COLORS.blue}${sampleAddresses.length.toLocaleString()}${COLORS.reset}`
+			`  Total Jobs: ${COLORS.blue}${completed.toLocaleString()}${COLORS.reset}`
 		);
 		console.log(
-			`  Successful: ${COLORS.green}${successCount.toLocaleString()}${COLORS.reset} (${((successCount / sampleAddresses.length) * 100).toFixed(1)}%)`
+			`  Successful: ${COLORS.green}${successCount.toLocaleString()}${COLORS.reset} (${((successCount / completed) * 100).toFixed(1)}%)`
 		);
 		console.log(
-			`  Failed: ${COLORS.red}${(sampleAddresses.length - successCount).toLocaleString()}${COLORS.reset} (${(((sampleAddresses.length - successCount) / sampleAddresses.length) * 100).toFixed(1)}%)`
+			`  Failed: ${COLORS.red}${(completed - successCount).toLocaleString()}${COLORS.reset} (${(((completed - successCount) / completed) * 100).toFixed(1)}%)`
 		);
 		console.log(`  Total Time: ${COLORS.cyan}${totalTime.toFixed(1)}s${COLORS.reset}`);
 		console.log(
-			`  Average Rate: ${COLORS.yellow}${(sampleAddresses.length / totalTime).toFixed(1)} jobs/second${COLORS.reset}`
+			`  Average Rate: ${COLORS.yellow}${(completed / totalTime).toFixed(1)} jobs/second${COLORS.reset}`
 		);
 		console.log(`\n${COLORS.gray}📄 Error details logged to: ${ERROR_LOG_FILE}${COLORS.reset}`);
 	} catch (error) {
@@ -237,8 +211,7 @@ async function generateJobsWithProgress(fraction: number = 0.01) {
 
 async function main() {
 	try {
-		const { fraction } = parseArgs();
-		await generateJobsWithProgress(fraction);
+		await generateJobsWithProgress();
 	} finally {
 		// Close database connection
 		await client.end();

@@ -28,9 +28,9 @@ jobs:
     randomFactorMax: 10.0 # max random factor multiplier (from -log(1-random))
 
   generation:
-    maxTier: 8
     maxJobsPerTile: 10
     minTileLevel: 12
+    temperature: 2.0 # Temperature parameter for tier distribution (weights: 2^{-tier/temperature})
 
   categories:
     multipliers:
