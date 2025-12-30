@@ -12,7 +12,13 @@
 	import { JobLoader } from './map/JobLoader';
 	import MarkerRenderer from './map/MarkerRenderer.svelte';
 	import RouteRenderer from './map/RouteRenderer.svelte';
-	import type { Employee, Address, Coordinate, RoutingResult, PathPoint } from '$lib/server/db/schema';
+	import type {
+		Employee,
+		Address,
+		Coordinate,
+		RoutingResult,
+		PathPoint
+	} from '$lib/server/db/schema';
 	import type { DisplayableRoute } from '$lib/stores/mapDisplay';
 	import { formatAddress } from '$lib/formatting';
 	import { log } from '$lib/logger';

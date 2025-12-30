@@ -91,7 +91,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		if (existingActiveJob) {
 			// Get complete data for existing active job
 			const [jobPickupAddress, jobDeliverAddress, activeRoute] = await Promise.all([
-				db.query.addresses.findFirst({ where: eq(addresses.id, existingActiveJob.jobPickupAddress) }),
+				db.query.addresses.findFirst({
+					where: eq(addresses.id, existingActiveJob.jobPickupAddress)
+				}),
 				db.query.addresses.findFirst({
 					where: eq(addresses.id, existingActiveJob.jobDeliverAddress)
 				}),
