@@ -146,7 +146,16 @@ async function generateJobsWithProgress() {
 					return await generateJobWithErrorLogging(address);
 				});
 
-				const results = await Promise.all(promises);
+				const results = await Promise.allSettled(promises).then((settled) => {
+					return settled.map((result) => {
+						if (result.status === 'fulfilled') {
+							return result.value;
+						} else {
+							console.error(`Promise rejected: ${result.reason}`);
+							return false;
+						}
+					});
+				});
 
 				// Update counters for the entire batch
 				const batchSuccesses = results.filter((success) => success).length;
@@ -203,6 +212,17 @@ async function generateJobsWithProgress() {
 		console.log(`\n${COLORS.gray}📄 Error details logged to: ${ERROR_LOG_FILE}${COLORS.reset}`);
 	} catch (error) {
 		console.error(`\n${COLORS.red}❌ Error: ${error}${COLORS.reset}`);
+		if (error instanceof AggregateError) {
+			console.error(`${COLORS.red}AggregateError details:${COLORS.reset}`);
+			console.error(`  Number of errors: ${error.errors.length}`);
+			error.errors.forEach((err, idx) => {
+				console.error(`  Error ${idx + 1}: ${err}`);
+			});
+		}
+		if (error instanceof Error) {
+			console.error(`${COLORS.red}Stack trace:${COLORS.reset}`);
+			console.error(error.stack);
+		}
 		process.exit(1);
 	}
 }

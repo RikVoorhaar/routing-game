@@ -16,7 +16,8 @@ services:
     #   - ADDRESS_FILE=/data/osm/netherlands-latest.addresses.csv.gz
     environment:
       - OSM_FILE=/data/osm/europe-latest.ways.osm.pbf
-      - ADDRESS_FILE=/data/osm/europe-latest.addresses.csv.gz
+      - ADDRESS_FILE=/data/osm/europe-latest.addresses.csv
+      - ROUTING_TIMING=1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s

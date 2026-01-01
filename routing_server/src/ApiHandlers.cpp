@@ -1,8 +1,10 @@
 #include "../include/ApiHandlers.h"
 #include "../include/JsonBuilder.h"
 #include "../include/Logger.h"
+#include "../include/RoutingEngine.h"
 #include <routingkit/timer.h>
 #include <sstream>
+#include <cstdlib>
 
 namespace RoutingServer {
 
@@ -82,7 +84,12 @@ crow::response ApiHandlers::handleShortestPath(const crow::request& req) {
     
     // Compute the shortest path with walking segments
     LOG("Computing route with walking segments...");
+    long long compute_start = RoutingKit::get_micro_time();
     RoutingResult result = engine_->computeShortestPathFromCoordinates(from_lat, from_lon, to_lat, to_lon);
+    long long compute_end = RoutingKit::get_micro_time();
+    if (RoutingEngine::isTimingEnabled()) {
+        LOG("[TIMING] computeShortestPathFromCoordinates: " << (compute_end - compute_start) / 1000.0 << " ms");
+    }
     
     LOG("Route computed in " << result.query_time_us << " microseconds");
     LOG("Path length: " << result.node_path.size() << " nodes, travel time: " << result.total_travel_time_ms << " ms");
@@ -112,7 +119,12 @@ crow::response ApiHandlers::handleShortestPath(const crow::request& req) {
     }
     
     // Process the path into points with coordinates and travel times
+    long long process_start = RoutingKit::get_micro_time();
     auto route_points = engine_->processPathIntoPoints(result, max_speed_kmh);
+    long long process_end = RoutingKit::get_micro_time();
+    if (RoutingEngine::isTimingEnabled()) {
+        LOG("[TIMING] processPathIntoPoints: " << (process_end - process_start) / 1000.0 << " ms");
+    }
     
     // If max speed was applied, recalculate the total travel time
     RoutingResult modified_result = result;
@@ -123,7 +135,13 @@ crow::response ApiHandlers::handleShortestPath(const crow::request& req) {
     
     // Build and return the JSON response
     LOG("Sending response");
+    long long json_start = RoutingKit::get_micro_time();
     auto success_response = JsonBuilder::buildRouteResponse(modified_result, route_points);
+    long long json_end = RoutingKit::get_micro_time();
+    if (RoutingEngine::isTimingEnabled()) {
+        LOG("[TIMING] JsonBuilder::buildRouteResponse: " << (json_end - json_start) / 1000.0 << " ms");
+    }
+    
     long long end_time = RoutingKit::get_micro_time();
     LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms");
     return crow::response(success_response);
