@@ -18,3 +18,4 @@ ALTER TABLE "active_job" DROP COLUMN "employee_start_address_id";--> statement-b
 -- This assumes the location field contains JSONB with lat/lon fields
 UPDATE "employee" SET "location" = jsonb_build_object('lat', (location->>'lat')::double precision, 'lon', (location->>'lon')::double precision)
 WHERE location IS NOT NULL AND (location->>'lat') IS NOT NULL AND (location->>'lon') IS NOT NULL;
+
