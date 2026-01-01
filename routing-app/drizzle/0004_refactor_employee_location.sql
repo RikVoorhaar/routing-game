@@ -20,3 +20,4 @@ UPDATE "employee" SET "location" = jsonb_build_object('lat', (location->>'lat'):
 WHERE location IS NOT NULL AND (location->>'lat') IS NOT NULL AND (location->>'lon') IS NOT NULL;
 
 
+
