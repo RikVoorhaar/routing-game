@@ -127,7 +127,8 @@ export function createNutsLayer(
 		style: defaultStyle,
 		onEachFeature: (feature: any, layer: any) => {
 			// Set tooltip content from NUTS_NAME or NAME_LATN
-			const regionName = feature.properties?.NUTS_NAME || feature.properties?.NAME_LATN || 'Unknown';
+			const regionName =
+				feature.properties?.NUTS_NAME || feature.properties?.NAME_LATN || 'Unknown';
 			layer.bindTooltip(regionName, {
 				permanent: false,
 				direction: 'auto',
@@ -196,4 +197,3 @@ export function setNutsInteractivity(options: {
 		}
 	});
 }
-

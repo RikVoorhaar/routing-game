@@ -14,4 +14,3 @@ export const NUTS_LEVEL = 2;
  * Whether the regions overlay is enabled
  */
 export const regionOverlayEnabled = writable<boolean>(false);
-
