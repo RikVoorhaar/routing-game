@@ -7,10 +7,12 @@ function getRoutingServerUrl(): string {
 	if (typeof process !== 'undefined' && process.env?.ROUTING_SERVER_URL) {
 		return process.env.ROUTING_SERVER_URL;
 	}
-	
+
 	// In SvelteKit context, $env/dynamic/private is available at build time
 	// For now, just use process.env - SvelteKit will populate it from .env files
-	throw new Error('ROUTING_SERVER_URL is not set. Ensure .env file exists and dotenv.config() is called.');
+	throw new Error(
+		'ROUTING_SERVER_URL is not set. Ensure .env file exists and dotenv.config() is called.'
+	);
 }
 
 // Create HTTP agent with keep-alive for connection pooling
