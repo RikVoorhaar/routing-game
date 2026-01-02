@@ -189,13 +189,11 @@ export const activeJobs = pgTable(
 		// Single XP value for the job (awarded to both employee XP and global category XP)
 		xp: integer('xp').notNull(),
 		jobCategory: integer('job_category').notNull(),
-		employeeStartAddressId: varchar('employee_start_address_id')
+		employeeStartLocation: jsonb('employee_start_location').$type<Coordinate>().notNull(),
+		jobPickupAddress: varchar('job_pickup_address')
 			.notNull()
 			.references(() => addresses.id, { onDelete: 'cascade' }),
-		jobAddressId: varchar('job_address_id')
-			.notNull()
-			.references(() => addresses.id, { onDelete: 'cascade' }),
-		employeeEndAddressId: varchar('employee_end_address_id')
+		jobDeliverAddress: varchar('job_deliver_address')
 			.notNull()
 			.references(() => addresses.id, { onDelete: 'cascade' })
 	},
@@ -232,7 +230,7 @@ export const employees = pgTable(
 		name: text('name').notNull(),
 		vehicleLevel: integer('vehicle_level').notNull().default(0), // VehicleType enum
 		xp: integer('xp').notNull().default(0), // Single XP value for employee
-		location: jsonb('location').$type<Address>().notNull(), // JSONB: Address
+		location: jsonb('location').$type<Coordinate>().notNull(), // JSONB: Coordinate (lat/lon)
 		order: integer('order').notNull().default(0) // Order in which employee was hired (for consistent display ordering)
 	},
 	(table) => [
@@ -372,9 +370,9 @@ export interface RoutingResult {
 export interface FullEmployeeData {
 	employee: Employee;
 	activeJob: ActiveJob | null;
-	employeeStartAddress: Address | null;
-	jobAddress: Address | null;
-	employeeEndAddress: Address | null;
+	employeeStartLocation: Coordinate | null;
+	jobPickupAddress: Address | null;
+	jobDeliverAddress: Address | null;
 	activeRoute: ActiveRoute | null;
 }
 

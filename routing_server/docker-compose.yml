@@ -8,9 +8,16 @@ services:
       - "8050:8080"
     volumes:
       - ../osm_files:/data/osm
+    # environment:
+    #   - OSM_FILE=/data/osm/utrecht-latest.ways.osm.pbf
+    #   - ADDRESS_FILE=/data/osm/utrecht-latest.addresses.csv.gz
+    # environment:
+    #   - OSM_FILE=/data/osm/netherlands-latest.simplified.ways.osm.pbf
+    #   - ADDRESS_FILE=/data/osm/netherlands-latest.addresses.csv.gz
     environment:
-      - OSM_FILE=/data/osm/utrecht-latest.trimmed.osm.pbf
-      - ADDRESS_FILE=/data/osm/utrecht-latest.addresses.csv.gz
+      - OSM_FILE=/data/osm/europe-latest.ways.osm.pbf
+      - ADDRESS_FILE=/data/osm/europe-latest.addresses.csv
+      - ROUTING_TIMING=1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -30,7 +37,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres-init:/docker-entrypoint-initdb.d
+      - ./postgres-conf:/docker-entrypoint-initdb.d
+      - ./postgres-conf/pg_hba.conf:/var/lib/postgresql/data/pg_hba.conf
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U routing_user -d routing_game"]
       interval: 10s

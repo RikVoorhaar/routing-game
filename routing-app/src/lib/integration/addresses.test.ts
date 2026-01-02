@@ -11,6 +11,7 @@ import {
 import type { Coordinate } from '$lib/server/db/schema';
 
 const skipIfCI = process.env.CI ? describe.skip : describe;
+const ROUTING_SERVER_URL = process.env.ROUTING_SERVER_URL || 'http://localhost:8050';
 
 skipIfCI('address functions (integration)', () => {
 	beforeAll(async () => {
@@ -140,7 +141,7 @@ skipIfCI('address functions (integration)', () => {
 		it('should test the direct API endpoint response format', async () => {
 			// Test the API directly to see exactly what format it returns
 			const response = await fetch(
-				`http://localhost:8050/api/v1/closest_address?location=52.0907,5.1214`
+				`${ROUTING_SERVER_URL}/api/v1/closest_address?location=52.0907,5.1214`
 			);
 			expect(response.ok).toBe(true);
 

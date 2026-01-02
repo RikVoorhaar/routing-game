@@ -15,6 +15,17 @@ wget https://download.geofabrik.de/europe/netherlands/your-region-latest.osm.pbf
 mv your-region-latest.osm.pbf osm_files/
 ```
 
+### 1b. Download NUTS boundaries (GeoJSON, optional)
+If you need NUTS boundaries for mapping/overlays, you can download them from [eurostat/Nuts2json](https://github.com/eurostat/Nuts2json).
+
+This downloads **Year 2024**, **EPSG:3857 (Web Mercator)**, **scale 60M**, **type `nutsrg`**, **NUTS level 2**, in **GeoJSON**:
+
+```bash
+mkdir -p osm_files
+wget -O osm_files/nutsrg_2024_3857_60M_level2.geojson \
+  "https://raw.githubusercontent.com/eurostat/Nuts2json/master/pub/v2/2024/3857/60M/nutsrg_2.json"
+```
+
 ### 2. Trim OSM File to Largest Component
 Use the OSM utilities to extract the largest connected component:
 ```bash

@@ -51,9 +51,9 @@ export const GET: RequestHandler = async ({ params }) => {
 			const fullEmployeeData: FullEmployeeData[] = allEmployees.map((employee) => ({
 				employee,
 				activeJob: null,
-				employeeStartAddress: null,
-				jobAddress: null,
-				employeeEndAddress: null,
+				employeeStartLocation: null,
+				jobPickupAddress: null,
+				jobDeliverAddress: null,
 				activeRoute: null
 			}));
 
@@ -66,12 +66,11 @@ export const GET: RequestHandler = async ({ params }) => {
 			});
 		}
 
-		// Get all unique address IDs from active jobs
+		// Get all unique address IDs from active jobs (employeeStartLocation is now Coordinate JSONB, not an address ID)
 		const addressIds = new Set<string>();
 		activeJobsData.forEach((job) => {
-			addressIds.add(job.employeeStartAddressId);
-			addressIds.add(job.jobAddressId);
-			addressIds.add(job.employeeEndAddressId);
+			addressIds.add(job.jobPickupAddress);
+			addressIds.add(job.jobDeliverAddress);
 		});
 
 		// Get all addresses and active routes in parallel
@@ -103,9 +102,9 @@ export const GET: RequestHandler = async ({ params }) => {
 				return {
 					employee,
 					activeJob: null,
-					employeeStartAddress: null,
-					jobAddress: null,
-					employeeEndAddress: null,
+					employeeStartLocation: null,
+					jobPickupAddress: null,
+					jobDeliverAddress: null,
 					activeRoute: null
 				};
 			}
@@ -113,9 +112,9 @@ export const GET: RequestHandler = async ({ params }) => {
 			return {
 				employee,
 				activeJob,
-				employeeStartAddress: addressMap.get(activeJob.employeeStartAddressId) || null,
-				jobAddress: addressMap.get(activeJob.jobAddressId) || null,
-				employeeEndAddress: addressMap.get(activeJob.employeeEndAddressId) || null,
+				employeeStartLocation: activeJob.employeeStartLocation,
+				jobPickupAddress: addressMap.get(activeJob.jobPickupAddress) || null,
+				jobDeliverAddress: addressMap.get(activeJob.jobDeliverAddress) || null,
 				activeRoute: activeRouteMap.get(activeJob.id) || null
 			};
 		});

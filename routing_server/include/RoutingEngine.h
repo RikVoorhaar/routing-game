@@ -13,6 +13,10 @@
 #include <cmath>
 #include <optional>
 #include <functional>
+#include <mutex>
+#include <queue>
+#include <thread>
+#include <cstdlib>
 
 namespace RoutingServer {
 
@@ -85,7 +89,8 @@ RoutingKit::OSMWayDirectionCategory get_custom_profile_direction_category(uint64
 class RoutingEngine {
 public:
     // Initialize with OSM data file
-    explicit RoutingEngine(const std::string& osm_file);
+    // Optionally provide path to pre-built contraction hierarchy file (for geo distance)
+    explicit RoutingEngine(const std::string& osm_file, const std::string& ch_geo_file = "");
     
     // Load addresses from CSV file
     bool loadAddressesFromCSV(const std::string& csv_file);
@@ -164,6 +169,9 @@ public:
                                                              float min_distance_km, float max_distance_km,
                                                              unsigned seed) const;
 
+    // Helper to check if timing logs are enabled
+    static bool isTimingEnabled();
+
 private:
     // Generate a point in an annulus
     std::pair<double, double> generateAnnulusPoint(double center_lat, double center_lon, 
@@ -176,12 +184,34 @@ private:
     // Convert degrees to radians
     static constexpr double toRadians(double degrees) { return degrees * M_PI / 180.0; }
     
+    // Query pool management for ContractionHierarchyQuery reuse
+    class QueryPool {
+    public:
+        explicit QueryPool(RoutingKit::ContractionHierarchy& ch, unsigned pool_size);
+        ~QueryPool();
+        
+        // Acquire a query from the pool (returns nullptr if pool exhausted)
+        RoutingKit::ContractionHierarchyQuery* acquire();
+        
+        // Release a query back to the pool
+        void release(RoutingKit::ContractionHierarchyQuery* query);
+        
+    private:
+        RoutingKit::ContractionHierarchy& ch_;
+        std::vector<std::unique_ptr<RoutingKit::ContractionHierarchyQuery>> queries_;
+        std::queue<RoutingKit::ContractionHierarchyQuery*> available_;
+        std::mutex mutex_;
+    };
+    
     // Custom routing graph data
     RoutingKit::OSMRoutingGraph graph_;
     std::vector<unsigned> way_speed_;
     std::unique_ptr<RoutingKit::ContractionHierarchy> ch_;
     std::unique_ptr<RoutingKit::ContractionHierarchy> ch_geo_;
     std::unique_ptr<RoutingKit::GeoPositionToNode> pos_to_node_;
+    
+    // Query pool for reusing ContractionHierarchyQuery objects
+    std::unique_ptr<QueryPool> query_pool_;
     
     // Address data
     std::vector<Address> addresses_;

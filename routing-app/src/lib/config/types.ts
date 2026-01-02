@@ -93,9 +93,9 @@ export interface GameConfig {
 			randomFactorMax: number;
 		};
 		generation: {
-			maxTier: number;
 			maxJobsPerTile: number;
 			minTileLevel: number;
+			temperature: number;
 		};
 		categories: {
 			multipliers: Record<string, number>;

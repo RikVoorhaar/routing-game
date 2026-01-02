@@ -89,7 +89,9 @@ function createSafeJsonStream(): Transform {
 }
 
 function createServerLogger() {
-	const isDev = process.env.NODE_ENV === 'development' || import.meta.env.DEV;
+	const isDev =
+		process.env.NODE_ENV === 'development' ||
+		(typeof import.meta !== 'undefined' && import.meta.env?.DEV === true);
 	const envLevel = process.env.LOG_LEVEL;
 	const debugEnabled = process.env.ENABLE_DEBUG_LOGS === '1';
 

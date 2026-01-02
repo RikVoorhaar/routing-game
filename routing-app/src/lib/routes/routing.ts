@@ -3,7 +3,16 @@ import type { Address } from '../server/db/schema';
 import type { Coordinate, RoutingResult, PathPoint } from '../server/db/schema';
 import http from 'http';
 
-const ROUTING_SERVER_URL = 'http://localhost:8050';
+// Get ROUTING_SERVER_URL from environment (checked lazily when functions are called)
+function getRoutingServerUrl(): string {
+	const url = (typeof process !== 'undefined' && process.env?.ROUTING_SERVER_URL) || '';
+	if (!url) {
+		throw new Error(
+			'ROUTING_SERVER_URL is not set. Ensure .env file exists and dotenv.config() is called.'
+		);
+	}
+	return url;
+}
 
 // Reuse the same HTTP agent for connection pooling
 const httpAgent = new http.Agent({
@@ -35,6 +44,7 @@ export async function getShortestPath(
 	to: Coordinate,
 	maxSpeed?: number
 ): Promise<RoutingResult> {
+	const ROUTING_SERVER_URL = getRoutingServerUrl();
 	let url = `${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`;
 
 	if (maxSpeed !== undefined && maxSpeed > 0) {

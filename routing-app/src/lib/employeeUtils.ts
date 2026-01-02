@@ -59,11 +59,6 @@ export function computeEmployeeCosts(
 }
 
 export const DEFAULT_EMPLOYEE_LOCATION = {
-	id: '2709275418',
 	lat: 52.0911907,
-	lon: 5.1220287,
-	street: 'Domplein',
-	houseNumber: '1',
-	city: 'Utrecht',
-	postcode: '3512JC'
+	lon: 5.1220287
 };

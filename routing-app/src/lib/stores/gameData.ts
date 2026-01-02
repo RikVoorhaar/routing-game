@@ -144,9 +144,9 @@ export const gameDataActions = {
 			const fedData: FullEmployeeData[] = data.employees.map((employee) => ({
 				employee,
 				activeJob: null,
-				employeeStartAddress: null,
-				jobAddress: null,
-				employeeEndAddress: null,
+				employeeStartLocation: null,
+				jobPickupAddress: null,
+				jobDeliverAddress: null,
 				activeRoute: null
 			}));
 			gameDataActions.setFullEmployeeData(fedData);
@@ -223,9 +223,9 @@ export const gameDataActions = {
 		const fedData: FullEmployeeData[] = newEmployees.map((employee) => ({
 			employee,
 			activeJob: null,
-			employeeStartAddress: null,
-			jobAddress: null,
-			employeeEndAddress: null,
+			employeeStartLocation: null,
+			jobPickupAddress: null,
+			jobDeliverAddress: null,
 			activeRoute: null
 		}));
 		this.setFullEmployeeData(fedData);
@@ -245,9 +245,9 @@ export const gameDataActions = {
 		const newFed: FullEmployeeData = {
 			employee,
 			activeJob: null,
-			employeeStartAddress: null,
-			jobAddress: null,
-			employeeEndAddress: null,
+			employeeStartLocation: null,
+			jobPickupAddress: null,
+			jobDeliverAddress: null,
 			activeRoute: null
 		};
 		fullEmployeeData.update((currentFullData) => [...currentFullData, newFed]);
@@ -282,9 +282,9 @@ export const gameDataActions = {
 					? {
 							...fed,
 							activeJob: null,
-							employeeStartAddress: null,
-							jobAddress: null,
-							employeeEndAddress: null,
+							employeeStartLocation: null,
+							jobPickupAddress: null,
+							jobDeliverAddress: null,
 							activeRoute: null
 						}
 					: fed

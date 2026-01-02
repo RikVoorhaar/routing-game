@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <iostream>
+#include <cstdlib>
 
 using namespace RoutingServer;
 
@@ -12,10 +13,11 @@ int main(int argc, char* argv[]) {
 	LOG("Starting routing server...");
 	
 	// Check command line arguments
-	if (argc < 2 || argc > 3) {
-		LOG("Usage: " << argv[0] << " <osm_file> [addresses_csv_file]");
+	if (argc < 2 || argc > 4) {
+		LOG("Usage: " << argv[0] << " <osm_file> [addresses_csv_file] [ch_geo_file]");
 		LOG("  osm_file: Path to the OSM data file in PBF format");
 		LOG("  addresses_csv_file: Optional path to a CSV file with address data");
+		LOG("  ch_geo_file: Optional path to pre-built contraction hierarchy file");
 		return 1;
 	}
 	
@@ -25,16 +27,30 @@ int main(int argc, char* argv[]) {
 	
 	// Get optional addresses file
 	std::string addresses_file;
-	if (argc == 3) {
+	if (argc >= 3) {
 		addresses_file = argv[2];
 		LOG("Using address data from " << addresses_file);
+	}
+	
+	// Get optional CH file (from argv or env var)
+	std::string ch_geo_file;
+	const char* ch_file_env = std::getenv("CH_GEO_FILE");
+	if (ch_file_env != nullptr) {
+		ch_geo_file = ch_file_env;
+		LOG("Using CH file from environment: " << ch_geo_file);
+	} else if (argc == 4) {
+		ch_geo_file = argv[3];
+		LOG("Using CH file from argument: " << ch_geo_file);
 	}
 	
 	try {
 		// Initialize the routing engine
 		LOG("Initializing routing engine...");
 		LOG("Starting RoutingEngine constructor with file: " << osm_file);
-		auto engine = std::make_shared<RoutingEngine>(osm_file);
+		if (!ch_geo_file.empty()) {
+			LOG("CH file specified: " << ch_geo_file);
+		}
+		auto engine = std::make_shared<RoutingEngine>(osm_file, ch_geo_file);
 		LOG("RoutingEngine constructor completed successfully");
 		LOG("Routing engine initialized with " << engine->getNodeCount() << " nodes and " 
 			<< engine->getArcCount() << " arcs");

@@ -1,14 +1,18 @@
 """Database connection and ORM models for OSM utilities."""
 
 import os
-from sqlalchemy import create_engine, Column, String, Numeric, DateTime, func, Index
+from pathlib import Path
+from sqlalchemy import create_engine, Column, String, Numeric, DateTime, func, Index, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.dialects.postgresql import TEXT
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from project root (.env file)
+# This file is in osm_utils/src/osm_utils/, so go up 3 levels to reach project root
+_project_root = Path(__file__).parent.parent.parent.parent
+_env_file = _project_root / '.env'
+load_dotenv(_env_file)
 
 Base = declarative_base()
 
@@ -72,22 +76,43 @@ def init_database():
 
 
 def truncate_addresses_table():
-    """Remove all rows from the addresses table."""
+    """Remove all rows from the addresses table.
+    
+    Note: Uses CASCADE to handle foreign key constraints from dependent tables
+    (e.g., active_job). This will also truncate those dependent tables.
+    """
     engine = create_db_engine()
+    
+    # Check count before truncate
     with engine.connect() as conn:
-        conn.execute(func.text("TRUNCATE TABLE address"))
-        conn.commit()
-    print("Truncated addresses table")
+        result = conn.execute(text("SELECT COUNT(*) FROM address"))
+        count_before = int(result.scalar() or 0)
+    
+    # Truncate the table with CASCADE to handle foreign key constraints
+    with engine.begin() as conn:
+        conn.execute(text("TRUNCATE TABLE address CASCADE"))
+    
+    # Verify truncate worked
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT COUNT(*) FROM address"))
+        count_after = int(result.scalar() or 0)
+    
+    if count_before > 0:
+        print(f"Truncated addresses table (removed {count_before:,} addresses)")
+    else:
+        print("Truncated addresses table (table was already empty)")
+    
+    if count_after != 0:
+        raise RuntimeError(f"TRUNCATE failed - table still has {count_after:,} rows!")
 
 
 def create_spatial_index():
     """Create spatial index on geometry column using PostGIS."""
     engine = create_db_engine()
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         # Create GIST index for spatial queries if it doesn't exist
-        conn.execute(func.text("""
+        conn.execute(text("""
             CREATE INDEX IF NOT EXISTS addresses_location_gist_idx 
             ON address USING GIST (ST_GeomFromText(location))
         """))
-        conn.commit()
     print("Created spatial index on location column") 

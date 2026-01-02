@@ -12,7 +12,13 @@
 	import { JobLoader } from './map/JobLoader';
 	import MarkerRenderer from './map/MarkerRenderer.svelte';
 	import RouteRenderer from './map/RouteRenderer.svelte';
-	import type { Employee, Address, RoutingResult, PathPoint } from '$lib/server/db/schema';
+	import type {
+		Employee,
+		Address,
+		Coordinate,
+		RoutingResult,
+		PathPoint
+	} from '$lib/server/db/schema';
 	import type { DisplayableRoute } from '$lib/stores/mapDisplay';
 	import { formatAddress } from '$lib/formatting';
 	import { log } from '$lib/logger';
@@ -274,7 +280,7 @@
 	function addRouteMarkers(data: any, routeType: string) {
 		if (!leafletMap || !L) return;
 
-		const { employeeStartAddress, jobAddress, employeeEndAddress } = data;
+		const { employeeStartLocation, jobPickupAddress, jobDeliverAddress } = data;
 
 		// Marker styles
 		const markerStyles: Record<string, any> = {
@@ -292,33 +298,33 @@
 
 		const style = markerStyles[routeType] || markerStyles.active;
 
-		// Add start marker
-		if (employeeStartAddress) {
-			const startMarker = L.marker([employeeStartAddress.lat, employeeStartAddress.lon], {
+		// Add start marker (employeeStartLocation is a Coordinate, not an Address)
+		if (employeeStartLocation) {
+			const startMarker = L.marker([employeeStartLocation.lat, employeeStartLocation.lon], {
 				icon: createCustomIcon(style.start.icon, style.start.color)
 			}).addTo(leafletMap);
 			startMarker.bindPopup(
-				`${routeType === 'preview' ? 'Preview' : 'Active'} Route Start<br/>${formatAddress(employeeStartAddress)}`
+				`${routeType === 'preview' ? 'Preview' : 'Active'} Route Start<br/>${employeeStartLocation.lat.toFixed(6)}, ${employeeStartLocation.lon.toFixed(6)}`
 			);
 			routeMarkers.push(startMarker);
 		}
 
 		// Add job marker
-		if (jobAddress) {
-			const jobMarker = L.marker([jobAddress.lat, jobAddress.lon], {
+		if (jobPickupAddress) {
+			const jobMarker = L.marker([jobPickupAddress.lat, jobPickupAddress.lon], {
 				icon: createCustomIcon(style.job.icon, style.job.color)
 			}).addTo(leafletMap);
-			jobMarker.bindPopup(`Job Location<br/>${formatAddress(jobAddress)}`);
+			jobMarker.bindPopup(`Job Pickup Location<br/>${formatAddress(jobPickupAddress)}`);
 			routeMarkers.push(jobMarker);
 		}
 
 		// Add end marker
-		if (employeeEndAddress) {
-			const endMarker = L.marker([employeeEndAddress.lat, employeeEndAddress.lon], {
+		if (jobDeliverAddress) {
+			const endMarker = L.marker([jobDeliverAddress.lat, jobDeliverAddress.lon], {
 				icon: createCustomIcon(style.end.icon, style.end.color)
 			}).addTo(leafletMap);
 			endMarker.bindPopup(
-				`${routeType === 'preview' ? 'Preview' : 'Active'} Route End<br/>${formatAddress(employeeEndAddress)}`
+				`${routeType === 'preview' ? 'Preview' : 'Active'} Route End<br/>${formatAddress(jobDeliverAddress)}`
 			);
 			routeMarkers.push(endMarker);
 		}
@@ -448,11 +454,11 @@
 
 		if (employee.location) {
 			try {
-				let locationData: Address;
+				let locationData: Coordinate;
 				if (typeof employee.location === 'string') {
 					locationData = JSON.parse(employee.location);
 				} else if (typeof employee.location === 'object') {
-					locationData = employee.location as Address;
+					locationData = employee.location as Coordinate;
 				} else {
 					throw new Error('Invalid location format');
 				}

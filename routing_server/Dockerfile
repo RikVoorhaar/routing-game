@@ -36,6 +36,7 @@ RUN mkdir -p /data
 # Environment variables
 ENV OSM_FILE=""
 ENV ADDRESS_FILE=""
+ENV CH_GEO_FILE=""
 ENV PORT=8080
 
 # Build RoutingKit
@@ -66,6 +67,10 @@ ARGS="$OSM_FILE"\n\
 \n\
 if [ -n "$ADDRESS_FILE" ]; then\n\
   ARGS="$ARGS $ADDRESS_FILE"\n\
+fi\n\
+\n\
+if [ -n "$CH_GEO_FILE" ]; then\n\
+  ARGS="$ARGS $CH_GEO_FILE"\n\
 fi\n\
 \n\
 exec /app/routing_server/build/routing_server $ARGS\n' > /app/routing_server/entrypoint.sh && \

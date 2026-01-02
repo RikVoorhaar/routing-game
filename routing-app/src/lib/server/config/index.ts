@@ -124,12 +124,6 @@ function validateConfig(config: GameConfig): void {
 			errors.push('jobs.generation section is required');
 		} else {
 			if (
-				typeof config.jobs.generation.maxTier !== 'number' ||
-				config.jobs.generation.maxTier < 1
-			) {
-				errors.push('jobs.generation.maxTier must be >= 1');
-			}
-			if (
 				typeof config.jobs.generation.maxJobsPerTile !== 'number' ||
 				config.jobs.generation.maxJobsPerTile < 1
 			) {
@@ -140,6 +134,12 @@ function validateConfig(config: GameConfig): void {
 				config.jobs.generation.minTileLevel < 0
 			) {
 				errors.push('jobs.generation.minTileLevel must be >= 0');
+			}
+			if (
+				typeof config.jobs.generation.temperature !== 'number' ||
+				config.jobs.generation.temperature <= 0
+			) {
+				errors.push('jobs.generation.temperature must be a positive number');
 			}
 		}
 

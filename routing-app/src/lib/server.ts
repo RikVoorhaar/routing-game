@@ -1,8 +1,19 @@
 import http from 'http';
-import https from 'https';
 import type { Address, Coordinate } from '$lib/server/db/schema';
 
-const ROUTING_SERVER_URL = 'http://localhost:8050';
+// Get ROUTING_SERVER_URL from environment (checked lazily when functions are called)
+function getRoutingServerUrl(): string {
+	// Try process.env first (works in tests and standalone scripts)
+	if (typeof process !== 'undefined' && process.env?.ROUTING_SERVER_URL) {
+		return process.env.ROUTING_SERVER_URL;
+	}
+
+	// In SvelteKit context, $env/dynamic/private is available at build time
+	// For now, just use process.env - SvelteKit will populate it from .env files
+	throw new Error(
+		'ROUTING_SERVER_URL is not set. Ensure .env file exists and dotenv.config() is called.'
+	);
+}
 
 // Create HTTP agent with keep-alive for connection pooling
 const httpAgent = new http.Agent({
@@ -22,6 +33,7 @@ async function fetchWithKeepAlive(url: string, options: RequestInit = {}): Promi
 }
 
 export async function getClosestAddress(location: Coordinate): Promise<Address> {
+	const ROUTING_SERVER_URL = getRoutingServerUrl();
 	const response = await fetchWithKeepAlive(
 		`${ROUTING_SERVER_URL}/api/v1/closest_address?location=${location.lat},${location.lon}`
 	);
@@ -41,6 +53,7 @@ export async function getServerHealth(): Promise<{
 	arc_count: number;
 	address_count: number;
 }> {
+	const ROUTING_SERVER_URL = getRoutingServerUrl();
 	const response = await fetchWithKeepAlive(`${ROUTING_SERVER_URL}/health`);
 
 	if (!response.ok) {
@@ -56,6 +69,7 @@ export async function getAddressBbox(): Promise<{
 	min_lon: number;
 	max_lon: number;
 }> {
+	const ROUTING_SERVER_URL = getRoutingServerUrl();
 	const response = await fetchWithKeepAlive(`${ROUTING_SERVER_URL}/api/v1/bbox`);
 
 	if (!response.ok) {
@@ -67,6 +81,7 @@ export async function getAddressBbox(): Promise<{
 }
 
 export async function getNumAddresses(): Promise<{ count: number }> {
+	const ROUTING_SERVER_URL = getRoutingServerUrl();
 	const response = await fetchWithKeepAlive(`${ROUTING_SERVER_URL}/api/v1/numAddresses`);
 
 	if (!response.ok) {
@@ -98,6 +113,7 @@ export async function getAddressSample(params: {
 		page_num: params.page_num.toString()
 	});
 
+	const ROUTING_SERVER_URL = getRoutingServerUrl();
 	const response = await fetchWithKeepAlive(
 		`${ROUTING_SERVER_URL}/api/v1/addressSample?${queryParams}`
 	);
@@ -125,6 +141,7 @@ export async function getUniformRandomAddressInAnnulus(params: {
 		seed: params.seed.toString()
 	});
 
+	const ROUTING_SERVER_URL = getRoutingServerUrl();
 	const response = await fetchWithKeepAlive(
 		`${ROUTING_SERVER_URL}/api/v1/uniformRandomAddressInAnnulus?${queryParams}`
 	);

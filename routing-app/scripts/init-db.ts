@@ -68,32 +68,30 @@ async function dropAllTables(
 	}
 }
 
-// Run drizzle-kit push with automated responses to prompts
-async function runDrizzleKitPush(): Promise<void> {
+// Run drizzle-kit migrate to apply migrations
+async function runDrizzleKitMigrate(): Promise<void> {
 	return new Promise((resolve, reject) => {
-		// Use --force flag to auto-approve all changes
-		// Note: This may show PostGIS-related errors but will still create the tables
-		const pushProcess = spawn('npx', ['drizzle-kit', 'push', '--force'], {
+		// Apply migrations using drizzle-kit migrate
+		const migrateProcess = spawn('npx', ['drizzle-kit', 'migrate'], {
 			stdio: 'inherit'
 		});
 
-		pushProcess.on('close', (code) => {
-			// Accept exit code 0 (success) or 1 (partial success with PostGIS conflicts)
-			if (code === 0 || code === 1) {
+		migrateProcess.on('close', (code) => {
+			if (code === 0) {
 				resolve();
 			} else {
-				reject(new Error(`drizzle-kit push failed with exit code ${code}`));
+				reject(new Error(`drizzle-kit migrate failed with exit code ${code}`));
 			}
 		});
 
-		pushProcess.on('error', (error) => {
+		migrateProcess.on('error', (error) => {
 			reject(error);
 		});
 
 		// Timeout after 90 seconds
 		setTimeout(() => {
-			pushProcess.kill('SIGTERM');
-			reject(new Error('drizzle-kit push timed out'));
+			migrateProcess.kill('SIGTERM');
+			reject(new Error('drizzle-kit migrate timed out'));
 		}, 90000);
 	});
 }
@@ -171,10 +169,10 @@ async function main() {
 		// Set up PostGIS extension first (from schema)
 		await schema.setupPostGIS(db);
 
-		// Create schema using drizzle-kit push
-		console.log('Creating schema using drizzle-kit push...');
-		await runDrizzleKitPush();
-		console.log('Schema created successfully');
+		// Apply migrations using drizzle-kit migrate
+		console.log('Applying migrations using drizzle-kit migrate...');
+		await runDrizzleKitMigrate();
+		console.log('Migrations applied successfully');
 
 		// Create PostGIS spatial indexes (from schema)
 		await schema.createSpatialIndexes(db);

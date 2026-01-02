@@ -10,10 +10,24 @@ import { JobCategory } from '$lib/jobs/jobCategories';
 import { config } from '$lib/server/config';
 
 type JobInsert = InferInsertModel<typeof jobs>;
-// Constants for job generation
-const ROUTE_DISTANCES_KM = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
 
-const MAX_TIER = config.jobs.generation.maxTier;
+// Maximum job tier (constant)
+const MAX_TIER = 8;
+
+// Route distance ranges by tier (in kilometers)
+// Ranges have significant overlap and follow powers of 2.5
+// Tier n: min = 2.5^(n-1) / 10, max = 2.5^(n+1) / 10 (rounded to nice numbers)
+// This creates overlap: tier n's max overlaps with tier n+1's min, and tier n's min overlaps with tier n-1's max
+const ROUTE_DISTANCES_KM: Record<number, { min: number; max: number }> = {
+	1: { min: 0.1, max: 0.6 },
+	2: { min: 0.25, max: 1.5 },
+	3: { min: 0.6, max: 4 },
+	4: { min: 1.5, max: 10 },
+	5: { min: 4, max: 25 },
+	6: { min: 10, max: 60 },
+	7: { min: 25, max: 150 },
+	8: { min: 60, max: 950 }
+};
 
 // Category multipliers for value calculation - loaded from config
 function getCategoryMultipliers(): Record<JobCategory, number> {
@@ -81,12 +95,63 @@ function getAvailableCategories(jobTier: number): JobCategory[] {
 }
 
 /**
- * Computes job tier using probability formula: tier = min(maxTier, ceil(-log2(p)))
+ * Generates the cumulative distribution lookup table (LOT) for tier selection.
+ * Uses weights w_i = 2^{-tier/temperature} for tiers 1..MAX_TIER.
+ *
+ * Returns
+ * --------
+ * number[]
+ *     Cumulative distribution values [CDF_1, CDF_2, ..., CDF_MAX_TIER]
+ *     where CDF_i = sum_{j=1}^{i} w_j / sum_{j=1}^{MAX_TIER} w_j
+ */
+function generateTierDistributionLOT(): number[] {
+	const temperature = config.jobs.generation.temperature ?? 2.0;
+
+	// Calculate weights for each tier: w_i = 2^{-i/temperature}
+	const weights: number[] = [];
+	for (let tier = 1; tier <= MAX_TIER; tier++) {
+		weights.push(Math.pow(2, -tier / temperature));
+	}
+
+	// Calculate total weight (normalization factor)
+	const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+
+	// Generate cumulative distribution
+	const cumulative: number[] = [];
+	let cumSum = 0;
+	for (let i = 0; i < weights.length; i++) {
+		cumSum += weights[i] / totalWeight;
+		cumulative.push(cumSum);
+	}
+
+	return cumulative;
+}
+
+// Generate the lookup table once at module initialization
+const TIER_DISTRIBUTION_LOT = generateTierDistributionLOT();
+
+/**
+ * Computes job tier using weighted distribution with lookup table.
+ * Uses weights 2^{-tier/temperature} where temperature is from config.
  */
 function generateJobTier(): number {
 	const p = Math.random();
-	const tier = Math.ceil(-Math.log2(p));
-	return Math.min(config.jobs.generation.maxTier, tier);
+
+	// Binary search for the tier corresponding to random value p
+	let left = 0;
+	let right = TIER_DISTRIBUTION_LOT.length - 1;
+
+	while (left < right) {
+		const mid = Math.floor((left + right) / 2);
+		if (TIER_DISTRIBUTION_LOT[mid] < p) {
+			left = mid + 1;
+		} else {
+			right = mid;
+		}
+	}
+
+	// Return tier (1-indexed, so add 1 to array index)
+	return Math.min(left + 1, MAX_TIER);
 }
 
 /**
@@ -124,9 +189,12 @@ export async function generateJobFromAddress(
 		const jobTier = generateJobTier();
 
 		// Get distance range for this tier
-		const minDistanceKm = ROUTE_DISTANCES_KM[jobTier - 1] || 0.1;
-		const maxDistanceKm =
-			ROUTE_DISTANCES_KM[jobTier] || ROUTE_DISTANCES_KM[ROUTE_DISTANCES_KM.length - 1];
+		const distanceRange = ROUTE_DISTANCES_KM[jobTier];
+		if (!distanceRange) {
+			throw new Error(`No distance range found for job tier ${jobTier}`);
+		}
+		const minDistanceKm = distanceRange.min;
+		const maxDistanceKm = distanceRange.max;
 
 		// Generate route within the specified annulus
 		const startLocation: Coordinate = {

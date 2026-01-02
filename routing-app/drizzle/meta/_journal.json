@@ -29,6 +29,13 @@
 			"when": 1766925080586,
 			"tag": "0003_eager_exiles",
 			"breakpoints": true
+		},
+		{
+			"idx": 4,
+			"version": "7",
+			"when": 1767130528621,
+			"tag": "0004_refactor_employee_location",
+			"breakpoints": true
 		}
 	]
 }
