@@ -20,6 +20,7 @@
 		fullEmployeeData
 	} from '$lib/stores/gameData';
 	import { selectedEmployee } from '$lib/stores/selectedEmployee';
+	import { regionOverlayEnabled } from '$lib/stores/regionOverlay';
 	import type { GameState, Employee } from '$lib/server/db/schema';
 	import { config } from '$lib/stores/config';
 
@@ -346,7 +347,17 @@
 					{#if activeRightTab === 'map'}
 						<div class="card h-[700px] bg-base-100 shadow-lg">
 							<div class="card-body p-2">
-								<h3 class="card-title px-4 py-2">Route Map</h3>
+								<div class="flex items-center justify-between px-4 py-2">
+									<h3 class="card-title">Route Map</h3>
+									<label class="label cursor-pointer gap-2">
+										<span class="label-text text-sm">Regions</span>
+										<input
+											type="checkbox"
+											class="toggle toggle-sm"
+											bind:checked={$regionOverlayEnabled}
+										/>
+									</label>
+								</div>
 								<div class="flex-1">
 									<RouteMap />
 								</div>

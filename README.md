@@ -16,15 +16,25 @@ mv your-region-latest.osm.pbf osm_files/
 ```
 
 ### 1b. Download NUTS boundaries (GeoJSON, optional)
-If you need NUTS boundaries for mapping/overlays, you can download them from [eurostat/Nuts2json](https://github.com/eurostat/Nuts2json).
+Download NUTS region boundaries from [Eurostat GISCO](https://ec.europa.eu/eurostat/web/gisco/geodata/statistical-units/territorial-units-statistics).
 
-This downloads **Year 2024**, **EPSG:3857 (Web Mercator)**, **scale 60M**, **type `nutsrg`**, **NUTS level 2**, in **GeoJSON**:
+You'll need both **2024** and **2021** versions, and choose either **01M** (1M, higher resolution) or **10M** (10M, lower resolution) scale:
+- **01M**: Higher detail (~60MB), better for offline address classification
+- **10M**: Lower detail (~4MB), suitable for web overlay
+
+Download the following files and place them in `osm_files/regions/`:
+- `NUTS_RG_01M_2024_3857.geojson` (or `NUTS_RG_10M_2024_3857.geojson`)
+- `NUTS_RG_01M_2021_3857.geojson` (or `NUTS_RG_10M_2021_3857.geojson`)
+
+**Note:** Due to Brexit, the UK was removed from NUTS 2024. To include UK regions, combine the datasets:
 
 ```bash
-mkdir -p osm_files
-wget -O osm_files/nutsrg_2024_3857_60M_level2.geojson \
-  "https://raw.githubusercontent.com/eurostat/Nuts2json/master/pub/v2/2024/3857/60M/nutsrg_2.json"
+cd osm_utils
+uv run scripts/combine_nuts_with_uk.py --resolution 01M  # or 10M
+uv run scripts/combine_nuts_with_uk.py --resolution 10M
 ```
+
+This creates `combined_01m.geojson` and `combined_10m.geojson` in `osm_files/regions/` with all 2024 regions plus UK regions from 2021.
 
 ### 2. Trim OSM File to Largest Component
 Use the OSM utilities to extract the largest connected component:

@@ -8,6 +8,8 @@
 	import { selectedActiveJobData } from '$lib/stores/selectedJob';
 	import { cheatSettings, activeTiles } from '$lib/stores/cheats';
 	import { mapDisplaySettings, displayedRoutes, mapDisplayActions } from '$lib/stores/mapDisplay';
+	import { regionOverlayEnabled, NUTS_HOVER_MAX_ZOOM } from '$lib/stores/regionOverlay';
+	import { loadNutsGeoJson, createNutsLayer, setNutsInteractivity } from '$lib/map/nutsOverlay';
 	import { MapManager } from './map/MapManager';
 	import { JobLoader } from './map/JobLoader';
 	import MarkerRenderer from './map/MarkerRenderer.svelte';
@@ -49,6 +51,10 @@
 	// Animation timestamp to trigger marker updates
 	let animationTimestamp = 0;
 
+	// NUTS overlay layer management
+	let nutsLayer: any = null;
+	let zoomEndHandler: (() => void) | null = null;
+
 	// Reactive updates
 	$: {
 		if (leafletMap) {
@@ -82,6 +88,72 @@
 		if (leafletMap && $fullEmployeeData) {
 			updateDisplayedRoutes();
 		}
+	}
+
+	// Reactive updates for region overlay
+	$: {
+		if (leafletMap && L) {
+			handleRegionOverlayToggle($regionOverlayEnabled);
+		}
+	}
+
+	/**
+	 * Handle region overlay toggle
+	 */
+	async function handleRegionOverlayToggle(enabled: boolean) {
+		if (!leafletMap || !L) return;
+
+		if (enabled) {
+			// Enable overlay: load GeoJSON and add layer
+			if (!nutsLayer) {
+				try {
+					const geojson = await loadNutsGeoJson();
+					nutsLayer = createNutsLayer(L, geojson);
+					nutsLayer.addTo(leafletMap);
+					// Keep overlay below routes/markers but above tiles
+					nutsLayer.bringToBack();
+
+					// Setup zoom event handler for interactivity gating
+					if (!zoomEndHandler) {
+						zoomEndHandler = () => {
+							updateNutsInteractivity();
+						};
+						leafletMap.on('zoomend', zoomEndHandler);
+					}
+
+					// Set initial interactivity state
+					updateNutsInteractivity();
+				} catch (error) {
+					log.error('[RouteMap] Failed to load NUTS overlay:', error);
+				}
+			} else {
+				// Layer already exists, just add it back
+				if (!leafletMap.hasLayer(nutsLayer)) {
+					nutsLayer.addTo(leafletMap);
+					nutsLayer.bringToBack();
+				}
+				updateNutsInteractivity();
+			}
+		} else {
+			// Disable overlay: remove layer
+			if (nutsLayer && leafletMap.hasLayer(nutsLayer)) {
+				leafletMap.removeLayer(nutsLayer);
+			}
+		}
+	}
+
+	/**
+	 * Update NUTS layer interactivity based on current zoom level
+	 */
+	function updateNutsInteractivity() {
+		if (!leafletMap || !L || !nutsLayer) return;
+
+		setNutsInteractivity({
+			map: leafletMap,
+			layer: nutsLayer,
+			enabled: $regionOverlayEnabled,
+			hoverMaxZoom: NUTS_HOVER_MAX_ZOOM
+		});
 	}
 
 	async function initMap() {
@@ -545,6 +617,17 @@
 
 		if (jobLoadingTimeout) {
 			clearTimeout(jobLoadingTimeout);
+		}
+
+		// Cleanup NUTS overlay
+		if (zoomEndHandler && leafletMap) {
+			leafletMap.off('zoomend', zoomEndHandler);
+			zoomEndHandler = null;
+		}
+
+		if (nutsLayer && leafletMap) {
+			leafletMap.removeLayer(nutsLayer);
+			nutsLayer = null;
 		}
 
 		if (mapManager) {
