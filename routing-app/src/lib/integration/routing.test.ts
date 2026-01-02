@@ -5,6 +5,7 @@ import { interpolateLocationAtTime } from '../routes/routing-client';
 import type { Coordinate, PathPoint } from '$lib/server/db/schema';
 
 const skipIfCI = process.env.CI ? describe.skip : describe;
+const ROUTING_SERVER_URL = process.env.ROUTING_SERVER_URL || 'http://localhost:8050';
 
 skipIfCI('routing functions (integration)', () => {
 	beforeAll(async () => {
@@ -29,7 +30,7 @@ skipIfCI('routing functions (integration)', () => {
 
 			for (const route of testRoutes) {
 				const response = await fetch(
-					`http://localhost:8050/api/v1/shortest_path?from=${route.from.lat},${route.from.lon}&to=${route.to.lat},${route.to.lon}`
+					`${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${route.from.lat},${route.from.lon}&to=${route.to.lat},${route.to.lon}`
 				);
 
 				expect(response.ok).toBe(true);
@@ -70,7 +71,7 @@ skipIfCI('routing functions (integration)', () => {
 				const maxSpeed = maxSpeeds[i];
 
 				const response = await fetch(
-					`http://localhost:8050/api/v1/shortest_path?from=${route.from.lat},${route.from.lon}&to=${route.to.lat},${route.to.lon}&max_speed=${maxSpeed}`
+					`${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${route.from.lat},${route.from.lon}&to=${route.to.lat},${route.to.lon}&max_speed=${maxSpeed}`
 				);
 
 				expect(response.ok).toBe(true);
@@ -103,7 +104,7 @@ skipIfCI('routing functions (integration)', () => {
 			const maxSpeed = 20;
 
 			const response = await fetch(
-				`http://localhost:8050/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}&max_speed=${maxSpeed}`
+				`${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}&max_speed=${maxSpeed}`
 			);
 
 			expect(response.ok).toBe(true);
@@ -161,14 +162,14 @@ skipIfCI('routing functions (integration)', () => {
 
 			// Route without maxSpeed
 			const responseNoLimit = await fetch(
-				`http://localhost:8050/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`
+				`${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`
 			);
 			expect(responseNoLimit.ok).toBe(true);
 			const dataNoLimit = await responseNoLimit.json();
 
 			// Route with maxSpeed
 			const responseWithLimit = await fetch(
-				`http://localhost:8050/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}&max_speed=20`
+				`${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}&max_speed=20`
 			);
 			expect(responseWithLimit.ok).toBe(true);
 			const dataWithLimit = await responseWithLimit.json();
@@ -213,7 +214,7 @@ skipIfCI('routing functions (integration)', () => {
 			const to: Coordinate = { lat: 52.092, lon: 5.123 };
 
 			const response = await fetch(
-				`http://localhost:8050/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`
+				`${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`
 			);
 
 			expect(response.ok).toBe(true);
@@ -266,7 +267,7 @@ skipIfCI('routing functions (integration)', () => {
 			const to: Coordinate = { lat: 52.091456, lon: 5.12289 }; // Slightly off-road
 
 			const response = await fetch(
-				`http://localhost:8050/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`
+				`${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`
 			);
 
 			expect(response.ok).toBe(true);
@@ -325,7 +326,7 @@ skipIfCI('routing functions (integration)', () => {
 			const to: Coordinate = { lat: 52.0907, lon: 5.1215 }; // Very close
 
 			const response = await fetch(
-				`http://localhost:8050/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`
+				`${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`
 			);
 
 			expect(response.ok).toBe(true);
@@ -460,7 +461,7 @@ skipIfCI('routing functions (integration)', () => {
 
 			// Make a direct routing request to test the specific route
 			const response = await fetch(
-				`http://localhost:8050/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`
+				`${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`
 			);
 
 			expect(response.ok).toBe(true);
@@ -496,7 +497,7 @@ skipIfCI('routing functions (integration)', () => {
 
 			// Make a direct routing request with max speed
 			const response = await fetch(
-				`http://localhost:8050/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}&max_speed=20`
+				`${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}&max_speed=20`
 			);
 
 			expect(response.ok).toBe(true);
@@ -544,7 +545,7 @@ skipIfCI('routing functions (integration)', () => {
 
 			// Make a direct routing request
 			const response = await fetch(
-				`http://localhost:8050/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`
+				`${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`
 			);
 
 			expect(response.ok).toBe(true);
