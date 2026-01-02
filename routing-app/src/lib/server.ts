@@ -1,8 +1,10 @@
 import http from 'http';
-import https from 'https';
 import type { Address, Coordinate } from '$lib/server/db/schema';
+import { env } from '$env/dynamic/private';
 
-const ROUTING_SERVER_URL = 'http://localhost:8050';
+if (!env.ROUTING_SERVER_URL) throw new Error('ROUTING_SERVER_URL is not set');
+
+const ROUTING_SERVER_URL = env.ROUTING_SERVER_URL;
 
 // Create HTTP agent with keep-alive for connection pooling
 const httpAgent = new http.Agent({

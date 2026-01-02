@@ -2,8 +2,11 @@ import { getRandomAddressInAnnulus } from '../addresses';
 import type { Address } from '../server/db/schema';
 import type { Coordinate, RoutingResult, PathPoint } from '../server/db/schema';
 import http from 'http';
+import { env } from '$env/dynamic/private';
 
-const ROUTING_SERVER_URL = 'http://localhost:8050';
+if (!env.ROUTING_SERVER_URL) throw new Error('ROUTING_SERVER_URL is not set');
+
+const ROUTING_SERVER_URL = env.ROUTING_SERVER_URL;
 
 // Reuse the same HTTP agent for connection pooling
 const httpAgent = new http.Agent({
