@@ -37,7 +37,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres-init:/docker-entrypoint-initdb.d
+      - ./postgres-conf:/docker-entrypoint-initdb.d
+      - ./postgres-conf/pg_hba.conf:/var/lib/postgresql/data/pg_hba.conf
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U routing_user -d routing_game"]
       interval: 10s
