@@ -1,15 +1,19 @@
 """
 CLI utility to map points (lat/lon) to Eurostat NUTS regions.
+
+Processes address files and adds NUTS region codes to each address.
 """
 
 from __future__ import annotations
 
 import csv
 import gzip
+import os
 from pathlib import Path
 from typing import IO
 
 import click
+from tqdm import tqdm
 
 from osm_utils.nuts_lookup import NUTSIndex
 
@@ -23,7 +27,7 @@ def _open_gzip_text(path: Path) -> IO[str]:
     "--geojson",
     "geojson_path",
     type=click.Path(path_type=Path, exists=True, dir_okay=False),
-    default=Path("../osm_files/nutsrg_2024_3857_60M_level2.geojson"),
+    default=Path("../osm_files/regions/combined_01m.geojson"),
     show_default=True,
     help="Path to the NUTS regions GeoJSON file (typically EPSG:3857).",
 )
@@ -37,15 +41,32 @@ def _open_gzip_text(path: Path) -> IO[str]:
     help="Path to an addresses CSV.gz file with 'lat' and 'lon' columns.",
 )
 @click.option(
+    "--output",
+    "output_path",
+    type=click.Path(path_type=Path, file_okay=True, dir_okay=False),
+    default=None,
+    help="Output CSV file path. If not specified, appends '_with_regions' to input filename.",
+)
+@click.option(
     "--limit",
     type=int,
-    default=10,
+    default=100,
     show_default=True,
-    help="Max number of address rows to process (only used with --addresses-gz).",
+    help="Max number of address rows to process (0 = process all).",
 )
-def main(geojson_path: Path, lat: float | None, lon: float | None, addresses_gz: Path | None, limit: int) -> None:
+def main(
+    geojson_path: Path,
+    lat: float | None,
+    lon: float | None,
+    addresses_gz: Path | None,
+    output_path: Path | None,
+    limit: int,
+) -> None:
     """
-    Print the containing NUTS region for a point or a small sample from an addresses file.
+    Map addresses to NUTS regions and write output CSV with region codes.
+
+    For single point lookup, provide --lat and --lon.
+    For batch processing, provide --addresses-gz.
     """
 
     if addresses_gz is None and (lat is None or lon is None):
@@ -53,9 +74,11 @@ def main(geojson_path: Path, lat: float | None, lon: float | None, addresses_gz:
     if addresses_gz is not None and (lat is not None or lon is not None):
         raise click.UsageError("Use either --addresses-gz OR --lat/--lon, not both.")
 
+    click.echo(f"Loading NUTS index from {geojson_path.name}...")
     index = NUTSIndex.from_geojson_file(geojson_path)
 
     if addresses_gz is None:
+        # Single point lookup
         region = index.lookup_wgs84(lat=lat, lon=lon)  # type: ignore[arg-type]
         if region is None:
             click.echo("NOT_FOUND")
@@ -63,37 +86,118 @@ def main(geojson_path: Path, lat: float | None, lon: float | None, addresses_gz:
         click.echo(f"{region.nuts_id}\t{region.name or ''}")
         return
 
+    # Batch processing
+    if output_path is None:
+        # Generate output filename by appending '_with_regions' before .csv.gz
+        input_stem = addresses_gz.stem.replace(".csv", "")
+        output_path = addresses_gz.parent / f"{input_stem}_with_regions.csv.gz"
+
+    # Get total file size for progress tracking (compressed size)
+    total_file_size = os.path.getsize(addresses_gz)
+    click.echo(f"Processing addresses from {addresses_gz.name} ({total_file_size / 1024 / 1024:.1f} MB)...")
+
     processed = 0
-    with _open_gzip_text(addresses_gz) as f:
-        reader = csv.DictReader(f)
-        if reader.fieldnames is None:
+    skipped = 0
+    found_regions = 0
+
+    # Open gzip file in binary mode to track position
+    with gzip.open(addresses_gz, "rb") as input_gz, gzip.open(output_path, "wt", encoding="utf-8", newline="") as output_f:
+        # Read header line
+        header_line = input_gz.readline()
+        if not header_line:
             raise click.ClickException("No CSV header found in addresses file.")
+        
+        header = header_line.decode("utf-8").strip().split(",")
+        
+        # Find column indices
+        try:
+            id_idx = header.index("id")
+            lat_idx = header.index("lat")
+            lon_idx = header.index("lon")
+        except ValueError as e:
+            raise click.ClickException(f"Missing required column: {e}")
 
-        if "lat" not in reader.fieldnames or "lon" not in reader.fieldnames:
-            raise click.ClickException(f"Expected 'lat'/'lon' columns, got: {reader.fieldnames}")
+        # Prepare output columns: original columns + nuts_region_code
+        output_fieldnames = header + ["nuts_region_code"]
+        writer = csv.writer(output_f)
+        writer.writerow(output_fieldnames)
 
-        click.echo("address_id\tlat\tlon\tnuts_id\tnuts_name")
-        for row in reader:
-            if processed >= limit:
-                break
+        # Create progress bar based on file position (compressed bytes read)
+        with tqdm(total=total_file_size, unit="B", unit_scale=True, unit_divisor=1024, desc="Processing") as pbar:
+            while True:
+                if limit > 0 and processed >= limit:
+                    break
 
-            address_id = row.get("id", "")
-            lat_s = row.get("lat", "")
-            lon_s = row.get("lon", "")
+                # Read next line
+                line_bytes = input_gz.readline()
+                if not line_bytes:
+                    break
 
-            try:
-                lat_v = float(lat_s) if lat_s is not None else float("nan")
-                lon_v = float(lon_s) if lon_s is not None else float("nan")
-            except ValueError:
-                continue
+                # Update progress bar based on current file position (every 100 rows)
+                if processed % 100 == 0:
+                    current_pos = input_gz.fileobj.tell()  # Position in compressed stream
+                    pbar.n = min(current_pos, total_file_size)
+                    pbar.refresh()
 
-            region = index.lookup_wgs84(lat=lat_v, lon=lon_v)
-            if region is None:
-                click.echo(f"{address_id}\t{lat_s}\t{lon_s}\t\t")
-            else:
-                click.echo(f"{address_id}\t{lat_s}\t{lon_s}\t{region.nuts_id}\t{region.name or ''}")
+                # Parse CSV line manually
+                line = line_bytes.decode("utf-8").strip()
+                if not line:
+                    continue
 
-            processed += 1
+                # Simple CSV parsing (handles quoted fields)
+                row = []
+                in_quotes = False
+                current_field = ""
+                for char in line:
+                    if char == '"':
+                        in_quotes = not in_quotes
+                    elif char == ',' and not in_quotes:
+                        row.append(current_field)
+                        current_field = ""
+                    else:
+                        current_field += char
+                row.append(current_field)  # Add last field
+
+                # Ensure we have enough columns
+                while len(row) < len(header):
+                    row.append("")
+
+                # Extract coordinates
+                try:
+                    address_id = row[id_idx] if id_idx < len(row) else ""
+                    lat_s = row[lat_idx] if lat_idx < len(row) else ""
+                    lon_s = row[lon_idx] if lon_idx < len(row) else ""
+                except IndexError:
+                    skipped += 1
+                    processed += 1
+                    continue
+
+                try:
+                    lat_v = float(lat_s) if lat_s else float("nan")
+                    lon_v = float(lon_s) if lon_s else float("nan")
+                except (ValueError, TypeError):
+                    # Invalid coordinates - write row with empty region code
+                    row.append("")
+                    writer.writerow(row)
+                    skipped += 1
+                    processed += 1
+                    continue
+
+                # Lookup region
+                region = index.lookup_wgs84(lat=lat_v, lon=lon_v)
+                if region is None:
+                    row.append("")
+                else:
+                    row.append(region.nuts_id)
+                    found_regions += 1
+
+                writer.writerow(row)
+                processed += 1
+
+    click.echo(f"\n✓ Processed {processed} addresses")
+    click.echo(f"  - Found regions: {found_regions}")
+    click.echo(f"  - Skipped (invalid coords): {skipped}")
+    click.echo(f"  - Output written to: {output_path}")
 
 
 if __name__ == "__main__":
