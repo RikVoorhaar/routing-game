@@ -7,7 +7,9 @@ import http from 'http';
 function getRoutingServerUrl(): string {
 	const url = (typeof process !== 'undefined' && process.env?.ROUTING_SERVER_URL) || '';
 	if (!url) {
-		throw new Error('ROUTING_SERVER_URL is not set. Ensure .env file exists and dotenv.config() is called.');
+		throw new Error(
+			'ROUTING_SERVER_URL is not set. Ensure .env file exists and dotenv.config() is called.'
+		);
 	}
 	return url;
 }
