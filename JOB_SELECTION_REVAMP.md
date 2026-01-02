@@ -34,6 +34,8 @@ Left to do:
 - Migrate DB to add regions table and region field
 - Display regions on map
 - Add XP tracker for regions
+- Way to travel to islands, right now there is no way to get to e.g. Iceland or the UK or Sicily.
+- Bug: if no employee can travel to a job, it is shown as `No employees can perform this job. Check license and vehicle requirements.`, even though it should give a more specific error message. 
 
 
 The regions will be added in a different feature.
