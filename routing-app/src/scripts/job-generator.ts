@@ -1,5 +1,20 @@
 #!/usr/bin/env tsx
 
+// Load environment variables BEFORE any other imports
+import dotenv from 'dotenv';
+import { resolve } from 'path';
+
+// Load .env from routing-app root (where package.json is)
+// process.cwd() is routing-app when running via npm script
+const envPath = resolve(process.cwd(), '.env');
+dotenv.config({ path: envPath });
+
+// Verify it loaded
+if (!process.env.ROUTING_SERVER_URL) {
+	console.error(`Error: ROUTING_SERVER_URL not found. Tried loading from: ${envPath}`);
+	process.exit(1);
+}
+
 import { generateJobFromAddress, clearAllJobs } from '../lib/jobs/generateJobs';
 import { db, client } from '../lib/server/db/standalone.js';
 import type { Address } from '../lib/server/db/schema';

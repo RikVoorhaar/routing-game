@@ -25,10 +25,15 @@ Left to do:
 - Implement a 'cancel' and a 'move' functionality
 - Change it so that you click an employee, then you 'search' for jobs which takes time (can be reduced with upgrades!), and then you select a job.
 - Change job selection UI
-- Get all of europe to load 
+- Change job generation script to increase search space up and down twice when needed.
 - Remove the approximate time and value fields and simplify the table and genreation
 - Simplify job value calculation to only use distance
 - Implement and balance the 'weight' game mechanic, or remove it completely
+- Implement a batch endpoint for routing server to process multiple routing requests in one call (performance optimization)
+- Add script to assign address to region
+- Migrate DB to add regions table and region field
+- Display regions on map
+- Add XP tracker for regions
 
 
 The regions will be added in a different feature.
