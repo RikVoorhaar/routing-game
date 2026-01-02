@@ -56,18 +56,30 @@ def main(resolution: str, output_dir: Path) -> None:
     with file_2021.open("r", encoding="utf-8") as f:
         data_2021 = json.load(f)
 
+    # Filter to only NUTS level 2 regions (LEVL_CODE === 2)
     # Extract UK regions from 2021 (CNTR_CODE can be "UK" or "GB")
     uk_regions_2021 = []
     for feature in data_2021.get("features", []):
         props = feature.get("properties", {})
+        levl_code = props.get("LEVL_CODE")
         cntr_code = props.get("CNTR_CODE", "")
-        if cntr_code in ("UK", "GB"):
+        # Only include level 2 UK regions
+        if levl_code == 2 and cntr_code in ("UK", "GB"):
             uk_regions_2021.append(feature)
 
-    click.echo(f"Found {len(uk_regions_2021)} UK regions in 2021 dataset")
+    # Filter 2024 regions to only level 2
+    regions_2024_level2 = []
+    for feature in data_2024.get("features", []):
+        props = feature.get("properties", {})
+        levl_code = props.get("LEVL_CODE")
+        if levl_code == 2:
+            regions_2024_level2.append(feature)
 
-    # Combine: 2024 features + UK features from 2021
-    combined_features = list(data_2024.get("features", [])) + uk_regions_2021
+    click.echo(f"Found {len(uk_regions_2021)} UK level 2 regions in 2021 dataset")
+    click.echo(f"Found {len(regions_2024_level2)} level 2 regions in 2024 dataset")
+
+    # Combine: 2024 level 2 features + UK level 2 features from 2021
+    combined_features = regions_2024_level2 + uk_regions_2021
 
     # Create combined GeoJSON
     combined_data = {
