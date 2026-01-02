@@ -13,4 +13,4 @@ logs/
 isolate-*.log
 isolate-*.log.json
 isolate-*.log.preprocess-ready
-routing-app/.env 
+*.env 

@@ -1,14 +1,18 @@
 """Database connection and ORM models for OSM utilities."""
 
 import os
+from pathlib import Path
 from sqlalchemy import create_engine, Column, String, Numeric, DateTime, func, Index, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.dialects.postgresql import TEXT
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from project root (.env file)
+# This file is in osm_utils/src/osm_utils/, so go up 3 levels to reach project root
+_project_root = Path(__file__).parent.parent.parent.parent
+_env_file = _project_root / '.env'
+load_dotenv(_env_file)
 
 Base = declarative_base()
 
