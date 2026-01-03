@@ -1,8 +1,9 @@
 import { type InferSelectModel } from 'drizzle-orm';
 import { jobs } from '$lib/server/db/schema';
 import { db } from '$lib/server/db/standalone';
-import { sql, desc } from 'drizzle-orm';
+import { sql, desc, eq } from 'drizzle-orm';
 import { getTileBounds } from '$lib/geo';
+import type { Coordinate } from '$lib/server/db/schema';
 
 /**
  * Gets jobs within a tile using x,y,z tile coordinates
@@ -27,6 +28,45 @@ export async function getJobsInTile(
         )`
 		)
 		.orderBy(desc(jobs.totalDistanceKm))
+		.limit(limit);
+
+	return result;
+}
+
+/**
+ * Gets the closest jobs for an employee by tier, ordered by straight-line distance
+ * Uses PostGIS ST_DistanceSphere for accurate distance calculation
+ *
+ * Parameters
+ * -----------
+ * employeeLocation: Coordinate
+ *     The employee's current location (lat/lon)
+ * tier: number
+ *     The job tier to filter by
+ * limit: number
+ *     Maximum number of jobs to return (default: 2)
+ *
+ * Returns
+ * --------
+ * Array of jobs ordered by distance (closest first)
+ */
+export async function getClosestJobsForEmployeeByTier(
+	employeeLocation: Coordinate,
+	tier: number,
+	limit: number = 2
+): Promise<Array<InferSelectModel<typeof jobs>>> {
+	// Create a PostGIS POINT from employee location
+	// ST_DistanceSphere uses meters, so we'll order by distance ascending
+	const result = await db
+		.select()
+		.from(jobs)
+		.where(eq(jobs.jobTier, tier))
+		.orderBy(
+			sql`ST_DistanceSphere(
+				ST_GeomFromEWKT(${jobs.location}),
+				ST_MakePoint(${employeeLocation.lon}, ${employeeLocation.lat})::geometry
+			) ASC`
+		)
 		.limit(limit);
 
 	return result;

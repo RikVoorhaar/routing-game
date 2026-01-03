@@ -13,6 +13,8 @@
 	import { selectedRoute, clearSelection } from '$lib/stores/selectedRoute';
 	import { formatMoney, formatAddress, formatTimeFromMs } from '$lib/formatting';
 	import { currentGameState, gameDataActions, gameDataAPI } from '$lib/stores/gameData';
+	import { jobSearchActions } from '$lib/stores/jobSearch';
+	import { clearSelectedJob } from '$lib/stores/selectedJob';
 	import { getLevelFromXp, getXpForLevel, getXpToNextLevel } from '$lib/xp/xpUtils';
 	import {
 		getVehicleConfig,
@@ -41,6 +43,7 @@
 	let progressUpdateInterval: NodeJS.Timeout | null = null;
 	let isPurchasingUpgrade = false;
 	let hoveredUpgradeButton = false;
+	let isSearchingJobs = false;
 
 	// Cleanup timeout and interval on component destroy
 	onDestroy(() => {
@@ -345,6 +348,57 @@
 		}
 	}
 
+	async function handleSearchJobs(e: MouseEvent) {
+		e.stopPropagation(); // Prevent card click
+		if (!$currentGameState || isSearchingJobs) return;
+
+		// Check if employee has an active job that has been started
+		if (activeJob?.startTime) {
+			addError('Employee already has an active job in progress', 'error');
+			return;
+		}
+
+		isSearchingJobs = true;
+		try {
+			const response = await fetch(`/api/employees/${employee.id}/job-search`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					gameStateId: $currentGameState.id
+				})
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				if (response.status === 409) {
+					addError(errorData.message || 'Employee already has an active job', 'error');
+				} else {
+					throw new Error(errorData.message || 'Failed to search jobs');
+				}
+				return;
+			}
+
+			const result = await response.json();
+			
+			// Update search results store
+			jobSearchActions.setSearchResults(employee.id, result.results);
+			
+			// Clear any selected job/preview route
+			clearSelectedJob();
+			clearSelection();
+
+			addError(
+				`Found ${result.results.length} job${result.results.length !== 1 ? 's' : ''} (${result.jobsPerTier} per tier)`,
+				'info'
+			);
+		} catch (err) {
+			const errorMessage = err instanceof Error ? err.message : 'Failed to search jobs';
+			addError(errorMessage, 'error');
+		} finally {
+			isSearchingJobs = false;
+		}
+	}
+
 	// Calculate employee level from XP
 	$: employeeLevel = typeof employee?.xp === 'number' ? getLevelFromXp(employee.xp) : 0;
 	$: xpForCurrentLevel = employeeLevel >= 0 ? getXpForLevel(employeeLevel) : 0;
@@ -546,6 +600,22 @@
 					</button>
 				{/if}
 			</div>
+
+			<!-- Search Jobs Button (only show when selected and idle) -->
+			{#if isSelected && !activeJob?.startTime}
+				<button
+					class="btn btn-primary btn-xs w-full"
+					disabled={isSearchingJobs}
+					on:click|stopPropagation={handleSearchJobs}
+				>
+					{#if isSearchingJobs}
+						<span class="loading loading-spinner loading-xs"></span>
+						Searching...
+					{:else}
+						🔍 Search Jobs
+					{/if}
+				</button>
+			{/if}
 		</div>
 	</div>
 </div>

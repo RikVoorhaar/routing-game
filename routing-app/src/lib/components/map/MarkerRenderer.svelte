@@ -27,6 +27,38 @@
 
 	let employeeMarkers: Record<string, any> = {};
 	let jobMarkersByTile: Map<string, any[]> = new Map(); // Track markers per tile
+	let searchResultJobMarkers: any[] = []; // Track search result job markers
+
+	// Expose search result job rendering method
+	export function renderSearchResultJobs(jobs: Job[]) {
+		console.log('[MarkerRenderer] Rendering', jobs.length, 'search result jobs');
+
+		// Clear existing search result markers
+		clearSearchResultJobs();
+
+		const markers: any[] = [];
+
+		jobs.forEach((job) => {
+			const marker = createJobMarker(job);
+			if (marker) {
+				markers.push(marker);
+			}
+		});
+
+		// Store markers
+		searchResultJobMarkers = markers;
+		console.log('[MarkerRenderer] Created', markers.length, 'search result job markers');
+	}
+
+	export function clearSearchResultJobs() {
+		console.log('[MarkerRenderer] Clearing', searchResultJobMarkers.length, 'search result job markers');
+		searchResultJobMarkers.forEach((marker) => {
+			if (marker && map.hasLayer(marker)) {
+				map.removeLayer(marker);
+			}
+		});
+		searchResultJobMarkers = [];
+	}
 
 	// Expose tile-based job rendering methods
 	export function renderTileJobs(tileKey: string, jobs: Job[]) {
