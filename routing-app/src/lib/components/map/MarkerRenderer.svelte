@@ -51,7 +51,11 @@
 	}
 
 	export function clearSearchResultJobs() {
-		console.log('[MarkerRenderer] Clearing', searchResultJobMarkers.length, 'search result job markers');
+		console.log(
+			'[MarkerRenderer] Clearing',
+			searchResultJobMarkers.length,
+			'search result job markers'
+		);
 		searchResultJobMarkers.forEach((marker) => {
 			if (marker && map.hasLayer(marker)) {
 				map.removeLayer(marker);

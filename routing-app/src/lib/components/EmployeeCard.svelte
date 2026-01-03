@@ -379,10 +379,10 @@
 			}
 
 			const result = await response.json();
-			
+
 			// Update search results store
 			jobSearchActions.setSearchResults(employee.id, result.results);
-			
+
 			// Clear any selected job/preview route
 			clearSelectedJob();
 			clearSelection();

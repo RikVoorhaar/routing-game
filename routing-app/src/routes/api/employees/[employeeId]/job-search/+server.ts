@@ -70,20 +70,13 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		const jobsPerTier = upgradeEffects.jobsPerTier ?? 2;
 
 		// Get employee's vehicle tier to determine eligible tiers
-		const employeeVehicleTier = getVehicleTierByLevel(
-			employee.vehicleLevel,
-			VEHICLE_DEFINITIONS
-		);
+		const employeeVehicleTier = getVehicleTierByLevel(employee.vehicleLevel, VEHICLE_DEFINITIONS);
 
 		// Collect jobs for each eligible tier (1 to employeeVehicleTier)
 		const allMatchedJobs: Array<{ job: typeof jobs.$inferSelect; tier: number }> = [];
 
 		for (let tier = 1; tier <= employeeVehicleTier; tier++) {
-			const tierJobs = await getClosestJobsForEmployeeByTier(
-				employee.location,
-				tier,
-				jobsPerTier
-			);
+			const tierJobs = await getClosestJobsForEmployeeByTier(employee.location, tier, jobsPerTier);
 			allMatchedJobs.push(...tierJobs.map((job) => ({ job, tier })));
 		}
 
@@ -161,6 +154,9 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		});
 	} catch (err) {
 		console.error('Error searching jobs:', err);
-		return error(500, `Failed to search jobs: ${err instanceof Error ? err.message : 'Unknown error'}`);
+		return error(
+			500,
+			`Failed to search jobs: ${err instanceof Error ? err.message : 'Unknown error'}`
+		);
 	}
 };

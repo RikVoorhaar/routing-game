@@ -32,9 +32,10 @@
 	$: searchResults = $selectedEmployee ? getSearchResultsForEmployee($selectedEmployee) : null;
 
 	// Find the active job for the selected job from search results
-	$: currentActiveJob = $selectedJob && $searchResults
-		? $searchResults.find((r) => r.job.id === $selectedJob.id)?.activeJob || null
-		: null;
+	$: currentActiveJob =
+		$selectedJob && $searchResults
+			? $searchResults.find((r) => r.job.id === $selectedJob.id)?.activeJob || null
+			: null;
 
 	// Get the selected employee's data
 	$: selectedEmployeeData = $selectedEmployee
@@ -45,7 +46,13 @@
 	let loadedJobId: number | null = null;
 
 	// When job is selected, fetch route (lazy load route only when needed)
-	$: if ($selectedJob && currentActiveJob && currentActiveJob.id && loadedJobId !== $selectedJob.id && !isLoadingRoute) {
+	$: if (
+		$selectedJob &&
+		currentActiveJob &&
+		currentActiveJob.id &&
+		loadedJobId !== $selectedJob.id &&
+		!isLoadingRoute
+	) {
 		loadedJobId = $selectedJob.id;
 		loadJobDetails();
 	}
