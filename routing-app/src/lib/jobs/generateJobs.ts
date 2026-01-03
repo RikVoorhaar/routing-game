@@ -244,7 +244,10 @@ export async function generateJobFromAddress(
 		// Retry logic
 		if (retryCount < MAX_RETRIES) {
 			// Case 1: "Failed to get shortest path: Not Found" - retry with another address in annulus
-			if (errorMessage.includes('Failed to get shortest path') && errorMessage.includes('Not Found')) {
+			if (
+				errorMessage.includes('Failed to get shortest path') &&
+				errorMessage.includes('Not Found')
+			) {
 				return await generateJobFromAddress(startAddress, initialTier, retryCount + 1);
 			}
 

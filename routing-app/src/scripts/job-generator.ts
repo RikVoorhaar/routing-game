@@ -101,17 +101,19 @@ async function generateJobsWithProgress(clearExisting: boolean = false) {
 
 		// Get total address count using Drizzle
 		// Use LEFT JOIN with IS NULL instead of NOT IN for better performance
-		console.log(`${COLORS.gray}📊 Counting addresses${clearExisting ? '' : ' without jobs'}...${COLORS.reset}`);
+		console.log(
+			`${COLORS.gray}📊 Counting addresses${clearExisting ? '' : ' without jobs'}...${COLORS.reset}`
+		);
 		const countStart = performance.now();
 		const totalAddresses = clearExisting
-			? (await db.select({ count: count() }).from(addresses))[0]?.count ?? 0
-			: (
+			? ((await db.select({ count: count() }).from(addresses))[0]?.count ?? 0)
+			: ((
 					await db
 						.select({ count: count() })
 						.from(addresses)
 						.leftJoin(jobs, sql`${jobs.startAddressId} = ${addresses.id}`)
 						.where(isNull(jobs.id))
-				)[0]?.count ?? 0;
+				)[0]?.count ?? 0);
 		const countTime = performance.now() - countStart;
 		console.log(
 			`${COLORS.green}✅ Found ${COLORS.cyan}${totalAddresses.toLocaleString()}${COLORS.green} addresses in ${countTime.toFixed(0)}ms${COLORS.reset}\n`
@@ -135,7 +137,9 @@ async function generateJobsWithProgress(clearExisting: boolean = false) {
 		console.log(
 			`  Total Addresses: ${COLORS.cyan}${totalAddresses.toLocaleString()}${COLORS.reset}`
 		);
-		console.log(`  Mode: ${COLORS.yellow}${clearExisting ? 'Regenerate All' : 'Skip Existing'}${COLORS.reset}`);
+		console.log(
+			`  Mode: ${COLORS.yellow}${clearExisting ? 'Regenerate All' : 'Skip Existing'}${COLORS.reset}`
+		);
 		console.log(`  Page Size: ${COLORS.yellow}${PAGE_SIZE.toLocaleString()}${COLORS.reset}`);
 		console.log(`  Concurrency: ${COLORS.yellow}${CONCURRENCY}${COLORS.reset}`);
 		console.log(`  Error Log: ${COLORS.gray}${ERROR_LOG_FILE}${COLORS.reset}\n`);
@@ -291,7 +295,9 @@ async function main() {
 			console.log('Options:');
 			console.log('  --clear, -c    Clear all existing jobs and regenerate for all addresses');
 			console.log('  --help, -h     Show this help message\n');
-			console.log('By default, the script only generates jobs for addresses that do not already have jobs.');
+			console.log(
+				'By default, the script only generates jobs for addresses that do not already have jobs.'
+			);
 			console.log('Use --clear to regenerate all jobs from scratch.\n');
 			process.exit(0);
 		}
