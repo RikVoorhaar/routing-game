@@ -109,12 +109,12 @@ export async function computeActiveJob(
 	addressMap?: Map<string, Address>
 ): Promise<{ activeJob: ActiveJobInsert; activeRoute: ActiveRouteInsert }> {
 	const totalTimer = time(`computeActiveJob_job_${job.id}`);
-	
+
 	// Get job start and end addresses (from cache if provided, otherwise fetch)
 	const addressTimer = time('fetch_job_addresses');
 	let jobStartAddress: Address | undefined;
 	let jobEndAddress: Address | undefined;
-	
+
 	if (addressMap) {
 		jobStartAddress = addressMap.get(job.startAddressId);
 		jobEndAddress = addressMap.get(job.endAddressId);

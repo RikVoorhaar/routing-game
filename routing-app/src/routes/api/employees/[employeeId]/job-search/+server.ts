@@ -1,7 +1,14 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { employees, activeJobs, activeRoutes, gameStates, jobs, addresses } from '$lib/server/db/schema';
+import {
+	employees,
+	activeJobs,
+	activeRoutes,
+	gameStates,
+	jobs,
+	addresses
+} from '$lib/server/db/schema';
 import { eq, and, isNull, inArray } from 'drizzle-orm';
 import { getClosestJobsForEmployeeByTier } from '$lib/jobs/queryJobs';
 import { computeActiveJob } from '$lib/jobs/activeJobComputation';
@@ -92,7 +99,12 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		const employeeVehicleTier = getVehicleTierByLevel(employee.vehicleLevel, VEHICLE_DEFINITIONS);
 
 		serverLog.api.info(
-			{ employeeId, jobsPerTier, employeeVehicleTier, totalJobsExpected: jobsPerTier * employeeVehicleTier },
+			{
+				employeeId,
+				jobsPerTier,
+				employeeVehicleTier,
+				totalJobsExpected: jobsPerTier * employeeVehicleTier
+			},
 			'Starting job search'
 		);
 
@@ -119,15 +131,15 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			uniqueAddressIds.add(job.startAddressId);
 			uniqueAddressIds.add(job.endAddressId);
 		});
-		
+
 		// Fetch all addresses in a single query using IN clause
 		const addressIdsArray = Array.from(uniqueAddressIds);
 		const fetchedAddresses = await db
 			.select()
 			.from(addresses)
 			.where(inArray(addresses.id, addressIdsArray));
-		
-		const addressMap = new Map<string, typeof fetchedAddresses[0]>();
+
+		const addressMap = new Map<string, (typeof fetchedAddresses)[0]>();
 		fetchedAddresses.forEach((addr) => {
 			addressMap.set(addr.id, addr);
 		});
@@ -159,7 +171,10 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		}>;
 
 		serverLog.api.info(
-			{ successful: successfulComputations.length, failed: computedResults.length - successfulComputations.length },
+			{
+				successful: successfulComputations.length,
+				failed: computedResults.length - successfulComputations.length
+			},
 			'Route computations complete'
 		);
 
@@ -183,22 +198,18 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 			// Insert all active jobs and routes in batches
 			const insertTimer = time('insert_new_results');
-			
+
 			// Batch insert all active jobs at once
 			const insertJobsTimer = time('batch_insert_active_jobs');
 			if (successfulComputations.length > 0) {
-				await tx.insert(activeJobs).values(
-					successfulComputations.map((c) => c.activeJob)
-				);
+				await tx.insert(activeJobs).values(successfulComputations.map((c) => c.activeJob));
 			}
 			insertJobsTimer();
 
 			// Batch insert all routes at once
 			const insertRoutesTimer = time('batch_insert_active_routes');
 			if (successfulComputations.length > 0) {
-				await tx.insert(activeRoutes).values(
-					successfulComputations.map((c) => c.activeRoute)
-				);
+				await tx.insert(activeRoutes).values(successfulComputations.map((c) => c.activeRoute));
 			}
 			insertRoutesTimer();
 
