@@ -108,21 +108,21 @@
 	}
 
 	// Update the global selected active job data when the local selection changes
+	// Note: activeRoute is optional since routes are fetched on-demand
 	$: if ($selectedEmployeeActiveJobData) {
 		const data = $selectedEmployeeActiveJobData;
 		if (
 			data.activeJob &&
 			data.employeeStartLocation &&
 			data.jobPickupAddress &&
-			data.jobDeliverAddress &&
-			data.activeRoute
+			data.jobDeliverAddress
 		) {
 			setSelectedActiveJobData({
 				activeJob: data.activeJob,
 				employeeStartLocation: data.employeeStartLocation,
 				jobPickupAddress: data.jobPickupAddress,
 				jobDeliverAddress: data.jobDeliverAddress,
-				activeRoute: data.activeRoute
+				activeRoute: data.activeRoute || null
 			});
 		}
 	} else {
@@ -254,8 +254,15 @@
 		if (!selectedEmployeeId || !$selectedJob || !$currentGameState) return;
 
 		// Check if we already have this employee's active job data
+		// Note: activeRoute is optional since routes are fetched on-demand
 		const currentData = $activeJobsByEmployee;
-		if (currentData[selectedEmployeeId] && currentData[selectedEmployeeId].activeRoute) {
+		if (
+			currentData[selectedEmployeeId] &&
+			currentData[selectedEmployeeId].activeJob &&
+			currentData[selectedEmployeeId].employeeStartLocation &&
+			currentData[selectedEmployeeId].jobPickupAddress &&
+			currentData[selectedEmployeeId].jobDeliverAddress
+		) {
 			// We already have complete data for this employee
 			return;
 		}
@@ -321,20 +328,19 @@
 				const result = await response.json();
 				addError('Job accepted successfully!', 'info');
 
-				// Update the active job in our local cache to reflect it's been started
-				if (selectedEmployeeId) {
-					activeJobsByEmployee.update((cache) => ({
-						...cache,
-						[selectedEmployeeId!]: {
-							...cache[selectedEmployeeId!],
-							activeJob: result.activeJob
-						}
-					}));
-				}
+				// Store employee ID before clearing (needed for updating store)
+				const acceptedEmployeeId = selectedEmployeeId;
+
+				// Clear the selected job and preview route BEFORE refreshing data
+				// This ensures the preview route disappears immediately
+				clearSelectedJob();
+				activeJobsByEmployee.set({});
+				selectedEmployeeId = null;
+				selectedEmployeeIdStore.set(null);
 
 				// Update the global store and set up completion timers
-				if (selectedEmployeeId && result.activeJob) {
-					gameDataActions.setEmployeeActiveJob(selectedEmployeeId, result.activeJob);
+				if (acceptedEmployeeId && result.activeJob) {
+					gameDataActions.setEmployeeActiveJob(acceptedEmployeeId, result.activeJob);
 				}
 
 				// Refresh the full employee data to ensure everything is in sync
@@ -343,8 +349,6 @@
 				} catch (error) {
 					console.error('Error refreshing employee data:', error);
 				}
-
-				clearSelectedJob();
 			} else {
 				const errorData = await response.json();
 				addError(errorData.message || 'Failed to accept job', 'error');

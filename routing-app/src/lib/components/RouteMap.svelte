@@ -56,6 +56,23 @@
 	let nutsLayer: any = null;
 	let zoomEndHandler: (() => void) | null = null;
 
+	// Derived: Map employee IDs to their route paths for animation
+	$: routesByEmployee = $displayedRoutes.reduce(
+		(acc, routeDisplay) => {
+			// Route IDs for active routes are in format: "active-{activeJobId}"
+			if (routeDisplay.isActive && routeDisplay.route.id.startsWith('active-')) {
+				const activeJobId = routeDisplay.route.id.replace('active-', '');
+				// Find the employee who has this active job
+				const fed = $fullEmployeeData.find((fed) => fed.activeJob?.id === activeJobId);
+				if (fed && routeDisplay.route.path && Array.isArray(routeDisplay.route.path)) {
+					acc[fed.employee.id] = routeDisplay.route.path;
+				}
+			}
+			return acc;
+		},
+		{} as Record<string, PathPoint[]>
+	);
+
 	// Reactive updates
 	$: {
 		if (leafletMap) {
@@ -203,23 +220,34 @@
 		await prefetchRoutes(activeJobIds);
 
 		// 1. Display preview route from selected active job data (if any)
-		if ($selectedActiveJobData) {
-			const previewRoute = await createRouteFromActiveJobData($selectedActiveJobData, 'preview');
-			if (previewRoute) {
-				mapDisplayActions.addRoute(previewRoute, {
-					isSelected: false,
-					isPreview: true,
-					color: '#ff6b35', // Orange color for preview
-					onClick: () => {
-						selectRoute(previewRoute.id);
-						zoomToRoute(previewRoute);
-					}
-				});
+		// Only show preview if the active job hasn't been started yet (no startTime)
+		if ($selectedActiveJobData && !$selectedActiveJobData.activeJob.startTime) {
+			// Double-check that this active job hasn't been started by checking fullEmployeeData
+			// This prevents showing preview routes for jobs that have been accepted
+			const isJobAlreadyStarted = $fullEmployeeData.some(
+				(fed) =>
+					fed.activeJob?.id === $selectedActiveJobData.activeJob.id &&
+					fed.activeJob?.startTime
+			);
 
-				// Add markers for preview route
-				addRouteMarkers($selectedActiveJobData, 'preview');
-			} else {
-				log.warn('[RouteMap] Failed to create preview route');
+			if (!isJobAlreadyStarted) {
+				const previewRoute = await createRouteFromActiveJobData($selectedActiveJobData, 'preview');
+				if (previewRoute) {
+					mapDisplayActions.addRoute(previewRoute, {
+						isSelected: false,
+						isPreview: true,
+						color: '#ff6b35', // Orange color for preview
+						onClick: () => {
+							selectRoute(previewRoute.id);
+							zoomToRoute(previewRoute);
+						}
+					});
+
+					// Add markers for preview route
+					addRouteMarkers($selectedActiveJobData, 'preview');
+				} else {
+					log.warn('[RouteMap] Failed to create preview route');
+				}
 			}
 		}
 
@@ -695,7 +723,7 @@
 				},
 				{} as Record<string, any>
 			)}
-			routesByEmployee={{}}
+			{routesByEmployee}
 			{animationTimestamp}
 		/>
 

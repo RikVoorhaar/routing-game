@@ -5,12 +5,13 @@ import type { Job, ActiveJob, Address, Coordinate, ActiveRoute } from '$lib/serv
 export const selectedJob = writable<Job | null>(null);
 
 // New store for selected active job with complete data including routes and addresses
+// Note: activeRoute is optional because routes are fetched on-demand
 export interface SelectedActiveJobData {
 	activeJob: ActiveJob;
 	employeeStartLocation: Coordinate;
 	jobPickupAddress: Address;
 	jobDeliverAddress: Address;
-	activeRoute: ActiveRoute;
+	activeRoute?: ActiveRoute | null;
 }
 
 export const selectedActiveJobData = writable<SelectedActiveJobData | null>(null);
