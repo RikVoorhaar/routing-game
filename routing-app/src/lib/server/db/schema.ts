@@ -14,7 +14,6 @@ import {
 import { sql, type InferSelectModel } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { JobCategory } from '../../jobs/jobCategories';
-import { relations } from 'drizzle-orm';
 
 // JSONB Type Interfaces
 
@@ -270,17 +269,14 @@ export const jobs = pgTable(
 		jobTier: integer('job_tier').notNull(),
 		jobCategory: integer('job_category').notNull(), // Refers to JobCategory enum
 		totalDistanceKm: doublePrecision('total_distance_km').notNull(),
-		approximateTimeSeconds: doublePrecision('approximate_time_seconds').notNull(),
 		generatedTime: timestamp('generated_time', { withTimezone: true })
 			.notNull()
-			.default(sql`CURRENT_TIMESTAMP`),
-		approximateValue: doublePrecision('approximate_value').notNull()
+			.default(sql`CURRENT_TIMESTAMP`)
 	},
 	(table) => [
 		// Regular indexes
 		index('jobs_tier_idx').on(table.jobTier),
 		index('jobs_category_idx').on(table.jobCategory),
-		index('jobs_value_idx').on(table.approximateValue), // For sorting by value
 		index('jobs_generated_time_idx').on(table.generatedTime),
 		// Create a spatial index on the geometry column for efficient spatial queries
 		index('jobs_location_idx').on(sql`${table.location}`)

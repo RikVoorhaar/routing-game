@@ -22,24 +22,27 @@ What's actually done:
 
 
 Left to do:
-- Implement a 'cancel' and a 'move' functionality
-- Change it so that you click an employee, then you 'search' for jobs which takes time (can be reduced with upgrades!), and then you select a job.
-- Change job selection UI
-- Change job generation script to increase search space up and down twice when needed. (or just increase tier when needed)
-- Remove ES63: Ciudad de Ceuta — 102 addresses and ES64: Ciudad de Melilla — 58 addresses, since these regions are geographically isolated and very small. 
-- Remove the approximate time and value fields and simplify the table and genreation
-- Simplify job value calculation to only use distance
-- Implement and balance the 'weight' game mechanic, or remove it completely
-- Implement a batch endpoint for routing server to process multiple routing requests in one call (performance optimization)
-- Add script to assign address to region
-- Migrate DB to add regions table and region field
-- Display regions on map
-- Add XP tracker for regions
-- Way to travel to islands, right now there is no way to get to e.g. Iceland or the UK or Sicily.
-- Bug: if no employee can travel to a job, it is shown as `No employees can perform this job. Check license and vehicle requirements.`, even though it should give a more specific error message. 
+- [ ] Implement a 'cancel' and a 'move' functionality
+- [ ] Change it so that you click an employee, then you 'search' for jobs which takes time (can be reduced with upgrades!), and then you select a job.
+- [ ] Change job selection UI
+- [ ] Change job generation script to increase search space up and down twice when needed. (or just increase tier when needed)
+- [ ] Remove ES63: Ciudad de Ceuta — 102 addresses and ES64: Ciudad de Melilla — 58 addresses, since these regions are geographically isolated and very small. 
+- [ ] Remove the approximate time and value fields and simplify the table and genreation
+- [ ] Simplify job value calculation to only use distance
+- [ ] Implement and balance the 'weight' game mechanic, or remove it completely
+- [ ] Implement a batch endpoint for routing server to process multiple routing requests in one call (performance optimization)
+- [x] Add script to assign address to region
+- [x] Migrate DB to add regions table and region field
+- [x] Display regions on map
+- [ ] Add XP tracker for regions
+- [ ] Way to travel to islands, right now there is no way to get to e.g. Iceland or the UK or Sicily.
 
 
-**regions plan**
+**regions plan** (done)
 - Make a regions table
 - Sample jobs such that each region has a roughly equal number of addresses, perhaps ~500?  (modify the extract addresses script to do this)
+
+**job generation script**
+- Remove the approximate time and value fields and simplify the table and genreation
+- Change it so that it increases the tier up to 2 times when needed. 
 

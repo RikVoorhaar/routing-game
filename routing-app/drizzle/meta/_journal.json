@@ -1,48 +1,55 @@
 {
-	"version": "7",
-	"dialect": "postgresql",
-	"entries": [
-		{
-			"idx": 0,
-			"version": "7",
-			"when": 1766661598769,
-			"tag": "0000_upgrade_system_redesign",
-			"breakpoints": true
-		},
-		{
-			"idx": 1,
-			"version": "7",
-			"when": 1766661882475,
-			"tag": "0001_remove_route_level",
-			"breakpoints": true
-		},
-		{
-			"idx": 2,
-			"version": "7",
-			"when": 1766699055508,
-			"tag": "0002_active_job_single_xp",
-			"breakpoints": true
-		},
-		{
-			"idx": 3,
-			"version": "7",
-			"when": 1766925080586,
-			"tag": "0003_eager_exiles",
-			"breakpoints": true
-		},
-		{
-			"idx": 4,
-			"version": "7",
-			"when": 1767130528621,
-			"tag": "0004_refactor_employee_location",
-			"breakpoints": true
-		},
-		{
-			"idx": 5,
-			"version": "7",
-			"when": 1767423443671,
-			"tag": "0005_add_regions_table",
-			"breakpoints": true
-		}
-	]
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1766661598769,
+      "tag": "0000_upgrade_system_redesign",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1766661882475,
+      "tag": "0001_remove_route_level",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1766699055508,
+      "tag": "0002_active_job_single_xp",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1766925080586,
+      "tag": "0003_eager_exiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1767130528621,
+      "tag": "0004_refactor_employee_location",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1767423443671,
+      "tag": "0005_add_regions_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1767442613928,
+      "tag": "0006_drop_job_approx_fields",
+      "breakpoints": true
+    }
+  ]
 }

@@ -44,7 +44,7 @@ function getCategoryMultipliers(): Record<JobCategory, number> {
 	};
 
 	const multipliers = {} as Record<JobCategory, number>;
-	for (const [category, key] of Object.entries(categoryKeys) as [JobCategory, string][]) {
+	for (const [category, key] of Object.entries(categoryKeys) as unknown as [JobCategory, string][]) {
 		multipliers[category] = config.jobs.categories.multipliers[key];
 	}
 	return multipliers;
@@ -67,7 +67,7 @@ function getCategoryMinTiers(): Record<JobCategory, number> {
 	};
 
 	const minTiers = {} as Record<JobCategory, number>;
-	for (const [category, key] of Object.entries(categoryKeys) as [JobCategory, string][]) {
+	for (const [category, key] of Object.entries(categoryKeys) as unknown as [JobCategory, string][]) {
 		minTiers[category] = config.jobs.categories.minTiers[key];
 	}
 	return minTiers;
@@ -75,9 +75,8 @@ function getCategoryMinTiers(): Record<JobCategory, number> {
 
 const CATEGORY_MIN_TIERS = getCategoryMinTiers();
 
-// Value calculation constants - loaded from config
+// Value calculation constants - loaded from config (distance-only now)
 const DEFAULT_DISTANCE_FACTOR = config.jobs.value.distanceFactor;
-const DEFAULT_TIME_FACTOR = config.jobs.value.timeFactor;
 
 /**
  * Gets available job categories for a given tier
@@ -154,29 +153,6 @@ function generateJobTier(): number {
 	return Math.min(left + 1, MAX_TIER);
 }
 
-/**
- * Computes job value based on tier, category, distance, and time
- */
-function computeApproximateJobValue(
-	jobTier: number,
-	jobCategory: JobCategory,
-	totalDistanceKm: number,
-	totalTimeSeconds: number,
-	distanceFactor: number = DEFAULT_DISTANCE_FACTOR,
-	timeFactor: number = DEFAULT_TIME_FACTOR
-): number {
-	const jobTierMultiplier = Math.pow(config.jobs.value.tierMultiplier, jobTier - 1);
-	const categoryMultiplier = CATEGORY_MULTIPLIERS[jobCategory];
-
-	// Random factor: usually near 1, but can be quite big (capped by randomFactorMax)
-	const randomFactor = Math.max(1.0, -Math.log(1 - Math.random()));
-	const cappedRandomFactor = Math.min(randomFactor, config.jobs.value.randomFactorMax);
-
-	const totalTimeHours = totalTimeSeconds / 3600;
-	const baseValue = totalDistanceKm * distanceFactor + totalTimeHours * timeFactor;
-
-	return jobTierMultiplier * categoryMultiplier * cappedRandomFactor * baseValue;
-}
 
 /**
  * Generates a single job from a given address
@@ -220,17 +196,8 @@ export async function generateJobFromAddress(
 		// Randomly select a category
 		const jobCategory = availableCategories[Math.floor(Math.random() * availableCategories.length)];
 
-		// Calculate total distance and time
+		// Calculate total distance
 		const totalDistanceKm = routeResult.totalDistanceMeters / 1000;
-		const approximateTimeSeconds = routeResult.travelTimeSeconds;
-
-		// Validate travel time - if it's 0 or invalid, skip this job
-		if (!approximateTimeSeconds || approximateTimeSeconds <= 0) {
-			console.warn(
-				`Invalid travel time for route: ${approximateTimeSeconds} seconds, skipping job`
-			);
-			return false;
-		}
 
 		// Distance validation: check if route distance is suspiciously high
 		// Calculate straight-line distance between start and end using Turf.js
@@ -243,22 +210,12 @@ export async function generateJobFromAddress(
 			return false; // Suspiciously long route, skip silently
 		}
 
-		// Compute job value
-		const approximateValue = computeApproximateJobValue(
-			jobTier,
-			jobCategory,
-			totalDistanceKm,
-			approximateTimeSeconds
-		);
-
-		// Find end address ID by coordi
-
 		// Create route record with address IDs
 		const routeRecord = {
 			id: crypto.randomUUID(),
 			startAddressId: startAddress.id,
 			endAddressId: endAddress.id,
-			lengthTime: approximateTimeSeconds,
+			lengthTime: routeResult.travelTimeSeconds,
 			routeData: routeResult
 		};
 
@@ -273,9 +230,7 @@ export async function generateJobFromAddress(
 			routeId: routeRecord.id,
 			jobTier,
 			jobCategory,
-			totalDistanceKm,
-			approximateTimeSeconds,
-			approximateValue
+			totalDistanceKm
 		};
 
 		// Insert job

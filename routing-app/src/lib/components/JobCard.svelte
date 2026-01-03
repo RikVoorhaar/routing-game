@@ -20,7 +20,7 @@
 	import { addError } from '$lib/stores/errors';
 	import type { Employee, Job } from '$lib/server/db/schema';
 	import { writable, derived } from 'svelte/store';
-	import { computeJobXp } from '$lib/jobs/jobUtils';
+	import { computeJobXp, computeJobReward } from '$lib/jobs/jobUtils';
 	import { config } from '$lib/stores/config';
 
 	let selectedEmployeeId: string | null = null;
@@ -94,7 +94,7 @@
 			// Current selection is invalid, pick a new one
 			// Prefer the globally selected employee if they're eligible, otherwise use first available
 			const preferredEmployee =
-				$selectedEmployee && eligibleEmployees.find((emp) => emp.id === $selectedEmployee);
+				$selectedEmployee ? eligibleEmployees.find((emp) => emp.id === $selectedEmployee) : null;
 			const newSelectedEmployeeId = preferredEmployee?.id || eligibleEmployees[0]?.id || null;
 
 			if (newSelectedEmployeeId) {
@@ -409,7 +409,9 @@
 				<div class="text-center">
 					<div class="text-xs font-medium text-base-content/60">Reward</div>
 					<div class="text-lg font-bold text-success">
-						{formatCurrency($selectedJob.approximateValue)}
+						{$config && $currentGameState
+							? formatCurrency(computeJobReward($selectedJob.totalDistanceKm, $config, $currentGameState))
+							: '...'}
 					</div>
 				</div>
 

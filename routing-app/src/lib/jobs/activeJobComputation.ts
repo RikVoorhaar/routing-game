@@ -8,18 +8,10 @@ import type { Employee, Job, GameState, RoutingResult } from '$lib/server/db/sch
 import { getEmployeeMaxSpeed } from '$lib/employeeUtils';
 import { concatenateRoutes, applyMaxSpeed } from '$lib/routes/route-utils';
 import { config } from '$lib/server/config';
-import { computeJobXp } from '$lib/jobs/jobUtils';
+import { computeJobXp, computeJobReward } from '$lib/jobs/jobUtils';
 
 type ActiveJobInsert = InferInsertModel<typeof activeJobs>;
 type ActiveRouteInsert = InferInsertModel<typeof activeRoutes>;
-
-/**
- * Computes the value/payout for a given job based on employee skills and game state
- */
-function computeJobValue(job: Job, _employee: Employee, _gameState: GameState): number {
-	// Apply dev money multiplier
-	return job.approximateValue * config.dev.moneyMultiplier;
-}
 
 /**
  * Creates a route from employee's current location to job start location using the routing engine
@@ -113,7 +105,7 @@ export async function computeActiveJob(
 	};
 
 	// Compute payout
-	const computedPayout = computeJobValue(job, employee, gameState);
+	const computedPayout = computeJobReward(job.totalDistanceKm, config, gameState);
 
 	const xp = computeJobXp(job, config, gameState);
 
