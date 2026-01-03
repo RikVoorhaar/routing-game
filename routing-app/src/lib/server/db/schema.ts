@@ -270,6 +270,7 @@ export const jobs = pgTable(
 		index('jobs_tier_idx').on(table.jobTier),
 		index('jobs_category_idx').on(table.jobCategory),
 		index('jobs_generated_time_idx').on(table.generatedTime),
+		index('jobs_start_address_idx').on(table.startAddressId), // Index for finding addresses without jobs
 		// Create a spatial index on the geometry column for efficient spatial queries
 		index('jobs_location_idx').on(sql`${table.location}`)
 	]

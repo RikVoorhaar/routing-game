@@ -11,7 +11,7 @@ import { config } from '$lib/server/config';
 type JobInsert = InferInsertModel<typeof jobs>;
 
 // Maximum job tier (constant)
-const MAX_TIER = 8;
+export const MAX_TIER = 8;
 
 // Route distance ranges by tier (in kilometers)
 // Ranges have significant overlap and follow powers of 2.5
@@ -159,15 +159,22 @@ function generateJobTier(): number {
 }
 
 /**
- * Generates a single job from a given address
+ * Generates a single job from a given address with retry logic
+ * @param startAddress The starting address
+ * @param initialTier Optional initial tier to use (for retries with higher tier)
+ * @param retryCount Current retry attempt (internal use)
+ * @returns true if job was successfully created, false otherwise
  */
 export async function generateJobFromAddress(
-	startAddress: InferSelectModel<typeof addresses>
+	startAddress: InferSelectModel<typeof addresses>,
+	initialTier?: number,
+	retryCount: number = 0
 ): Promise<boolean> {
-	try {
-		// Compute job tier
-		const jobTier = generateJobTier();
+	const MAX_RETRIES = 5;
+	// Compute job tier (use provided tier for retries, otherwise generate random)
+	const jobTier = initialTier ?? generateJobTier();
 
+	try {
 		// Get distance range for this tier
 		const distanceRange = ROUTE_DISTANCES_KM[jobTier];
 		if (!distanceRange) {
@@ -232,10 +239,25 @@ export async function generateJobFromAddress(
 
 		return true;
 	} catch (error) {
-		// Re-throw the error so it can be logged by the caller
-		throw new Error(
-			`Job generation failed: ${error instanceof Error ? error.message : String(error)}`
-		);
+		const errorMessage = error instanceof Error ? error.message : String(error);
+
+		// Retry logic
+		if (retryCount < MAX_RETRIES) {
+			// Case 1: "Failed to get shortest path: Not Found" - retry with another address in annulus
+			if (errorMessage.includes('Failed to get shortest path') && errorMessage.includes('Not Found')) {
+				return await generateJobFromAddress(startAddress, initialTier, retryCount + 1);
+			}
+
+			// Case 2: "No address found in square annulus" - retry with tier+1 (if not max tier)
+			if (errorMessage.includes('No address found in square annulus')) {
+				if (jobTier < MAX_TIER) {
+					return await generateJobFromAddress(startAddress, jobTier + 1, retryCount + 1);
+				}
+			}
+		}
+
+		// Re-throw the error if retries exhausted or not a retryable error
+		throw new Error(`Job generation failed: ${errorMessage}`);
 	}
 }
 

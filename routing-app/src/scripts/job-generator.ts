@@ -17,8 +17,9 @@ if (!process.env.ROUTING_SERVER_URL) {
 
 import { generateJobFromAddress, clearAllJobs } from '../lib/jobs/generateJobs';
 import { db, client } from '../lib/server/db/standalone.js';
+import { addresses, jobs } from '../lib/server/db/schema';
 import type { Address } from '../lib/server/db/schema';
-import { sql } from 'drizzle-orm';
+import { count, asc, isNull, sql } from 'drizzle-orm';
 import { performance } from 'perf_hooks';
 import * as cliProgress from 'cli-progress';
 import * as fs from 'fs';
@@ -81,15 +82,50 @@ async function generateJobWithErrorLogging(address: Address): Promise<boolean> {
 	}
 }
 
-async function generateJobsWithProgress() {
+async function generateJobsWithProgress(clearExisting: boolean = false) {
 	try {
-		// Get total address count first
-		const totalAddressCountResult = await db.execute(sql`SELECT COUNT(*) as count FROM address`);
-		const totalAddresses = Number(totalAddressCountResult[0]?.count || 0);
+		// Parse command line arguments
+		const args = process.argv.slice(2);
+		if (args.includes('--clear') || args.includes('-c')) {
+			clearExisting = true;
+		}
+
+		if (clearExisting) {
+			// Clear existing jobs if flag is set
+			console.log(`${COLORS.gray}🧹 Clearing existing jobs...${COLORS.reset}`);
+			const clearStart = performance.now();
+			await clearAllJobs();
+			const clearTime = performance.now() - clearStart;
+			console.log(`${COLORS.green}✅ Cleared jobs in ${clearTime.toFixed(0)}ms${COLORS.reset}\n`);
+		}
+
+		// Get total address count using Drizzle
+		// Use LEFT JOIN with IS NULL instead of NOT IN for better performance
+		console.log(`${COLORS.gray}📊 Counting addresses${clearExisting ? '' : ' without jobs'}...${COLORS.reset}`);
+		const countStart = performance.now();
+		const totalAddresses = clearExisting
+			? (await db.select({ count: count() }).from(addresses))[0]?.count ?? 0
+			: (
+					await db
+						.select({ count: count() })
+						.from(addresses)
+						.leftJoin(jobs, sql`${jobs.startAddressId} = ${addresses.id}`)
+						.where(isNull(jobs.id))
+				)[0]?.count ?? 0;
+		const countTime = performance.now() - countStart;
+		console.log(
+			`${COLORS.green}✅ Found ${COLORS.cyan}${totalAddresses.toLocaleString()}${COLORS.green} addresses in ${countTime.toFixed(0)}ms${COLORS.reset}\n`
+		);
 
 		if (totalAddresses === 0) {
-			console.error('No addresses found in database!');
-			process.exit(1);
+			if (clearExisting) {
+				console.error('No addresses found in database!');
+			} else {
+				console.log(
+					`${COLORS.yellow}ℹ️  All addresses already have jobs. Use --clear flag to regenerate all jobs.${COLORS.reset}`
+				);
+			}
+			process.exit(0);
 		}
 
 		const PAGE_SIZE = 1000; // Configurable batch size for pagination
@@ -99,19 +135,10 @@ async function generateJobsWithProgress() {
 		console.log(
 			`  Total Addresses: ${COLORS.cyan}${totalAddresses.toLocaleString()}${COLORS.reset}`
 		);
+		console.log(`  Mode: ${COLORS.yellow}${clearExisting ? 'Regenerate All' : 'Skip Existing'}${COLORS.reset}`);
 		console.log(`  Page Size: ${COLORS.yellow}${PAGE_SIZE.toLocaleString()}${COLORS.reset}`);
 		console.log(`  Concurrency: ${COLORS.yellow}${CONCURRENCY}${COLORS.reset}`);
-		console.log(
-			`  Expected Time: ${COLORS.gray}~${Math.ceil((totalAddresses * 30) / 1000 / CONCURRENCY)}s${COLORS.reset}`
-		);
 		console.log(`  Error Log: ${COLORS.gray}${ERROR_LOG_FILE}${COLORS.reset}\n`);
-
-		// Clear existing jobs
-		console.log(`${COLORS.gray}🧹 Clearing existing jobs...${COLORS.reset}`);
-		const clearStart = performance.now();
-		await clearAllJobs();
-		const clearTime = performance.now() - clearStart;
-		console.log(`${COLORS.green}✅ Cleared jobs in ${clearTime.toFixed(0)}ms${COLORS.reset}\n`);
 
 		// Initialize progress bar
 		const progressBar = new cliProgress.SingleBar(
@@ -138,23 +165,35 @@ async function generateJobsWithProgress() {
 		let offset = 0;
 		let hasMore = true;
 
-		while (hasMore) {
-			// Fetch a page of addresses
-			const pageAddresses = (await db.execute(sql`
-				SELECT * FROM address 
-				ORDER BY id 
-				LIMIT ${PAGE_SIZE} 
-				OFFSET ${offset}
-			`)) as unknown as Array<Address>;
+		console.log(`${COLORS.gray}🔄 Starting job generation...${COLORS.reset}\n`);
 
-			if (pageAddresses.length === 0) {
+		while (hasMore) {
+			// Fetch a page of addresses using Drizzle
+			const addressesList: Address[] = clearExisting
+				? await db
+						.select()
+						.from(addresses)
+						.orderBy(asc(addresses.id))
+						.limit(PAGE_SIZE)
+						.offset(offset)
+				: await db
+						.select({ address: addresses })
+						.from(addresses)
+						.leftJoin(jobs, sql`${jobs.startAddressId} = ${addresses.id}`)
+						.where(isNull(jobs.id))
+						.orderBy(asc(addresses.id))
+						.limit(PAGE_SIZE)
+						.offset(offset)
+						.then((results) => results.map((row) => row.address));
+
+			if (addressesList.length === 0) {
 				hasMore = false;
 				break;
 			}
 
 			// Process addresses in this page in parallel batches
-			for (let i = 0; i < pageAddresses.length; i += CONCURRENCY) {
-				const batch = pageAddresses.slice(i, i + CONCURRENCY);
+			for (let i = 0; i < addressesList.length; i += CONCURRENCY) {
+				const batch = addressesList.slice(i, i + CONCURRENCY);
 
 				// Process batch in parallel
 				const promises = batch.map(async (address) => {
@@ -244,6 +283,19 @@ async function generateJobsWithProgress() {
 
 async function main() {
 	try {
+		// Check for help flag
+		const args = process.argv.slice(2);
+		if (args.includes('--help') || args.includes('-h')) {
+			console.log(`${COLORS.bright}Job Generator Script${COLORS.reset}\n`);
+			console.log('Usage: npm run generate-jobs [options]\n');
+			console.log('Options:');
+			console.log('  --clear, -c    Clear all existing jobs and regenerate for all addresses');
+			console.log('  --help, -h     Show this help message\n');
+			console.log('By default, the script only generates jobs for addresses that do not already have jobs.');
+			console.log('Use --clear to regenerate all jobs from scratch.\n');
+			process.exit(0);
+		}
+
 		await generateJobsWithProgress();
 	} finally {
 		// Close database connection
