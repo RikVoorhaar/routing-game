@@ -7,6 +7,7 @@ import { db } from '$lib/server/db/standalone';
 import { distance } from '@turf/turf';
 import { JobCategory } from '$lib/jobs/jobCategories';
 import { config } from '$lib/server/config';
+import { profiledAsync, profiledSync, profiledCount } from '$lib/profiling';
 
 type JobInsert = InferInsertModel<typeof jobs>;
 
@@ -168,7 +169,8 @@ function generateJobTier(): number {
 export async function generateJobFromAddress(
 	startAddress: InferSelectModel<typeof addresses>,
 	initialTier?: number,
-	retryCount: number = 0
+	retryCount: number = 0,
+	options?: { dryRun?: boolean }
 ): Promise<boolean> {
 	const MAX_RETRIES = 5;
 	// Compute job tier (use provided tier for retries, otherwise generate random)
@@ -190,13 +192,15 @@ export async function generateJobFromAddress(
 		};
 
 		// Get route metadata only (no path array) for job generation
-		const routeInAnnulus: RouteInAnnulus = await getRandomRouteInAnnulus(
-			startLocation,
-			minDistanceKm,
-			maxDistanceKm,
-			undefined, // maxSpeed not needed for job generation
-			false // includePath=false: metadata only
-		);
+		const routeInAnnulus: RouteInAnnulus = await profiledAsync('job.route.random_in_annulus', async () => {
+			return await getRandomRouteInAnnulus(
+				startLocation,
+				minDistanceKm,
+				maxDistanceKm,
+				undefined, // maxSpeed not needed for job generation
+				false // includePath=false: metadata only
+			);
+		});
 		const routeResult = routeInAnnulus.route;
 		const endAddress = routeInAnnulus.destination;
 
@@ -217,7 +221,9 @@ export async function generateJobFromAddress(
 		// Calculate straight-line distance between start and end using Turf.js
 		const startPoint = [Number(startAddress.lon), Number(startAddress.lat)]; // [longitude, latitude] for Turf
 		const endPoint = [Number(endAddress.lon), Number(endAddress.lat)];
-		const straightLineDistanceKm = distance(startPoint, endPoint, { units: 'kilometers' });
+		const straightLineDistanceKm = profiledSync('job.turf.distance', () =>
+			distance(startPoint, endPoint, { units: 'kilometers' })
+		);
 
 		// Reject if route distance is more than 10x the straight-line distance
 		if (totalDistanceKm > straightLineDistanceKm * 10) {
@@ -235,7 +241,13 @@ export async function generateJobFromAddress(
 		};
 
 		// Insert job
-		await db.insert(jobs).values(jobRecord);
+		if (options?.dryRun) {
+			profiledCount('job.db.insert.skipped', 1);
+		} else {
+			await profiledAsync('job.db.insert', async () => {
+				await db.insert(jobs).values(jobRecord);
+			});
+		}
 
 		return true;
 	} catch (error) {
@@ -243,18 +255,19 @@ export async function generateJobFromAddress(
 
 		// Retry logic
 		if (retryCount < MAX_RETRIES) {
+			profiledCount('job.retry.attempt', 1);
 			// Case 1: "Failed to get shortest path: Not Found" - retry with another address in annulus
 			if (
 				errorMessage.includes('Failed to get shortest path') &&
 				errorMessage.includes('Not Found')
 			) {
-				return await generateJobFromAddress(startAddress, initialTier, retryCount + 1);
+				return await generateJobFromAddress(startAddress, initialTier, retryCount + 1, options);
 			}
 
 			// Case 2: "No address found in square annulus" - retry with tier+1 (if not max tier)
 			if (errorMessage.includes('No address found in square annulus')) {
 				if (jobTier < MAX_TIER) {
-					return await generateJobFromAddress(startAddress, jobTier + 1, retryCount + 1);
+					return await generateJobFromAddress(startAddress, jobTier + 1, retryCount + 1, options);
 				}
 			}
 		}

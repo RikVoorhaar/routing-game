@@ -3,6 +3,7 @@ import { db } from './server/db/standalone';
 import { sql } from 'drizzle-orm';
 import { destination } from '@turf/turf';
 import { point } from '@turf/turf';
+import { profiledAsync, profiledSync, profiledCount } from './profiling';
 
 /**
  * Get a random address within a square annulus around a center point using PostgreSQL
@@ -27,15 +28,19 @@ export async function getRandomAddressInAnnulus(
 	}
 
 	// Create turf point for center
-	const centerPoint = point([center.lon, center.lat]);
+	const centerPoint = profiledSync('annulus.turf.point', () => point([center.lon, center.lat]));
 
 	// Calculate latitude bounds (constant across longitude)
 	const minLatDeg = minDistanceKm / 111.0; // 1 degree latitude ≈ 111 km everywhere
 	const maxLatDeg = maxDistanceKm / 111.0;
 
 	// Calculate longitude bounds using turf (accounts for latitude)
-	const eastMin = destination(centerPoint, minDistanceKm, 90, { units: 'kilometers' });
-	const eastMax = destination(centerPoint, maxDistanceKm, 90, { units: 'kilometers' });
+	const eastMin = profiledSync('annulus.turf.destination.min', () =>
+		destination(centerPoint, minDistanceKm, 90, { units: 'kilometers' })
+	);
+	const eastMax = profiledSync('annulus.turf.destination.max', () =>
+		destination(centerPoint, maxDistanceKm, 90, { units: 'kilometers' })
+	);
 
 	// Extract longitude bounds
 	const minLonDeg = Math.abs(eastMin.geometry.coordinates[0] - center.lon);
@@ -57,28 +62,11 @@ export async function getRandomAddressInAnnulus(
 	};
 
 	// Ultra-fast square annulus query
-	const result = await db.execute(sql`
-		SELECT 
-			id, street, house_number, postcode, city, location, lat, lon, created_at
-		FROM address TABLESAMPLE SYSTEM(5) -- Sample 5% of table for speed
-		WHERE 
-			-- Outer square bounds
-			lat BETWEEN ${outerBounds.minLat} AND ${outerBounds.maxLat}
-			AND lon BETWEEN ${outerBounds.minLon} AND ${outerBounds.maxLon}
-			-- Exclude inner square (creating the annulus)
-			AND NOT (
-				lat BETWEEN ${innerBounds.minLat} AND ${innerBounds.maxLat}
-				AND lon BETWEEN ${innerBounds.minLon} AND ${innerBounds.maxLon}
-			)
-		LIMIT 1
-	`);
-
-	// If TABLESAMPLE doesn't find anything, fall back to more comprehensive search
-	if (result.length === 0) {
-		const fallbackResult = await db.execute(sql`
+	const result = await profiledAsync('annulus.db.tablesample', async () => {
+		return await db.execute(sql`
 			SELECT 
 				id, street, house_number, postcode, city, location, lat, lon, created_at
-			FROM address 
+			FROM address TABLESAMPLE SYSTEM(5) -- Sample 5% of table for speed
 			WHERE 
 				-- Outer square bounds
 				lat BETWEEN ${outerBounds.minLat} AND ${outerBounds.maxLat}
@@ -88,9 +76,31 @@ export async function getRandomAddressInAnnulus(
 					lat BETWEEN ${innerBounds.minLat} AND ${innerBounds.maxLat}
 					AND lon BETWEEN ${innerBounds.minLon} AND ${innerBounds.maxLon}
 				)
-			ORDER BY RANDOM()
 			LIMIT 1
 		`);
+	});
+
+	// If TABLESAMPLE doesn't find anything, fall back to more comprehensive search
+	if (result.length === 0) {
+		profiledCount('annulus.db.fallback.used', 1);
+		const fallbackResult = await profiledAsync('annulus.db.fallback_random', async () => {
+			return await db.execute(sql`
+				SELECT 
+					id, street, house_number, postcode, city, location, lat, lon, created_at
+				FROM address 
+				WHERE 
+					-- Outer square bounds
+					lat BETWEEN ${outerBounds.minLat} AND ${outerBounds.maxLat}
+					AND lon BETWEEN ${outerBounds.minLon} AND ${outerBounds.maxLon}
+					-- Exclude inner square (creating the annulus)
+					AND NOT (
+						lat BETWEEN ${innerBounds.minLat} AND ${innerBounds.maxLat}
+						AND lon BETWEEN ${innerBounds.minLon} AND ${innerBounds.maxLon}
+					)
+				ORDER BY RANDOM()
+				LIMIT 1
+			`);
+		});
 
 		if (fallbackResult.length === 0) {
 			throw new Error(

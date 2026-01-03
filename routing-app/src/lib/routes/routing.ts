@@ -2,6 +2,7 @@ import { getRandomAddressInAnnulus } from '../addresses';
 import type { Address } from '../server/db/schema';
 import type { Coordinate, RoutingResult, PathPoint } from '../server/db/schema';
 import http from 'http';
+import { profiledAsync, profiledSync } from '../profiling';
 
 // Get ROUTING_SERVER_URL from environment (checked lazily when functions are called)
 function getRoutingServerUrl(): string {
@@ -24,10 +25,12 @@ const httpAgent = new http.Agent({
 
 // Enhanced fetch with keep-alive agent
 async function fetchWithKeepAlive(url: string, options: RequestInit = {}): Promise<Response> {
-	return fetch(url, {
-		...options,
-		// @ts-expect-error - Node.js specific agent option
-		agent: httpAgent
+	return await profiledAsync('routing.http.fetch', async () => {
+		return await fetch(url, {
+			...options,
+			// @ts-expect-error - Node.js specific agent option
+			agent: httpAgent
+		});
 	});
 }
 
@@ -71,20 +74,22 @@ export async function getShortestPath(
 		throw new Error(`Failed to get shortest path: ${response.statusText}`);
 	}
 
-	const data = await response.json();
+	const data = await profiledAsync('routing.http.json', async () => await response.json());
 	if (!data.success) {
 		throw new Error(data.error || 'Failed to get shortest path ' + url);
 	}
 
 	// Convert the path to our PathPoint type (only if path is included)
 	const path: PathPoint[] = data.path
-		? data.path.map((point: ServerPathPoint) => ({
-				coordinates: { lat: point.coordinates.lat, lon: point.coordinates.lon },
-				cumulative_time_seconds: point.cumulative_time_seconds,
-				cumulative_distance_meters: point.cumulative_distance_meters,
-				max_speed_kmh: point.max_speed_kmh,
-				is_walking_segment: point.is_walking_segment
-			}))
+		? profiledSync('routing.path.map', () =>
+				data.path.map((point: ServerPathPoint) => ({
+					coordinates: { lat: point.coordinates.lat, lon: point.coordinates.lon },
+					cumulative_time_seconds: point.cumulative_time_seconds,
+					cumulative_distance_meters: point.cumulative_distance_meters,
+					max_speed_kmh: point.max_speed_kmh,
+					is_walking_segment: point.is_walking_segment
+				}))
+			)
 		: []; // Empty path array for metadata-only responses
 
 	return {
