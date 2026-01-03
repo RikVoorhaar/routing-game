@@ -226,8 +226,7 @@
 			// This prevents showing preview routes for jobs that have been accepted
 			const isJobAlreadyStarted = $fullEmployeeData.some(
 				(fed) =>
-					fed.activeJob?.id === $selectedActiveJobData.activeJob.id &&
-					fed.activeJob?.startTime
+					fed.activeJob?.id === $selectedActiveJobData.activeJob.id && fed.activeJob?.startTime
 			);
 
 			if (!isJobAlreadyStarted) {
