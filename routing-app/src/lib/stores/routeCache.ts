@@ -85,4 +85,3 @@ export function clearRouteCache(): void {
 export function removeRouteFromCache(activeJobId: string): void {
 	routeCache.delete(activeJobId);
 }
-

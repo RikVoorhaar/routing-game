@@ -58,4 +58,3 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		return error(500, 'Failed to fetch active route');
 	}
 };
-

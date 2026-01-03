@@ -35,7 +35,7 @@ async function computeRouteToJob(
 
 	// Use the routing engine to compute the actual route with employee's max speed
 	const employeeMaxSpeed = getEmployeeMaxSpeed(employee);
-	
+
 	const routingResult = await getShortestPath(
 		{ lat: employeeLocation.lat, lon: employeeLocation.lon },
 		{ lat: jobStartAddress.lat, lon: jobStartAddress.lon },

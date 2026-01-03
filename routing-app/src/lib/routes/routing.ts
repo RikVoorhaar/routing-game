@@ -50,11 +50,11 @@ export async function getShortestPath(
 	options?: ShortestPathOptions | number // Support legacy maxSpeed parameter
 ): Promise<RoutingResult> {
 	const ROUTING_SERVER_URL = getRoutingServerUrl();
-	
+
 	// Handle legacy maxSpeed parameter
 	const opts: ShortestPathOptions =
 		typeof options === 'number' ? { maxSpeed: options } : options || {};
-	
+
 	let url = `${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`;
 
 	if (opts.maxSpeed !== undefined && opts.maxSpeed > 0) {

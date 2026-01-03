@@ -268,7 +268,10 @@
 		// Fetch route data on-demand
 		const routeData = await getRoute(selectedActiveJobData.activeJob.id);
 		if (!routeData) {
-			log.warn('[RouteMap] Failed to fetch route data for active job:', selectedActiveJobData.activeJob.id);
+			log.warn(
+				'[RouteMap] Failed to fetch route data for active job:',
+				selectedActiveJobData.activeJob.id
+			);
 			return null;
 		}
 
