@@ -136,8 +136,7 @@ export class AggregatingProfiler implements Profiler {
 
 		for (const [name, stat] of this.timers.entries()) {
 			const avgMs = stat.count > 0 ? stat.totalMs / stat.count : 0;
-			const p95Ms =
-				stat.samples.length > 0 ? percentile(stat.samples, 0.95) : undefined;
+			const p95Ms = stat.samples.length > 0 ? percentile(stat.samples, 0.95) : undefined;
 
 			out.push({
 				name,
@@ -166,5 +165,3 @@ function percentile(values: number[], p: number): number {
 	const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil(p * sorted.length) - 1));
 	return sorted[idx];
 }
-
-

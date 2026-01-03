@@ -192,15 +192,18 @@ export async function generateJobFromAddress(
 		};
 
 		// Get route metadata only (no path array) for job generation
-		const routeInAnnulus: RouteInAnnulus = await profiledAsync('job.route.random_in_annulus', async () => {
-			return await getRandomRouteInAnnulus(
-				startLocation,
-				minDistanceKm,
-				maxDistanceKm,
-				undefined, // maxSpeed not needed for job generation
-				false // includePath=false: metadata only
-			);
-		});
+		const routeInAnnulus: RouteInAnnulus = await profiledAsync(
+			'job.route.random_in_annulus',
+			async () => {
+				return await getRandomRouteInAnnulus(
+					startLocation,
+					minDistanceKm,
+					maxDistanceKm,
+					undefined, // maxSpeed not needed for job generation
+					false // includePath=false: metadata only
+				);
+			}
+		);
 		const routeResult = routeInAnnulus.route;
 		const endAddress = routeInAnnulus.destination;
 

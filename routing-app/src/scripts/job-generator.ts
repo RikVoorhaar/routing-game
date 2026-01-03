@@ -24,7 +24,12 @@ import { performance } from 'perf_hooks';
 import * as cliProgress from 'cli-progress';
 import * as fs from 'fs';
 import * as path from 'path';
-import { AggregatingProfiler, profiledAsync, profiledSync, setActiveProfiler } from '../lib/profiling';
+import {
+	AggregatingProfiler,
+	profiledAsync,
+	profiledSync,
+	setActiveProfiler
+} from '../lib/profiling';
 
 // ANSI escape codes for terminal formatting
 const COLORS = {
@@ -77,7 +82,10 @@ function logError(message: string, error?: Error | unknown, address?: Address) {
 }
 
 // Wrapper function for job generation with error logging
-async function generateJobWithErrorLogging(address: Address, options?: { dryRun?: boolean }): Promise<boolean> {
+async function generateJobWithErrorLogging(
+	address: Address,
+	options?: { dryRun?: boolean }
+): Promise<boolean> {
 	try {
 		return await generateJobFromAddress(address, undefined, 0, options);
 	} catch (error) {
@@ -143,7 +151,8 @@ function parseCliOptions(argv: string[]): CliOptions {
 	const noProgress = hasFlag(args, '--no-progress');
 
 	const profile = hasFlag(args, '--profile');
-	const profileSampleRate = parseProbability(getFlagValue(args, '--profile-sample-rate'), '--profile-sample-rate') ?? 0.05;
+	const profileSampleRate =
+		parseProbability(getFlagValue(args, '--profile-sample-rate'), '--profile-sample-rate') ?? 0.05;
 	const profileOutFile = getFlagValue(args, '--profile-out');
 
 	return {
@@ -228,8 +237,7 @@ async function generateJobsWithProgress(options: CliOptions) {
 			? null
 			: new cliProgress.SingleBar(
 					{
-						format:
-							'Progress |{bar}| {value}/{total} | ETA: {eta_formatted} | Success: {success}%',
+						format: 'Progress |{bar}| {value}/{total} | ETA: {eta_formatted} | Success: {success}%',
 						barCompleteChar: '\u2588',
 						barIncompleteChar: '\u2591',
 						hideCursor: true,
@@ -292,7 +300,7 @@ async function generateJobsWithProgress(options: CliOptions) {
 				offset += PAGE_SIZE;
 				continue;
 			}
-			
+
 			consecutiveEmptyPages = 0; // Reset counter when we find addresses
 
 			// Process addresses in this page in parallel batches
@@ -409,8 +417,12 @@ async function main() {
 			console.log('  --concurrency N  Parallelism within each page (default: 20)');
 			console.log('  --no-progress  Disable the progress bar (can reduce overhead)');
 			console.log('  --profile      Enable internal timing breakdown report');
-			console.log('  --profile-sample-rate R  Sample rate in [0,1] for p95 estimation (default: 0.05)');
-			console.log('  --profile-out FILE  Write JSON profile report to FILE (default: logs/job-generator-profile-*.json)');
+			console.log(
+				'  --profile-sample-rate R  Sample rate in [0,1] for p95 estimation (default: 0.05)'
+			);
+			console.log(
+				'  --profile-out FILE  Write JSON profile report to FILE (default: logs/job-generator-profile-*.json)'
+			);
 			console.log('  --help, -h     Show this help message\n');
 			console.log(
 				'By default, the script only generates jobs for addresses that do not already have jobs.'
@@ -439,8 +451,7 @@ async function main() {
 
 			const report = {
 				generated_at: new Date().toISOString(),
-				note:
-					'Timer totals are sum of per-call durations; with concurrency they can exceed wall-clock time.',
+				note: 'Timer totals are sum of per-call durations; with concurrency they can exceed wall-clock time.',
 				counters,
 				timers: stats
 			};
@@ -460,7 +471,9 @@ async function main() {
 				);
 			}
 			if (stats.length > top.length) {
-				console.log(`${COLORS.gray}\n... (${stats.length - top.length} more timers)${COLORS.reset}`);
+				console.log(
+					`${COLORS.gray}\n... (${stats.length - top.length} more timers)${COLORS.reset}`
+				);
 			}
 		}
 
