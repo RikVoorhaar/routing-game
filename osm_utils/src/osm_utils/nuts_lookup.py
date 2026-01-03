@@ -120,10 +120,11 @@ class NUTSIndex:
 
         for feat in features:
             props: Mapping[str, Any] = feat.get("properties", {})
-            nuts_id_raw = props.get("id")
+            # Support both formats: "id"/"na" (Nuts2json) and "NUTS_ID"/"NUTS_NAME" (Eurostat)
+            nuts_id_raw = props.get("id") or props.get("NUTS_ID")
             if not isinstance(nuts_id_raw, str) or not nuts_id_raw:
                 continue
-            name_raw = props.get("na")
+            name_raw = props.get("na") or props.get("NUTS_NAME") or props.get("NAME_LATN")
             name = name_raw if isinstance(name_raw, str) and name_raw else None
 
             geom_mapping = feat.get("geometry")

@@ -15,23 +15,57 @@ wget https://download.geofabrik.de/europe/netherlands/your-region-latest.osm.pbf
 mv your-region-latest.osm.pbf osm_files/
 ```
 
-### 1b. Download NUTS boundaries (GeoJSON, optional)
-If you need NUTS boundaries for mapping/overlays, you can download them from [eurostat/Nuts2json](https://github.com/eurostat/Nuts2json).
+### 1b. Download NUTS boundaries (GeoJSON)
+Download NUTS region boundaries from [Eurostat GISCO](https://ec.europa.eu/eurostat/web/gisco/geodata/statistical-units/territorial-units-statistics).
 
-This downloads **Year 2024**, **EPSG:3857 (Web Mercator)**, **scale 60M**, **type `nutsrg`**, **NUTS level 2**, in **GeoJSON**:
+You'll need both **2024** and **2021** versions, and choose either **01M** (1M, higher resolution) or **10M** (10M, lower resolution) scale:
+- **01M**: Higher detail (~60MB), better for offline address classification
+- **10M**: Lower detail (~4MB), suitable for web overlay
 
-```bash
-mkdir -p osm_files
-wget -O osm_files/nutsrg_2024_3857_60M_level2.geojson \
-  "https://raw.githubusercontent.com/eurostat/Nuts2json/master/pub/v2/2024/3857/60M/nutsrg_2.json"
-```
+Download the following files and place them in `osm_files/regions/`:
+- `NUTS_RG_01M_2024_3857.geojson` (or `NUTS_RG_10M_2024_3857.geojson`)
+- `NUTS_RG_01M_2021_3857.geojson` (or `NUTS_RG_10M_2021_3857.geojson`)
 
-### 2. Trim OSM File to Largest Component
-Use the OSM utilities to extract the largest connected component:
+**Note:** Due to Brexit, the UK was removed from NUTS 2024. To include UK regions, combine the datasets:
+
 ```bash
 cd osm_utils
-uv run scripts/trim_to_largest_component.py ../osm_files/your-region-latest.osm.pbf -o ../osm_files/trimmed-region.osm.pbf
+uv run scripts/combine_nuts_with_uk.py --resolution 01M  # or 10M
+uv run scripts/combine_nuts_with_uk.py --resolution 10M
 ```
+
+This creates `combined_01m.geojson` and `combined_10m.geojson` in `osm_files/regions/` with all 2024 regions plus UK regions from 2021.
+
+### 2. Trim OSM File and Extract Addresses
+Compile the C++ trimming tool, then use it to trim the OSM file to the largest connected component and extract addresses:
+```bash
+# First, compile the C++ tool
+cd osm_utils_cpp
+cmake -B build
+cmake --build build
+
+# Then run it to trim and extract addresses
+cd build
+./trim_and_extract ../../osm_files/your-region-latest.osm.pbf --output ../../osm_files/trimmed-region.osm.pbf --output-dir ../../osm_files
+```
+
+This will:
+- Generate a trimmed OSM file with only the necessary nodes and ways, in PBF format
+- Extract addresses to a CSV file (compressed as `.csv.gz`)
+
+**Note:** The routing server requires the trimmed OSM file, so this step must be completed before starting the server.
+
+### 2b. Configure Docker Compose
+Update the `routing_server/docker-compose.yml` file to point to your trimmed OSM file and address CSV file. Edit the `environment` section of the `routing-server` service:
+
+```yaml
+environment:
+  - OSM_FILE=/data/osm/trimmed-region.osm.pbf  # Update to your trimmed OSM file name
+  - ADDRESS_FILE=/data/osm/your-region-latest.addresses.csv.gz  # Update to your address CSV file name
+  - ROUTING_TIMING=1
+```
+
+The paths are relative to `/data/osm` inside the container, which maps to `osm_files/` on your host machine.
 
 ### 3. Start Routing Server and Database
 Spin up the routing server and PostgreSQL database using Docker Compose:
@@ -41,6 +75,8 @@ docker compose up -d
 ```
 
 Wait for the containers to be healthy (you can check with `docker compose ps`).
+
+> **Note on Memory Requirements:** The first time the routing server starts, it needs significantly more memory because it builds the contraction hierarchy (CH) data structure. For the Europe map, this requires approximately **62GB of RAM at peak** during CH construction. Once the CH has been built and the server is running, it only requires around **32GB of RAM**. If memory is tight, we recommend building the CH on a machine with more memory, then copying the generated files to your target machine.
 
 ### 4. Initialize Database Schema
 Create the database tables and schema:
@@ -52,19 +88,33 @@ npm run init-db:force
 
 This will:
 - Drop any existing tables
-- Create all required tables (users, employees, jobs, routes, addresses, etc.)
+- Create all required tables (users, employees, jobs, routes, addresses, regions, etc.)
 - Set up PostGIS extensions
 - Create a test user (username: `testuser`, password: `password123`)
 
-### 5. Populate Database with Addresses
-Extract addresses from the OSM file and populate the database:
+### 4c. Seed Database with Regions
+Populate the regions table from the combined GeoJSON file:
 ```bash
 cd osm_utils
-uv run scripts/extract_addresses.py ../osm_files/region.osm.pbf
+uv run scripts/seed_regions_from_geojson.py ../osm_files/regions/combined_10m.geojson
 ```
-(Adjust the path to the OSM file as needed, for dev we use `utrecht-latest.osm.pbf`)
 
-> **Note:** This will take a while to complete, depending on the size of the OSM file. In addition, _do not use the trimmed version of the OSM file_, since the trimming gets rid of most of the address nodes.
+This extracts unique NUTS regions (code, country code, and Latin name) from the GeoJSON and inserts them into the database.
+
+### 5. Populate Database with Addresses
+Extract addresses from the CSV file and populate the database with per-region sampling:
+```bash
+cd osm_utils
+uv run scripts/extract_addresses_from_csv.py ../osm_files/europe-latest.addresses_with_regions.csv.gz --region-counts-file ../osm_files/europe-latest.addresses_with_regions_region_counts.csv
+```
+
+This will:
+- Sample addresses per region (default: up to 1000 addresses per region)
+- Exclude ES63 and ES64 by default (small, geographically isolated regions)
+- Use the region counts file to compute per-region sampling probabilities
+- Insert addresses with their `nuts_region_code` as the `region` foreign key
+
+> **Note:** This will take a while to complete, depending on the size of the CSV file. The script samples addresses uniformly within each region to keep the dataset manageable.
 
 ### 6. Generate Jobs
 Populate the database with delivery jobs:

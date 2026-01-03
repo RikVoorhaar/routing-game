@@ -8,6 +8,8 @@
 	import { selectedActiveJobData } from '$lib/stores/selectedJob';
 	import { cheatSettings, activeTiles } from '$lib/stores/cheats';
 	import { mapDisplaySettings, displayedRoutes, mapDisplayActions } from '$lib/stores/mapDisplay';
+	import { regionOverlayEnabled, NUTS_HOVER_MAX_ZOOM } from '$lib/stores/regionOverlay';
+	import { loadNutsGeoJson, createNutsLayer, setNutsInteractivity } from '$lib/map/nutsOverlay';
 	import { MapManager } from './map/MapManager';
 	import { JobLoader } from './map/JobLoader';
 	import MarkerRenderer from './map/MarkerRenderer.svelte';
@@ -22,6 +24,7 @@
 	import type { DisplayableRoute } from '$lib/stores/mapDisplay';
 	import { formatAddress } from '$lib/formatting';
 	import { log } from '$lib/logger';
+	import { getRoute, prefetchRoutes } from '$lib/stores/routeCache';
 
 	// Animation configuration
 	const ANIMATION_FPS = 30; // Frames per second for smooth animation
@@ -48,6 +51,27 @@
 
 	// Animation timestamp to trigger marker updates
 	let animationTimestamp = 0;
+
+	// NUTS overlay layer management
+	let nutsLayer: any = null;
+	let zoomEndHandler: (() => void) | null = null;
+
+	// Derived: Map employee IDs to their route paths for animation
+	$: routesByEmployee = $displayedRoutes.reduce(
+		(acc, routeDisplay) => {
+			// Route IDs for active routes are in format: "active-{activeJobId}"
+			if (routeDisplay.isActive && routeDisplay.route.id.startsWith('active-')) {
+				const activeJobId = routeDisplay.route.id.replace('active-', '');
+				// Find the employee who has this active job
+				const fed = $fullEmployeeData.find((fed) => fed.activeJob?.id === activeJobId);
+				if (fed && routeDisplay.route.path && Array.isArray(routeDisplay.route.path)) {
+					acc[fed.employee.id] = routeDisplay.route.path;
+				}
+			}
+			return acc;
+		},
+		{} as Record<string, PathPoint[]>
+	);
 
 	// Reactive updates
 	$: {
@@ -84,6 +108,72 @@
 		}
 	}
 
+	// Reactive updates for region overlay
+	$: {
+		if (leafletMap && L) {
+			handleRegionOverlayToggle($regionOverlayEnabled);
+		}
+	}
+
+	/**
+	 * Handle region overlay toggle
+	 */
+	async function handleRegionOverlayToggle(enabled: boolean) {
+		if (!leafletMap || !L) return;
+
+		if (enabled) {
+			// Enable overlay: load GeoJSON and add layer
+			if (!nutsLayer) {
+				try {
+					const geojson = await loadNutsGeoJson();
+					nutsLayer = createNutsLayer(L, geojson);
+					nutsLayer.addTo(leafletMap);
+					// Keep overlay below routes/markers but above tiles
+					nutsLayer.bringToBack();
+
+					// Setup zoom event handler for interactivity gating
+					if (!zoomEndHandler) {
+						zoomEndHandler = () => {
+							updateNutsInteractivity();
+						};
+						leafletMap.on('zoomend', zoomEndHandler);
+					}
+
+					// Set initial interactivity state
+					updateNutsInteractivity();
+				} catch (error) {
+					log.error('[RouteMap] Failed to load NUTS overlay:', error);
+				}
+			} else {
+				// Layer already exists, just add it back
+				if (!leafletMap.hasLayer(nutsLayer)) {
+					nutsLayer.addTo(leafletMap);
+					nutsLayer.bringToBack();
+				}
+				updateNutsInteractivity();
+			}
+		} else {
+			// Disable overlay: remove layer
+			if (nutsLayer && leafletMap.hasLayer(nutsLayer)) {
+				leafletMap.removeLayer(nutsLayer);
+			}
+		}
+	}
+
+	/**
+	 * Update NUTS layer interactivity based on current zoom level
+	 */
+	function updateNutsInteractivity() {
+		if (!leafletMap || !L || !nutsLayer) return;
+
+		setNutsInteractivity({
+			map: leafletMap,
+			layer: nutsLayer,
+			enabled: $regionOverlayEnabled,
+			hoverMaxZoom: NUTS_HOVER_MAX_ZOOM
+		});
+	}
+
 	async function initMap() {
 		if (!browser) return;
 
@@ -110,38 +200,60 @@
 		}
 	}
 
-	function updateDisplayedRoutes() {
+	async function updateDisplayedRoutes() {
 		if (!leafletMap || !L) return;
 
 		// Clear existing routes and markers
 		mapDisplayActions.clearRoutes();
 		clearRouteMarkers();
 
-		// 1. Display preview route from selected active job data (if any)
-		if ($selectedActiveJobData) {
-			const previewRoute = createRouteFromActiveJobData($selectedActiveJobData, 'preview');
-			if (previewRoute) {
-				mapDisplayActions.addRoute(previewRoute, {
-					isSelected: false,
-					isPreview: true,
-					color: '#ff6b35', // Orange color for preview
-					onClick: () => {
-						selectRoute(previewRoute.id);
-						zoomToRoute(previewRoute);
-					}
-				});
+		// Prefetch routes for all active jobs
+		const activeJobIds: string[] = [];
+		if ($selectedActiveJobData?.activeJob?.id) {
+			activeJobIds.push($selectedActiveJobData.activeJob.id);
+		}
+		$fullEmployeeData.forEach((fed) => {
+			if (fed.activeJob?.id && fed.activeJob.startTime) {
+				activeJobIds.push(fed.activeJob.id);
+			}
+		});
+		await prefetchRoutes(activeJobIds);
 
-				// Add markers for preview route
-				addRouteMarkers($selectedActiveJobData, 'preview');
-			} else {
-				log.warn('[RouteMap] Failed to create preview route');
+		// 1. Display preview route from selected active job data (if any)
+		// Only show preview if the active job hasn't been started yet (no startTime)
+		if ($selectedActiveJobData && !$selectedActiveJobData.activeJob.startTime) {
+			// Double-check that this active job hasn't been started by checking fullEmployeeData
+			// This prevents showing preview routes for jobs that have been accepted
+			const isJobAlreadyStarted = $fullEmployeeData.some(
+				(fed) =>
+					fed.activeJob?.id === $selectedActiveJobData.activeJob.id && fed.activeJob?.startTime
+			);
+
+			if (!isJobAlreadyStarted) {
+				const previewRoute = await createRouteFromActiveJobData($selectedActiveJobData, 'preview');
+				if (previewRoute) {
+					mapDisplayActions.addRoute(previewRoute, {
+						isSelected: false,
+						isPreview: true,
+						color: '#ff6b35', // Orange color for preview
+						onClick: () => {
+							selectRoute(previewRoute.id);
+							zoomToRoute(previewRoute);
+						}
+					});
+
+					// Add markers for preview route
+					addRouteMarkers($selectedActiveJobData, 'preview');
+				} else {
+					log.warn('[RouteMap] Failed to create preview route');
+				}
 			}
 		}
 
 		// 2. Display all active job routes for employees
-		$fullEmployeeData.forEach((fed) => {
-			if (fed.activeJob && fed.activeRoute && fed.activeJob.startTime) {
-				const activeRoute = createRouteFromFullEmployeeData(fed);
+		for (const fed of $fullEmployeeData) {
+			if (fed.activeJob && fed.activeJob.startTime) {
+				const activeRoute = await createRouteFromFullEmployeeData(fed);
 				if (activeRoute) {
 					const isSelected = activeRoute.id === $selectedRoute;
 					mapDisplayActions.addRoute(activeRoute, {
@@ -158,7 +270,7 @@
 					addRouteMarkers(fed, 'active');
 				}
 			}
-		});
+		}
 	}
 
 	function clearRouteMarkers() {
@@ -171,16 +283,24 @@
 		routeMarkers = [];
 	}
 
-	function createRouteFromActiveJobData(
+	async function createRouteFromActiveJobData(
 		selectedActiveJobData: any,
 		routeType: string
-	): DisplayableRoute | null {
-		if (!selectedActiveJobData?.activeRoute?.routeData) {
-			log.warn('[RouteMap] No route data in selectedActiveJobData');
+	): Promise<DisplayableRoute | null> {
+		if (!selectedActiveJobData?.activeJob?.id) {
+			log.warn('[RouteMap] No active job ID in selectedActiveJobData');
 			return null;
 		}
 
-		const routeData = selectedActiveJobData.activeRoute.routeData;
+		// Fetch route data on-demand
+		const routeData = await getRoute(selectedActiveJobData.activeJob.id);
+		if (!routeData) {
+			log.warn(
+				'[RouteMap] Failed to fetch route data for active job:',
+				selectedActiveJobData.activeJob.id
+			);
+			return null;
+		}
 
 		// Handle case where routeData might be a JSON string
 		let parsedRouteData = routeData;
@@ -225,13 +345,18 @@
 		};
 	}
 
-	function createRouteFromFullEmployeeData(fed: any): DisplayableRoute | null {
-		if (!fed.activeRoute?.routeData) {
-			log.warn('[RouteMap] No route data in fullEmployeeData for employee:', fed.employee?.id);
+	async function createRouteFromFullEmployeeData(fed: any): Promise<DisplayableRoute | null> {
+		if (!fed.activeJob?.id) {
+			log.warn('[RouteMap] No active job ID in fullEmployeeData for employee:', fed.employee?.id);
 			return null;
 		}
 
-		const routeData = fed.activeRoute.routeData;
+		// Fetch route data on-demand
+		const routeData = await getRoute(fed.activeJob.id);
+		if (!routeData) {
+			log.warn('[RouteMap] Failed to fetch route data for active job:', fed.activeJob.id);
+			return null;
+		}
 
 		// Handle case where routeData might be a JSON string
 		let parsedRouteData = routeData;
@@ -547,6 +672,17 @@
 			clearTimeout(jobLoadingTimeout);
 		}
 
+		// Cleanup NUTS overlay
+		if (zoomEndHandler && leafletMap) {
+			leafletMap.off('zoomend', zoomEndHandler);
+			zoomEndHandler = null;
+		}
+
+		if (nutsLayer && leafletMap) {
+			leafletMap.removeLayer(nutsLayer);
+			nutsLayer = null;
+		}
+
 		if (mapManager) {
 			mapManager.destroy();
 		}
@@ -586,28 +722,7 @@
 				},
 				{} as Record<string, any>
 			)}
-			routesByEmployee={$fullEmployeeData.reduce(
-				(acc, fed) => {
-					if (fed.activeRoute?.routeData) {
-						const routeData = fed.activeRoute.routeData;
-						// Handle string parsing if needed
-						let parsedRouteData = routeData;
-						if (typeof routeData === 'string') {
-							try {
-								parsedRouteData = JSON.parse(routeData);
-							} catch (e) {
-								log.error('[RouteMap] Failed to parse routeData for employee:', fed.employee.id, e);
-								return acc;
-							}
-						}
-						if (parsedRouteData?.path && Array.isArray(parsedRouteData.path)) {
-							acc[fed.employee.id] = parsedRouteData.path;
-						}
-					}
-					return acc;
-				},
-				{} as Record<string, PathPoint[]>
-			)}
+			{routesByEmployee}
 			{animationTimestamp}
 		/>
 

@@ -14,3 +14,4 @@ isolate-*.log
 isolate-*.log.json
 isolate-*.log.preprocess-ready
 *.env 
+*.geojson

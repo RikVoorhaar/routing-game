@@ -1,5 +1,5 @@
 import { db } from '$lib/server/db';
-import { routes, addresses, activeJobs, activeRoutes } from '$lib/server/db/schema';
+import { addresses, activeJobs, activeRoutes } from '$lib/server/db/schema';
 import type { InferInsertModel } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
@@ -8,18 +8,11 @@ import type { Employee, Job, GameState, RoutingResult } from '$lib/server/db/sch
 import { getEmployeeMaxSpeed } from '$lib/employeeUtils';
 import { concatenateRoutes, applyMaxSpeed } from '$lib/routes/route-utils';
 import { config } from '$lib/server/config';
-import { computeJobXp } from '$lib/jobs/jobUtils';
+import { computeJobXp, computeJobReward } from '$lib/jobs/jobUtils';
+import { gzipSync } from 'zlib';
 
 type ActiveJobInsert = InferInsertModel<typeof activeJobs>;
 type ActiveRouteInsert = InferInsertModel<typeof activeRoutes>;
-
-/**
- * Computes the value/payout for a given job based on employee skills and game state
- */
-function computeJobValue(job: Job, _employee: Employee, _gameState: GameState): number {
-	// Apply dev money multiplier
-	return job.approximateValue * config.dev.moneyMultiplier;
-}
 
 /**
  * Creates a route from employee's current location to job start location using the routing engine
@@ -40,11 +33,13 @@ async function computeRouteToJob(
 		throw new Error('Job start address not found');
 	}
 
-	// Use the routing engine to compute the actual route
-	// For now, we'll use default max speed - could be enhanced later with employee vehicle data
+	// Use the routing engine to compute the actual route with employee's max speed
+	const employeeMaxSpeed = getEmployeeMaxSpeed(employee);
+
 	const routingResult = await getShortestPath(
 		{ lat: employeeLocation.lat, lon: employeeLocation.lon },
-		{ lat: jobStartAddress.lat, lon: jobStartAddress.lon }
+		{ lat: jobStartAddress.lat, lon: jobStartAddress.lon },
+		{ maxSpeed: employeeMaxSpeed, includePath: true }
 	);
 
 	return routingResult;
@@ -88,42 +83,62 @@ export async function computeActiveJob(
 	job: Job,
 	gameState: GameState
 ): Promise<{ activeJob: ActiveJobInsert; activeRoute: ActiveRouteInsert }> {
-	// Get the job's route details
-	const [jobRoute, routeToJob] = await Promise.all([
-		db.query.routes.findFirst({
-			where: eq(routes.id, job.routeId)
+	// Get job start and end addresses
+	const [jobStartAddress, jobEndAddress] = await Promise.all([
+		db.query.addresses.findFirst({
+			where: eq(addresses.id, job.startAddressId)
 		}),
-		computeRouteToJob(employee, job.startAddressId)
+		db.query.addresses.findFirst({
+			where: eq(addresses.id, job.endAddressId)
+		})
 	]);
 
-	if (!jobRoute) {
-		throw new Error('Job route not found');
+	if (!jobStartAddress || !jobEndAddress) {
+		throw new Error('Job addresses not found');
 	}
-	const modifiedRoute = modifyRoute(routeToJob, jobRoute.routeData, employee, gameState, job);
+
+	// Get employee's max speed
+	const employeeMaxSpeed = getEmployeeMaxSpeed(employee);
+
+	// Compute the job route on-demand using the routing server with employee's effective speed
+	const jobRoute = await getShortestPath(
+		{ lat: jobStartAddress.lat, lon: jobStartAddress.lon },
+		{ lat: jobEndAddress.lat, lon: jobEndAddress.lon },
+		{ maxSpeed: employeeMaxSpeed, includePath: true }
+	);
+
+	// Compute route from employee to job start
+	const routeToJob = await computeRouteToJob(employee, job.startAddressId);
+
+	// Modify route (concatenate and apply speed multipliers)
+	const modifiedRoute = modifyRoute(routeToJob, jobRoute, employee, gameState, job);
 
 	// Create the ids, as they reference each other
 	const activeRouteId = nanoid();
 	const activeJobId = nanoid();
 
-	// Create the active route data structure
+	// Serialize route JSON and compress with gzip
+	const routeJson = JSON.stringify(modifiedRoute);
+	const routeDataGzip = gzipSync(Buffer.from(routeJson, 'utf-8'));
+
+	// Create the active route data structure with gzipped route data
 	const activeRoute: ActiveRouteInsert = {
 		id: activeRouteId,
 		activeJobId: activeJobId,
-		routeData: modifiedRoute
+		routeDataGzip: routeDataGzip
 	};
 
 	// Compute payout
-	const computedPayout = computeJobValue(job, employee, gameState);
+	const computedPayout = computeJobReward(job.totalDistanceKm, config, gameState);
 
 	const xp = computeJobXp(job, config, gameState);
 
 	// Create the active job data structure
-	const activeJob = {
+	const activeJob: ActiveJobInsert = {
 		id: activeJobId,
 		employeeId: employee.id,
 		jobId: job.id,
 		gameStateId: gameState.id,
-		activeJobRouteId: activeRouteId,
 		durationSeconds: modifiedRoute.travelTimeSeconds,
 		reward: computedPayout,
 		xp,

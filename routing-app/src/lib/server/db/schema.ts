@@ -9,7 +9,8 @@ import {
 	jsonb,
 	index,
 	serial,
-	varchar
+	varchar,
+	customType
 } from 'drizzle-orm/pg-core';
 import { sql, type InferSelectModel } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
@@ -92,6 +93,13 @@ export const users = pgTable('user', {
 	cheatsEnabled: boolean('cheats_enabled').notNull().default(false)
 });
 
+// Regions table - stores NUTS region metadata
+export const regions = pgTable('region', {
+	code: varchar('code').notNull().primaryKey(), // NUTS region code (e.g., "ITH3", "NL36")
+	countryCode: varchar('country_code', { length: 2 }).notNull(), // Country code (e.g., "IT", "NL")
+	nameLatn: text('name_latn').notNull() // Latin name of the region
+});
+
 // Addresses table - stores geographic addresses with PostGIS geometry
 export const addresses = pgTable(
 	'address',
@@ -105,6 +113,9 @@ export const addresses = pgTable(
 		location: text('location').notNull(), // POINT geometry as text (handled by PostGIS)
 		lat: doublePrecision('lat').notNull(),
 		lon: doublePrecision('lon').notNull(),
+		region: varchar('region')
+			.notNull()
+			.references(() => regions.code, { onDelete: 'restrict' }),
 		createdAt: timestamp('created_at', { withTimezone: false })
 			.notNull()
 			.default(sql`CURRENT_TIMESTAMP`)
@@ -113,7 +124,8 @@ export const addresses = pgTable(
 		// Create a spatial index on the geometry column for efficient spatial queries
 		index('addresses_location_idx').on(sql`${table.location}`),
 		index('addresses_city_idx').on(table.city),
-		index('addresses_postcode_idx').on(table.postcode)
+		index('addresses_postcode_idx').on(table.postcode),
+		index('addresses_region_idx').on(table.region)
 	]
 );
 
@@ -146,25 +158,7 @@ export const gameStates = pgTable(
 	(table) => [index('game_states_user_id_idx').on(table.userId)]
 );
 
-// Routes table - pure route data without timing/employee associations
-export const routes = pgTable(
-	'route',
-	{
-		id: text('id').notNull().primaryKey(),
-		startAddressId: varchar('start_address_id')
-			.notNull()
-			.references(() => addresses.id, { onDelete: 'cascade' }),
-		endAddressId: varchar('end_address_id')
-			.notNull()
-			.references(() => addresses.id, { onDelete: 'cascade' }),
-		lengthTime: doublePrecision('length_time').notNull(), // in seconds (can be floating point)
-		routeData: jsonb('route_data').$type<RoutingResult>().notNull() // JSONB: Route data
-	},
-	(table) => [
-		index('routes_start_address_idx').on(table.startAddressId),
-		index('routes_end_address_idx').on(table.endAddressId)
-	]
-);
+// Routes table removed - routes are no longer precomputed for jobs
 
 // Active jobs table
 export const activeJobs = pgTable(
@@ -206,7 +200,19 @@ export const activeJobs = pgTable(
 	]
 );
 
-// Modified route associated to an active job
+// Custom type for bytea (binary data)
+const bytea = customType<{ data: Buffer; driverParam: Buffer }>({
+	dataType: () => 'bytea',
+	toDriver: (value: Buffer) => value,
+	fromDriver: (value: unknown) => {
+		if (Buffer.isBuffer(value)) return value;
+		if (typeof value === 'string') return Buffer.from(value, 'binary');
+		if (value instanceof Uint8Array) return Buffer.from(value);
+		return Buffer.from(String(value), 'binary');
+	}
+});
+
+// Modified route associated to an active job - stores gzipped route JSON as binary
 export const activeRoutes = pgTable(
 	'active_route',
 	{
@@ -214,7 +220,7 @@ export const activeRoutes = pgTable(
 		activeJobId: text('active_job_id')
 			.notNull()
 			.references(() => activeJobs.id, { onDelete: 'cascade' }),
-		routeData: jsonb('route_data').$type<RoutingResult>().notNull() // JSONB: Route data
+		routeDataGzip: bytea('route_data_gzip').notNull() // bytea: Gzipped route JSON data
 	},
 	(table) => [index('active_routes_active_job_idx').on(table.activeJobId)]
 );
@@ -252,24 +258,19 @@ export const jobs = pgTable(
 		endAddressId: varchar('end_address_id')
 			.notNull()
 			.references(() => addresses.id, { onDelete: 'cascade' }),
-		routeId: text('route_id')
-			.notNull()
-			.references(() => routes.id, { onDelete: 'cascade' }),
 		jobTier: integer('job_tier').notNull(),
 		jobCategory: integer('job_category').notNull(), // Refers to JobCategory enum
 		totalDistanceKm: doublePrecision('total_distance_km').notNull(),
-		approximateTimeSeconds: doublePrecision('approximate_time_seconds').notNull(),
 		generatedTime: timestamp('generated_time', { withTimezone: true })
 			.notNull()
-			.default(sql`CURRENT_TIMESTAMP`),
-		approximateValue: doublePrecision('approximate_value').notNull()
+			.default(sql`CURRENT_TIMESTAMP`)
 	},
 	(table) => [
 		// Regular indexes
 		index('jobs_tier_idx').on(table.jobTier),
 		index('jobs_category_idx').on(table.jobCategory),
-		index('jobs_value_idx').on(table.approximateValue), // For sorting by value
 		index('jobs_generated_time_idx').on(table.generatedTime),
+		index('jobs_start_address_idx').on(table.startAddressId), // Index for finding addresses without jobs
 		// Create a spatial index on the geometry column for efficient spatial queries
 		index('jobs_location_idx').on(sql`${table.location}`)
 	]
@@ -380,6 +381,6 @@ export type Employee = InferSelectModel<typeof employees>;
 export type Job = InferSelectModel<typeof jobs>;
 export type GameState = InferSelectModel<typeof gameStates>;
 export type Address = InferSelectModel<typeof addresses>;
-export type Route = InferSelectModel<typeof routes>;
 export type ActiveJob = InferSelectModel<typeof activeJobs>;
 export type ActiveRoute = InferSelectModel<typeof activeRoutes>;
+export type Region = InferSelectModel<typeof regions>;

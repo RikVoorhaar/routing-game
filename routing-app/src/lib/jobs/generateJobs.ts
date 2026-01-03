@@ -1,18 +1,18 @@
 import { type InferSelectModel } from 'drizzle-orm';
-import { addresses, jobs, routes } from '$lib/server/db/schema';
+import { addresses, jobs } from '$lib/server/db/schema';
 import { getRandomRouteInAnnulus, type RouteInAnnulus } from '$lib/routes/routing';
 import { type Coordinate } from '$lib/server/db/schema';
 import type { InferInsertModel } from 'drizzle-orm';
 import { db } from '$lib/server/db/standalone';
-import { inArray } from 'drizzle-orm';
 import { distance } from '@turf/turf';
 import { JobCategory } from '$lib/jobs/jobCategories';
 import { config } from '$lib/server/config';
+import { profiledAsync, profiledSync, profiledCount } from '$lib/profiling';
 
 type JobInsert = InferInsertModel<typeof jobs>;
 
 // Maximum job tier (constant)
-const MAX_TIER = 8;
+export const MAX_TIER = 8;
 
 // Route distance ranges by tier (in kilometers)
 // Ranges have significant overlap and follow powers of 2.5
@@ -44,7 +44,10 @@ function getCategoryMultipliers(): Record<JobCategory, number> {
 	};
 
 	const multipliers = {} as Record<JobCategory, number>;
-	for (const [category, key] of Object.entries(categoryKeys) as [JobCategory, string][]) {
+	for (const [category, key] of Object.entries(categoryKeys) as unknown as [
+		JobCategory,
+		string
+	][]) {
 		multipliers[category] = config.jobs.categories.multipliers[key];
 	}
 	return multipliers;
@@ -67,7 +70,10 @@ function getCategoryMinTiers(): Record<JobCategory, number> {
 	};
 
 	const minTiers = {} as Record<JobCategory, number>;
-	for (const [category, key] of Object.entries(categoryKeys) as [JobCategory, string][]) {
+	for (const [category, key] of Object.entries(categoryKeys) as unknown as [
+		JobCategory,
+		string
+	][]) {
 		minTiers[category] = config.jobs.categories.minTiers[key];
 	}
 	return minTiers;
@@ -75,9 +81,8 @@ function getCategoryMinTiers(): Record<JobCategory, number> {
 
 const CATEGORY_MIN_TIERS = getCategoryMinTiers();
 
-// Value calculation constants - loaded from config
+// Value calculation constants - loaded from config (distance-only now)
 const DEFAULT_DISTANCE_FACTOR = config.jobs.value.distanceFactor;
-const DEFAULT_TIME_FACTOR = config.jobs.value.timeFactor;
 
 /**
  * Gets available job categories for a given tier
@@ -155,39 +160,23 @@ function generateJobTier(): number {
 }
 
 /**
- * Computes job value based on tier, category, distance, and time
- */
-function computeApproximateJobValue(
-	jobTier: number,
-	jobCategory: JobCategory,
-	totalDistanceKm: number,
-	totalTimeSeconds: number,
-	distanceFactor: number = DEFAULT_DISTANCE_FACTOR,
-	timeFactor: number = DEFAULT_TIME_FACTOR
-): number {
-	const jobTierMultiplier = Math.pow(config.jobs.value.tierMultiplier, jobTier - 1);
-	const categoryMultiplier = CATEGORY_MULTIPLIERS[jobCategory];
-
-	// Random factor: usually near 1, but can be quite big (capped by randomFactorMax)
-	const randomFactor = Math.max(1.0, -Math.log(1 - Math.random()));
-	const cappedRandomFactor = Math.min(randomFactor, config.jobs.value.randomFactorMax);
-
-	const totalTimeHours = totalTimeSeconds / 3600;
-	const baseValue = totalDistanceKm * distanceFactor + totalTimeHours * timeFactor;
-
-	return jobTierMultiplier * categoryMultiplier * cappedRandomFactor * baseValue;
-}
-
-/**
- * Generates a single job from a given address
+ * Generates a single job from a given address with retry logic
+ * @param startAddress The starting address
+ * @param initialTier Optional initial tier to use (for retries with higher tier)
+ * @param retryCount Current retry attempt (internal use)
+ * @returns true if job was successfully created, false otherwise
  */
 export async function generateJobFromAddress(
-	startAddress: InferSelectModel<typeof addresses>
+	startAddress: InferSelectModel<typeof addresses>,
+	initialTier?: number,
+	retryCount: number = 0,
+	options?: { dryRun?: boolean }
 ): Promise<boolean> {
-	try {
-		// Compute job tier
-		const jobTier = generateJobTier();
+	const MAX_RETRIES = 5;
+	// Compute job tier (use provided tier for retries, otherwise generate random)
+	const jobTier = initialTier ?? generateJobTier();
 
+	try {
 		// Get distance range for this tier
 		const distanceRange = ROUTE_DISTANCES_KM[jobTier];
 		if (!distanceRange) {
@@ -202,10 +191,18 @@ export async function generateJobFromAddress(
 			lon: Number(startAddress.lon)
 		};
 
-		const routeInAnnulus: RouteInAnnulus = await getRandomRouteInAnnulus(
-			startLocation,
-			minDistanceKm,
-			maxDistanceKm
+		// Get route metadata only (no path array) for job generation
+		const routeInAnnulus: RouteInAnnulus = await profiledAsync(
+			'job.route.random_in_annulus',
+			async () => {
+				return await getRandomRouteInAnnulus(
+					startLocation,
+					minDistanceKm,
+					maxDistanceKm,
+					undefined, // maxSpeed not needed for job generation
+					false // includePath=false: metadata only
+				);
+			}
 		);
 		const routeResult = routeInAnnulus.route;
 		const endAddress = routeInAnnulus.destination;
@@ -220,91 +217,75 @@ export async function generateJobFromAddress(
 		// Randomly select a category
 		const jobCategory = availableCategories[Math.floor(Math.random() * availableCategories.length)];
 
-		// Calculate total distance and time
+		// Calculate total distance
 		const totalDistanceKm = routeResult.totalDistanceMeters / 1000;
-		const approximateTimeSeconds = routeResult.travelTimeSeconds;
-
-		// Validate travel time - if it's 0 or invalid, skip this job
-		if (!approximateTimeSeconds || approximateTimeSeconds <= 0) {
-			console.warn(
-				`Invalid travel time for route: ${approximateTimeSeconds} seconds, skipping job`
-			);
-			return false;
-		}
 
 		// Distance validation: check if route distance is suspiciously high
 		// Calculate straight-line distance between start and end using Turf.js
 		const startPoint = [Number(startAddress.lon), Number(startAddress.lat)]; // [longitude, latitude] for Turf
 		const endPoint = [Number(endAddress.lon), Number(endAddress.lat)];
-		const straightLineDistanceKm = distance(startPoint, endPoint, { units: 'kilometers' });
+		const straightLineDistanceKm = profiledSync('job.turf.distance', () =>
+			distance(startPoint, endPoint, { units: 'kilometers' })
+		);
 
 		// Reject if route distance is more than 10x the straight-line distance
 		if (totalDistanceKm > straightLineDistanceKm * 10) {
 			return false; // Suspiciously long route, skip silently
 		}
 
-		// Compute job value
-		const approximateValue = computeApproximateJobValue(
-			jobTier,
-			jobCategory,
-			totalDistanceKm,
-			approximateTimeSeconds
-		);
-
-		// Find end address ID by coordi
-
-		// Create route record with address IDs
-		const routeRecord = {
-			id: crypto.randomUUID(),
-			startAddressId: startAddress.id,
-			endAddressId: endAddress.id,
-			lengthTime: approximateTimeSeconds,
-			routeData: routeResult
-		};
-
-		// Insert route
-		await db.insert(routes).values(routeRecord);
-
-		// Create job record
+		// Create job record (no route record needed)
 		const jobRecord: JobInsert = {
 			location: `SRID=4326;POINT(${startAddress.lon} ${startAddress.lat})`, // PostGIS POINT geometry with SRID
 			startAddressId: startAddress.id,
 			endAddressId: endAddress.id,
-			routeId: routeRecord.id,
 			jobTier,
 			jobCategory,
-			totalDistanceKm,
-			approximateTimeSeconds,
-			approximateValue
+			totalDistanceKm
 		};
 
 		// Insert job
-		await db.insert(jobs).values(jobRecord);
+		if (options?.dryRun) {
+			profiledCount('job.db.insert.skipped', 1);
+		} else {
+			await profiledAsync('job.db.insert', async () => {
+				await db.insert(jobs).values(jobRecord);
+			});
+		}
 
 		return true;
 	} catch (error) {
-		// Re-throw the error so it can be logged by the caller
-		throw new Error(
-			`Job generation failed: ${error instanceof Error ? error.message : String(error)}`
-		);
+		const errorMessage = error instanceof Error ? error.message : String(error);
+
+		// Retry logic
+		if (retryCount < MAX_RETRIES) {
+			profiledCount('job.retry.attempt', 1);
+			// Case 1: "Failed to get shortest path: Not Found" - retry with another address in annulus
+			if (
+				errorMessage.includes('Failed to get shortest path') &&
+				errorMessage.includes('Not Found')
+			) {
+				return await generateJobFromAddress(startAddress, initialTier, retryCount + 1, options);
+			}
+
+			// Case 2: "No address found in square annulus" - retry with tier+1 (if not max tier)
+			if (errorMessage.includes('No address found in square annulus')) {
+				if (jobTier < MAX_TIER) {
+					return await generateJobFromAddress(startAddress, jobTier + 1, retryCount + 1, options);
+				}
+			}
+		}
+
+		// Re-throw the error if retries exhausted or not a retryable error
+		throw new Error(`Job generation failed: ${errorMessage}`);
 	}
 }
 
 /**
- * Clears all existing jobs and their associated routes
+ * Clears all existing jobs
  */
 export async function clearAllJobs(): Promise<void> {
-	// Get all job route IDs before deletion
-	const jobRoutes = await db.select({ routeId: jobs.routeId }).from(jobs);
-	const routeIds = jobRoutes.map((jr) => jr.routeId);
-
-	// Delete jobs first (foreign key constraint)
+	// Delete all jobs
 	await db.delete(jobs);
 
-	// Delete associated routes
-	if (routeIds.length > 0) {
-		await db.delete(routes).where(inArray(routes.id, routeIds));
-	}
-
-	console.log(`Cleared ${jobRoutes.length} jobs and their routes`);
+	console.log('Cleared all jobs');
 }

@@ -26,7 +26,7 @@ export async function getJobsInTile(
             ST_MakeEnvelope(${bounds.west}, ${bounds.south}, ${bounds.east}, ${bounds.north}, 4326)
         )`
 		)
-		.orderBy(desc(jobs.approximateValue))
+		.orderBy(desc(jobs.totalDistanceKm))
 		.limit(limit);
 
 	return result;

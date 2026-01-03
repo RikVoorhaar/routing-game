@@ -2,8 +2,8 @@
 """
 Extract addresses from a CSV file and save to PostgreSQL database with PostGIS.
 
-This script reads CSV files (optionally gzipped) and inserts a fraction of addresses
-based on a given probability.
+This script reads CSV files (optionally gzipped) and inserts addresses with
+per-region sampling based on max addresses per region.
 """
 
 import click
@@ -61,7 +61,7 @@ def open_csv_file(file_path: Path):
         return open(file_path, 'r', encoding='utf-8')
 
 
-def parse_csv_row(row: list[str]) -> Optional[dict[str, Any]]:
+def parse_csv_row(row: list[str], header: list[str]) -> Optional[dict[str, Any]]:
     """
     Parse a CSV row into address data.
     
@@ -69,6 +69,8 @@ def parse_csv_row(row: list[str]) -> Optional[dict[str, Any]]:
     ----------
     row: list[str]
         CSV row as a list of strings
+    header: list[str]
+        CSV header row to map column names
     
     Returns
     -------
@@ -76,17 +78,17 @@ def parse_csv_row(row: list[str]) -> Optional[dict[str, Any]]:
         Address data dictionary or None if invalid
     """
     try:
-        # Expected columns: id,lat,lon,street,house_number,postcode,city
-        if len(row) < 7:
-            return None
+        # Create a dictionary mapping column names to values
+        row_dict = dict(zip(header, row))
         
-        address_id = row[0].strip()
-        lat_str = row[1].strip()
-        lon_str = row[2].strip()
-        street = row[3].strip() if row[3].strip() else None
-        house_number = row[4].strip() if row[4].strip() else None
-        postcode = row[5].strip() if row[5].strip() else None
-        city = row[6].strip() if row[6].strip() else None
+        address_id = row_dict.get('id', '').strip()
+        lat_str = row_dict.get('lat', '').strip()
+        lon_str = row_dict.get('lon', '').strip()
+        street = row_dict.get('street', '').strip() or None
+        house_number = row_dict.get('house_number', '').strip() or None
+        postcode = row_dict.get('postcode', '').strip() or None
+        city = row_dict.get('city', '').strip() or None
+        nuts_region_code = row_dict.get('nuts_region_code', '').strip() or None
         
         # Validate coordinates
         try:
@@ -106,9 +108,10 @@ def parse_csv_row(row: list[str]) -> Optional[dict[str, Any]]:
             'street': street,
             'house_number': house_number,
             'postcode': postcode,
-            'city': city
+            'city': city,
+            'nuts_region_code': nuts_region_code
         }
-    except (ValueError, IndexError):
+    except (ValueError, IndexError, KeyError):
         return None
 
 
@@ -141,7 +144,8 @@ def save_batch(addresses: list[dict[str, Any]], session) -> None:
             'city': addr_data['city'],
             'location': point_wkt,
             'lat': addr_data['lat'],
-            'lon': addr_data['lon']
+            'lon': addr_data['lon'],
+            'region': addr_data['nuts_region_code']
         })
     
     # Use bulk insert with ON CONFLICT DO NOTHING
@@ -151,32 +155,129 @@ def save_batch(addresses: list[dict[str, Any]], session) -> None:
     session.commit()
 
 
+def load_region_counts(counts_file: Path) -> dict[str, int]:
+    """
+    Load region address counts from CSV file.
+    
+    Parameters
+    ----------
+    counts_file: Path
+        Path to the region counts CSV file
+    
+    Returns
+    -------
+    dict[str, int]
+        Dictionary mapping region code to address count
+    """
+    region_counts: dict[str, int] = {}
+    
+    with open_csv_file(counts_file) as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            region_code = row.get('nuts_region_code', '').strip()
+            count_str = row.get('address_count', '').strip()
+            if region_code and count_str:
+                try:
+                    region_counts[region_code] = int(count_str)
+                except ValueError:
+                    continue
+    
+    return region_counts
+
+
+def compute_region_probabilities(
+    region_counts: dict[str, int], 
+    max_per_region: int
+) -> dict[str, float]:
+    """
+    Compute sampling probability for each region.
+    
+    Parameters
+    ----------
+    region_counts: dict[str, int]
+        Dictionary mapping region code to address count
+    max_per_region: int
+        Maximum number of addresses to sample per region
+    
+    Returns
+    -------
+    dict[str, float]
+        Dictionary mapping region code to sampling probability
+    """
+    probabilities: dict[str, float] = {}
+    
+    for region_code, count in region_counts.items():
+        if count > 0:
+            probabilities[region_code] = min(1.0, max_per_region / count)
+        else:
+            probabilities[region_code] = 0.0
+    
+    return probabilities
+
+
 @click.command()
-@click.argument('input_file', type=click.Path(exists=True))
-@click.option('--probability', '-p', default=1.0, type=float, 
-              help='Probability of inserting each address (0.0 to 1.0). Default: 1.0')
+@click.argument('input_file', type=click.Path(exists=True), required=False)
+@click.option('--max-per-region', '-m', default=1000, type=int,
+              help='Maximum number of addresses to sample per region. Default: 1000')
+@click.option('--region-counts-file', type=click.Path(exists=True), required=True,
+              help='Path to region counts CSV file')
+@click.option('--exclude-region', multiple=True, default=['ES63', 'ES64'],
+              help='Region codes to exclude from sampling (can be specified multiple times). Default: ES63 ES64')
 @click.option('--batch-size', default=1000, help='Batch size for database inserts')
 @click.option('--seed', type=int, help='Random seed for reproducible sampling')
-def main(input_file: str, probability: float, batch_size: int, seed: Optional[int]):
+def main(
+    input_file: Optional[str], 
+    max_per_region: int, 
+    region_counts_file: str,
+    exclude_region: tuple[str, ...],
+    batch_size: int, 
+    seed: Optional[int]
+):
     """
-    Extract addresses from a CSV file and save a fraction to PostgreSQL database.
+    Extract addresses from a CSV file and save to PostgreSQL database with per-region sampling.
     
-    The CSV file should have columns: id,lat,lon,street,house_number,postcode,city
+    The CSV file should have columns: id,lat,lon,street,house_number,postcode,city,nuts_region_code
+    
+    If INPUT_FILE is not provided, defaults to osm_files/europe-latest.addresses_with_regions.csv.gz
     """
-    if probability < 0.0 or probability > 1.0:
-        raise click.BadParameter("Probability must be between 0.0 and 1.0")
+    # Default input file if not provided
+    if input_file is None:
+        default_path = Path('osm_files/europe-latest.addresses_with_regions.csv.gz')
+        if not default_path.exists():
+            raise click.BadParameter(
+                f"Default input file not found: {default_path}. Please specify INPUT_FILE."
+            )
+        input_file = str(default_path)
     
     input_path = Path(input_file)
+    counts_path = Path(region_counts_file)
+    excluded_regions = set(exclude_region)
     
     # Set random seed if provided
     if seed is not None:
         random.seed(seed)
     
     print(f"Extracting addresses from: {input_file}")
-    print(f"Insertion probability: {probability:.2%}")
+    print(f"Max addresses per region: {max_per_region}")
+    print(f"Region counts file: {region_counts_file}")
+    print(f"Excluded regions: {', '.join(sorted(excluded_regions))}")
     print(f"Database batch size: {batch_size}")
     if seed is not None:
         print(f"Random seed: {seed}")
+    
+    # Load region counts and compute probabilities
+    print("Loading region counts...")
+    region_counts = load_region_counts(counts_path)
+    print(f"Loaded counts for {len(region_counts):,} regions")
+    
+    print("Computing per-region sampling probabilities...")
+    region_probabilities = compute_region_probabilities(region_counts, max_per_region)
+    
+    # Filter out excluded regions from probabilities
+    for region in excluded_regions:
+        region_probabilities.pop(region, None)
+    
+    print(f"Sampling probabilities computed for {len(region_probabilities):,} regions")
     
     # Initialize database
     print("Initializing database...")
@@ -211,11 +312,20 @@ def main(input_file: str, probability: float, batch_size: int, seed: Optional[in
     try:
         reader = csv.reader(f)
         
-        # Skip header
-        header = next(reader, None)
-        if header is None:
+        # Read header
+        header_row = next(reader, None)
+        if header_row is None:
             print("Error: CSV file is empty or has no header")
             return
+        
+        # Normalize header (strip whitespace, lowercase for comparison)
+        header = [col.strip() for col in header_row]
+        
+        # Validate required columns
+        required_columns = ['id', 'lat', 'lon', 'nuts_region_code']
+        missing_columns = [col for col in required_columns if col not in header]
+        if missing_columns:
+            raise ValueError(f"CSV file missing required columns: {', '.join(missing_columns)}")
         
         for row in reader:
             processed_count += 1
@@ -237,11 +347,23 @@ def main(input_file: str, probability: float, batch_size: int, seed: Optional[in
                 pbar.set_description(f"Processing (inserted {inserted_count:,}, processed {processed_count:,})")
             
             # Parse row
-            addr_data = parse_csv_row(row)
+            addr_data = parse_csv_row(row, header)
             if addr_data is None:
                 continue
             
-            # Decide whether to insert based on probability
+            # Get region code
+            region_code = addr_data.get('nuts_region_code')
+            if not region_code:
+                continue
+            
+            # Skip excluded regions
+            if region_code in excluded_regions:
+                continue
+            
+            # Get probability for this region (default to 0 if not found)
+            probability = region_probabilities.get(region_code, 0.0)
+            
+            # Decide whether to insert based on region-specific probability
             if random.random() < probability:
                 addresses_batch.append(addr_data)
                 inserted_count += 1

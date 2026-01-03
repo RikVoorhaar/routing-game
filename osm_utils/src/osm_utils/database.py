@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from sqlalchemy import create_engine, Column, String, Numeric, DateTime, func, Index, text
+from sqlalchemy import create_engine, Column, String, Numeric, DateTime, func, Index, text, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.dialects.postgresql import TEXT
@@ -15,6 +15,18 @@ _env_file = _project_root / '.env'
 load_dotenv(_env_file)
 
 Base = declarative_base()
+
+
+class Region(Base):
+    """Region model for NUTS regions."""
+    __tablename__ = 'region'
+    
+    code = Column(String, primary_key=True)  # NUTS region code (e.g., "ITH3", "NL36")
+    country_code = Column(String(2), nullable=False)  # Country code (e.g., "IT", "NL")
+    name_latn = Column(String, nullable=False)  # Latin name of the region
+    
+    def __repr__(self):
+        return f"<Region(code='{self.code}', country_code='{self.country_code}', name_latn='{self.name_latn}')>"
 
 
 class Address(Base):
@@ -30,6 +42,7 @@ class Address(Base):
     location = Column(TEXT, nullable=False)
     lat = Column(Numeric, nullable=False)
     lon = Column(Numeric, nullable=False)
+    region = Column(String, ForeignKey('region.code', ondelete='RESTRICT'), nullable=False)
     created_at = Column(DateTime, default=func.current_timestamp())
     
     # Define indexes

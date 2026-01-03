@@ -1,0 +1,1 @@
+CREATE INDEX "jobs_start_address_idx" ON "job" USING btree ("start_address_id");
