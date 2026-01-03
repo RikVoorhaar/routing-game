@@ -14,6 +14,7 @@ import {
 import { sql, type InferSelectModel } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { JobCategory } from '../../jobs/jobCategories';
+import { relations } from 'drizzle-orm';
 
 // JSONB Type Interfaces
 
@@ -92,6 +93,13 @@ export const users = pgTable('user', {
 	cheatsEnabled: boolean('cheats_enabled').notNull().default(false)
 });
 
+// Regions table - stores NUTS region metadata
+export const regions = pgTable('region', {
+	code: varchar('code').notNull().primaryKey(), // NUTS region code (e.g., "ITH3", "NL36")
+	countryCode: varchar('country_code', { length: 2 }).notNull(), // Country code (e.g., "IT", "NL")
+	nameLatn: text('name_latn').notNull() // Latin name of the region
+});
+
 // Addresses table - stores geographic addresses with PostGIS geometry
 export const addresses = pgTable(
 	'address',
@@ -105,6 +113,9 @@ export const addresses = pgTable(
 		location: text('location').notNull(), // POINT geometry as text (handled by PostGIS)
 		lat: doublePrecision('lat').notNull(),
 		lon: doublePrecision('lon').notNull(),
+		region: varchar('region')
+			.notNull()
+			.references(() => regions.code, { onDelete: 'restrict' }),
 		createdAt: timestamp('created_at', { withTimezone: false })
 			.notNull()
 			.default(sql`CURRENT_TIMESTAMP`)
@@ -113,7 +124,8 @@ export const addresses = pgTable(
 		// Create a spatial index on the geometry column for efficient spatial queries
 		index('addresses_location_idx').on(sql`${table.location}`),
 		index('addresses_city_idx').on(table.city),
-		index('addresses_postcode_idx').on(table.postcode)
+		index('addresses_postcode_idx').on(table.postcode),
+		index('addresses_region_idx').on(table.region)
 	]
 );
 
@@ -383,3 +395,4 @@ export type Address = InferSelectModel<typeof addresses>;
 export type Route = InferSelectModel<typeof routes>;
 export type ActiveJob = InferSelectModel<typeof activeJobs>;
 export type ActiveRoute = InferSelectModel<typeof activeRoutes>;
+export type Region = InferSelectModel<typeof regions>;

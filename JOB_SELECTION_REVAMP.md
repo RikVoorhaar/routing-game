@@ -25,7 +25,8 @@ Left to do:
 - Implement a 'cancel' and a 'move' functionality
 - Change it so that you click an employee, then you 'search' for jobs which takes time (can be reduced with upgrades!), and then you select a job.
 - Change job selection UI
-- Change job generation script to increase search space up and down twice when needed.
+- Change job generation script to increase search space up and down twice when needed. (or just increase tier when needed)
+- Remove ES63: Ciudad de Ceuta — 102 addresses and ES64: Ciudad de Melilla — 58 addresses, since these regions are geographically isolated and very small. 
 - Remove the approximate time and value fields and simplify the table and genreation
 - Simplify job value calculation to only use distance
 - Implement and balance the 'weight' game mechanic, or remove it completely
@@ -38,4 +39,7 @@ Left to do:
 - Bug: if no employee can travel to a job, it is shown as `No employees can perform this job. Check license and vehicle requirements.`, even though it should give a more specific error message. 
 
 
-The regions will be added in a different feature.
+**regions plan**
+- Make a regions table
+- Sample jobs such that each region has a roughly equal number of addresses, perhaps ~500?  (modify the extract addresses script to do this)
+
