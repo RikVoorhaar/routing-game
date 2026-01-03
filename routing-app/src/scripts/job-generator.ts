@@ -19,7 +19,7 @@ import { generateJobFromAddress, clearAllJobs } from '../lib/jobs/generateJobs';
 import { db, client } from '../lib/server/db/standalone.js';
 import { addresses, jobs } from '../lib/server/db/schema';
 import type { Address } from '../lib/server/db/schema';
-import { count, asc, isNull, sql } from 'drizzle-orm';
+import { count, asc, isNull, sql, inArray } from 'drizzle-orm';
 import { performance } from 'perf_hooks';
 import * as cliProgress from 'cli-progress';
 import * as fs from 'fs';
@@ -212,12 +212,45 @@ async function generateJobsWithProgress(options: CliOptions) {
 			return;
 		}
 
+		// Fetch all address IDs upfront to avoid OFFSET drift as jobs are created
+		console.log(`${COLORS.gray}📋 Fetching address IDs...${COLORS.reset}`);
+		const idsStart = performance.now();
+		const addressIds: string[] = await profiledAsync('generator.db.fetch_all_ids', async () => {
+			if (clearExisting) {
+				const results = await db
+					.select({ id: addresses.id })
+					.from(addresses)
+					.orderBy(asc(addresses.id));
+				return results.map((row) => row.id);
+			} else {
+				const results = await db
+					.select({ id: addresses.id })
+					.from(addresses)
+					.leftJoin(jobs, sql`${jobs.startAddressId} = ${addresses.id}`)
+					.where(isNull(jobs.id))
+					.orderBy(asc(addresses.id));
+				return results.map((row) => row.id);
+			}
+		});
+		const idsTime = performance.now() - idsStart;
+		console.log(
+			`${COLORS.green}✅ Fetched ${COLORS.cyan}${addressIds.length.toLocaleString()}${COLORS.green} address IDs in ${idsTime.toFixed(0)}ms${COLORS.reset}\n`
+		);
+
+		// Update total to match actual IDs fetched (should match, but ensures consistency)
+		const actualTotal = addressIds.length;
+		if (actualTotal !== totalAddresses) {
+			console.log(
+				`${COLORS.yellow}⚠️  Address count mismatch: count query=${totalAddresses.toLocaleString()}, IDs fetched=${actualTotal.toLocaleString()}${COLORS.reset}\n`
+			);
+		}
+
 		const PAGE_SIZE = pageSize;
 		const CONCURRENCY = concurrency;
 
 		console.log(`${COLORS.bright}${COLORS.blue}🎯 Job Generation Configuration${COLORS.reset}`);
 		console.log(
-			`  Total Addresses: ${COLORS.cyan}${totalAddresses.toLocaleString()}${COLORS.reset}`
+			`  Total Addresses: ${COLORS.cyan}${actualTotal.toLocaleString()}${COLORS.reset}`
 		);
 		console.log(
 			`  Mode: ${COLORS.yellow}${clearExisting ? 'Regenerate All' : 'Skip Existing'}${COLORS.reset}`
@@ -246,9 +279,8 @@ async function generateJobsWithProgress(options: CliOptions) {
 					cliProgress.Presets.shades_classic
 				);
 
-		// Start with the initial count, but we'll update it dynamically
-		let dynamicTotal = totalAddresses;
-		progressBar?.start(dynamicTotal, 0, {
+		// Start progress bar with actual total
+		progressBar?.start(actualTotal, 0, {
 			eta_formatted: '0s',
 			success: '0.0'
 		});
@@ -257,51 +289,37 @@ async function generateJobsWithProgress(options: CliOptions) {
 		let completed = 0;
 		const startTime = performance.now();
 
-		// Pagination loop: fetch and process addresses in pages
-		let offset = 0;
-		let hasMore = true;
-		let consecutiveEmptyPages = 0;
-		const MAX_CONSECUTIVE_EMPTY = 3; // Stop after 3 consecutive empty pages
-
+		// Pagination loop: process address IDs in batches
+		let batchIndex = 0;
 		console.log(`${COLORS.gray}🔄 Starting job generation...${COLORS.reset}\n`);
 
-		while (hasMore) {
+		while (batchIndex < addressIds.length) {
 			if (limit !== undefined && completed >= limit) {
-				hasMore = false;
 				break;
 			}
-			// Fetch a page of addresses using Drizzle
-			const addressesList: Address[] = await profiledAsync('generator.db.page_select', async () => {
-				return clearExisting
-					? await db
-							.select()
-							.from(addresses)
-							.orderBy(asc(addresses.id))
-							.limit(PAGE_SIZE)
-							.offset(offset)
-					: await db
-							.select({ address: addresses })
-							.from(addresses)
-							.leftJoin(jobs, sql`${jobs.startAddressId} = ${addresses.id}`)
-							.where(isNull(jobs.id))
-							.orderBy(asc(addresses.id))
-							.limit(PAGE_SIZE)
-							.offset(offset)
-							.then((results) => results.map((row) => row.address));
-			});
 
-			if (addressesList.length === 0) {
-				consecutiveEmptyPages++;
-				if (consecutiveEmptyPages >= MAX_CONSECUTIVE_EMPTY) {
-					hasMore = false;
-					break;
-				}
-				// Skip ahead in case there are gaps (addresses that got jobs while we were processing)
-				offset += PAGE_SIZE;
-				continue;
+			// Get next batch of IDs
+			const batchIds = addressIds.slice(batchIndex, batchIndex + PAGE_SIZE);
+			if (batchIds.length === 0) {
+				break;
 			}
 
-			consecutiveEmptyPages = 0; // Reset counter when we find addresses
+			// Fetch full address rows for this batch of IDs
+			const addressesList: Address[] = await profiledAsync('generator.db.page_select', async () => {
+				return await db.select().from(addresses).where(inArray(addresses.id, batchIds));
+			});
+
+			if (batchIds.length !== addressesList.length) {
+				// Some addresses might have been deleted between ID fetch and row fetch
+				// This is rare but handle gracefully - we'll just process what we found
+				const foundIds = new Set(addressesList.map((a) => a.id));
+				const missingIds = batchIds.filter((id) => !foundIds.has(id));
+				if (missingIds.length > 0) {
+					console.log(
+						`${COLORS.yellow}⚠️  ${missingIds.length} addresses from batch not found (may have been deleted)${COLORS.reset}`
+					);
+				}
+			}
 
 			// Process addresses in this page in parallel batches
 			for (let i = 0; i < addressesList.length; i += CONCURRENCY) {
@@ -332,9 +350,8 @@ async function generateJobsWithProgress(options: CliOptions) {
 				// Calculate ETA once per batch
 				const elapsed = (performance.now() - startTime) / 1000;
 				const rate = completed / elapsed;
-				// Calculate remaining based on initial estimate
-				// Note: This may be inaccurate since addresses get filtered out as we process
-				const remaining = Math.max(0, totalAddresses - completed);
+				// Calculate remaining based on actual IDs we're processing
+				const remaining = Math.max(0, addressIds.length - completed);
 				const etaSeconds = remaining > 0 && rate > 0 ? remaining / rate : 0;
 
 				// Format ETA
@@ -352,16 +369,16 @@ async function generateJobsWithProgress(options: CliOptions) {
 				const successRate = completed > 0 ? (successCount / completed) * 100 : 0;
 
 				// Update progress bar once per batch
-				// Note: The total may not match exactly since addresses get filtered out as we process
 				profiledSync('ui.progress.update', () => {
-					progressBar?.update(Math.min(completed, totalAddresses), {
+					progressBar?.update(Math.min(completed, actualTotal), {
 						eta_formatted: etaFormatted,
 						success: successRate.toFixed(1)
 					});
 				});
 			}
 
-			offset += PAGE_SIZE;
+			// Move to next batch
+			batchIndex += PAGE_SIZE;
 		}
 
 		progressBar?.stop();
