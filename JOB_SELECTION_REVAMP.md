@@ -25,12 +25,11 @@ Left to do:
 - [ ] Implement a 'cancel' and a 'move' functionality
 - [ ] Change it so that you click an employee, then you 'search' for jobs which takes time (can be reduced with upgrades!), and then you select a job.
 - [ ] Change job selection UI
-- [ ] Change job generation script to increase search space up and down twice when needed. (or just increase tier when needed)
-- [ ] Remove ES63: Ciudad de Ceuta — 102 addresses and ES64: Ciudad de Melilla — 58 addresses, since these regions are geographically isolated and very small. 
-- [ ] Remove the approximate time and value fields and simplify the table and genreation
-- [ ] Simplify job value calculation to only use distance
+- [x] Change job generation script to increase search space up and down twice when needed. (or just increase tier when needed)
+- [x] Remove ES63: Ciudad de Ceuta — 102 addresses and ES64: Ciudad de Melilla — 58 addresses, since these regions are geographically isolated and very small. 
+- [x] Remove the approximate time and value fields and simplify the table and genreation
+- [x] Simplify job value calculation to only use distance
 - [ ] Implement and balance the 'weight' game mechanic, or remove it completely
-- [ ] Implement a batch endpoint for routing server to process multiple routing requests in one call (performance optimization)
 - [x] Add script to assign address to region
 - [x] Migrate DB to add regions table and region field
 - [x] Display regions on map
