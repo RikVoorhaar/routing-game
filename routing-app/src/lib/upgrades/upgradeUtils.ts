@@ -10,7 +10,7 @@ import { JobCategory } from '../jobs/jobCategories';
  * -----------
  * gameState: GameState
  *     The game state containing XP data
-* requirements: LevelRequirements
+ * requirements: LevelRequirements
  *     The level requirements to check (total and/or category-specific)
  *
  * Returns

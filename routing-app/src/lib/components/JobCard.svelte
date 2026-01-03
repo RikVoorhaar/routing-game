@@ -93,8 +93,9 @@
 		if (!currentIsValid) {
 			// Current selection is invalid, pick a new one
 			// Prefer the globally selected employee if they're eligible, otherwise use first available
-			const preferredEmployee =
-				$selectedEmployee ? eligibleEmployees.find((emp) => emp.id === $selectedEmployee) : null;
+			const preferredEmployee = $selectedEmployee
+				? eligibleEmployees.find((emp) => emp.id === $selectedEmployee)
+				: null;
 			const newSelectedEmployeeId = preferredEmployee?.id || eligibleEmployees[0]?.id || null;
 
 			if (newSelectedEmployeeId) {
@@ -410,7 +411,9 @@
 					<div class="text-xs font-medium text-base-content/60">Reward</div>
 					<div class="text-lg font-bold text-success">
 						{$config && $currentGameState
-							? formatCurrency(computeJobReward($selectedJob.totalDistanceKm, $config, $currentGameState))
+							? formatCurrency(
+									computeJobReward($selectedJob.totalDistanceKm, $config, $currentGameState)
+								)
 							: '...'}
 					</div>
 				</div>

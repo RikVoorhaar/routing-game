@@ -44,7 +44,10 @@ function getCategoryMultipliers(): Record<JobCategory, number> {
 	};
 
 	const multipliers = {} as Record<JobCategory, number>;
-	for (const [category, key] of Object.entries(categoryKeys) as unknown as [JobCategory, string][]) {
+	for (const [category, key] of Object.entries(categoryKeys) as unknown as [
+		JobCategory,
+		string
+	][]) {
 		multipliers[category] = config.jobs.categories.multipliers[key];
 	}
 	return multipliers;
@@ -67,7 +70,10 @@ function getCategoryMinTiers(): Record<JobCategory, number> {
 	};
 
 	const minTiers = {} as Record<JobCategory, number>;
-	for (const [category, key] of Object.entries(categoryKeys) as unknown as [JobCategory, string][]) {
+	for (const [category, key] of Object.entries(categoryKeys) as unknown as [
+		JobCategory,
+		string
+	][]) {
 		minTiers[category] = config.jobs.categories.minTiers[key];
 	}
 	return minTiers;
@@ -152,7 +158,6 @@ function generateJobTier(): number {
 	// Return tier (1-indexed, so add 1 to array index)
 	return Math.min(left + 1, MAX_TIER);
 }
-
 
 /**
  * Generates a single job from a given address
