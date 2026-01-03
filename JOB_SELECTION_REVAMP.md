@@ -45,3 +45,10 @@ Left to do:
 - Remove the approximate time and value fields and simplify the table and genreation
 - Change it so that it increases the tier up to 2 times when needed. 
 
+**Job selection**
+- New method is not cheap -- for 4 tiers  x2 jobs it takes around 600ms on my laptop, 300ms on the server (probably because the networking between routing server and postgres is quicker). 
+- Instead, only do a search for the jobs, but only compute the route once you click on a job
+- Also, only show jobs for currently selected employee. If no employee is selected then no jobs should be shown either.
+
+- We will also need a new UI, and get rid of the two column system, and instead just use tabs to switch between the map and the employees and the upgrades section. 
+- The employee markers are very big and ugly, and should just be a small pin icon with a progress bar and an ETA.
