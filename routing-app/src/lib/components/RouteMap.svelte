@@ -24,6 +24,7 @@
 	import type { DisplayableRoute } from '$lib/stores/mapDisplay';
 	import { formatAddress } from '$lib/formatting';
 	import { log } from '$lib/logger';
+	import { getRoute, prefetchRoutes } from '$lib/stores/routeCache';
 
 	// Animation configuration
 	const ANIMATION_FPS = 30; // Frames per second for smooth animation
@@ -182,16 +183,28 @@
 		}
 	}
 
-	function updateDisplayedRoutes() {
+	async function updateDisplayedRoutes() {
 		if (!leafletMap || !L) return;
 
 		// Clear existing routes and markers
 		mapDisplayActions.clearRoutes();
 		clearRouteMarkers();
 
+		// Prefetch routes for all active jobs
+		const activeJobIds: string[] = [];
+		if ($selectedActiveJobData?.activeJob?.id) {
+			activeJobIds.push($selectedActiveJobData.activeJob.id);
+		}
+		$fullEmployeeData.forEach((fed) => {
+			if (fed.activeJob?.id && fed.activeJob.startTime) {
+				activeJobIds.push(fed.activeJob.id);
+			}
+		});
+		await prefetchRoutes(activeJobIds);
+
 		// 1. Display preview route from selected active job data (if any)
 		if ($selectedActiveJobData) {
-			const previewRoute = createRouteFromActiveJobData($selectedActiveJobData, 'preview');
+			const previewRoute = await createRouteFromActiveJobData($selectedActiveJobData, 'preview');
 			if (previewRoute) {
 				mapDisplayActions.addRoute(previewRoute, {
 					isSelected: false,
@@ -211,9 +224,9 @@
 		}
 
 		// 2. Display all active job routes for employees
-		$fullEmployeeData.forEach((fed) => {
-			if (fed.activeJob && fed.activeRoute && fed.activeJob.startTime) {
-				const activeRoute = createRouteFromFullEmployeeData(fed);
+		for (const fed of $fullEmployeeData) {
+			if (fed.activeJob && fed.activeJob.startTime) {
+				const activeRoute = await createRouteFromFullEmployeeData(fed);
 				if (activeRoute) {
 					const isSelected = activeRoute.id === $selectedRoute;
 					mapDisplayActions.addRoute(activeRoute, {
@@ -230,7 +243,7 @@
 					addRouteMarkers(fed, 'active');
 				}
 			}
-		});
+		}
 	}
 
 	function clearRouteMarkers() {
@@ -243,16 +256,21 @@
 		routeMarkers = [];
 	}
 
-	function createRouteFromActiveJobData(
+	async function createRouteFromActiveJobData(
 		selectedActiveJobData: any,
 		routeType: string
-	): DisplayableRoute | null {
-		if (!selectedActiveJobData?.activeRoute?.routeData) {
-			log.warn('[RouteMap] No route data in selectedActiveJobData');
+	): Promise<DisplayableRoute | null> {
+		if (!selectedActiveJobData?.activeJob?.id) {
+			log.warn('[RouteMap] No active job ID in selectedActiveJobData');
 			return null;
 		}
 
-		const routeData = selectedActiveJobData.activeRoute.routeData;
+		// Fetch route data on-demand
+		const routeData = await getRoute(selectedActiveJobData.activeJob.id);
+		if (!routeData) {
+			log.warn('[RouteMap] Failed to fetch route data for active job:', selectedActiveJobData.activeJob.id);
+			return null;
+		}
 
 		// Handle case where routeData might be a JSON string
 		let parsedRouteData = routeData;
@@ -297,13 +315,18 @@
 		};
 	}
 
-	function createRouteFromFullEmployeeData(fed: any): DisplayableRoute | null {
-		if (!fed.activeRoute?.routeData) {
-			log.warn('[RouteMap] No route data in fullEmployeeData for employee:', fed.employee?.id);
+	async function createRouteFromFullEmployeeData(fed: any): Promise<DisplayableRoute | null> {
+		if (!fed.activeJob?.id) {
+			log.warn('[RouteMap] No active job ID in fullEmployeeData for employee:', fed.employee?.id);
 			return null;
 		}
 
-		const routeData = fed.activeRoute.routeData;
+		// Fetch route data on-demand
+		const routeData = await getRoute(fed.activeJob.id);
+		if (!routeData) {
+			log.warn('[RouteMap] Failed to fetch route data for active job:', fed.activeJob.id);
+			return null;
+		}
 
 		// Handle case where routeData might be a JSON string
 		let parsedRouteData = routeData;
@@ -669,28 +692,7 @@
 				},
 				{} as Record<string, any>
 			)}
-			routesByEmployee={$fullEmployeeData.reduce(
-				(acc, fed) => {
-					if (fed.activeRoute?.routeData) {
-						const routeData = fed.activeRoute.routeData;
-						// Handle string parsing if needed
-						let parsedRouteData = routeData;
-						if (typeof routeData === 'string') {
-							try {
-								parsedRouteData = JSON.parse(routeData);
-							} catch (e) {
-								log.error('[RouteMap] Failed to parse routeData for employee:', fed.employee.id, e);
-								return acc;
-							}
-						}
-						if (parsedRouteData?.path && Array.isArray(parsedRouteData.path)) {
-							acc[fed.employee.id] = parsedRouteData.path;
-						}
-					}
-					return acc;
-				},
-				{} as Record<string, PathPoint[]>
-			)}
+			routesByEmployee={{}}
 			{animationTimestamp}
 		/>
 

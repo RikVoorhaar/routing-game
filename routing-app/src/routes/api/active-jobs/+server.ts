@@ -89,22 +89,19 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		});
 
 		if (existingActiveJob) {
-			// Get complete data for existing active job
-			const [jobPickupAddress, jobDeliverAddress, activeRoute] = await Promise.all([
+			// Get complete data for existing active job (route fetched on-demand)
+			const [jobPickupAddress, jobDeliverAddress] = await Promise.all([
 				db.query.addresses.findFirst({
 					where: eq(addresses.id, existingActiveJob.jobPickupAddress)
 				}),
 				db.query.addresses.findFirst({
 					where: eq(addresses.id, existingActiveJob.jobDeliverAddress)
-				}),
-				db.query.activeRoutes.findFirst({
-					where: eq(activeRoutes.activeJobId, existingActiveJob.id)
 				})
 			]);
 
 			return json({
 				activeJob: existingActiveJob,
-				activeRoute,
+				activeRoute: null, // Routes are now fetched on-demand via /api/active-routes/[activeJobId]
 				employeeStartLocation: existingActiveJob.employeeStartLocation,
 				jobPickupAddress,
 				jobDeliverAddress,
@@ -138,7 +135,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		return json({
 			activeJob: activeJob,
-			activeRoute: activeRoute,
+			activeRoute: null, // Routes are now fetched on-demand via /api/active-routes/[activeJobId]
 			employeeStartLocation: activeJob.employeeStartLocation,
 			jobPickupAddress,
 			jobDeliverAddress
@@ -211,16 +208,15 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 			await tx.update(activeJobs).set({ startTime }).where(eq(activeJobs.id, activeJob.id));
 		});
 
-		// Get the updated active job and complete data
-		const [updatedActiveJob, jobPickupAddress, jobDeliverAddress, activeRoute] = await Promise.all([
+		// Get the updated active job and complete data (route fetched on-demand)
+		const [updatedActiveJob, jobPickupAddress, jobDeliverAddress] = await Promise.all([
 			db.query.activeJobs.findFirst({
 				where: eq(activeJobs.id, activeJob.id)
 			}),
 			db.query.addresses.findFirst({ where: eq(addresses.id, activeJob.jobPickupAddress) }),
 			db.query.addresses.findFirst({
 				where: eq(addresses.id, activeJob.jobDeliverAddress)
-			}),
-			db.query.activeRoutes.findFirst({ where: eq(activeRoutes.activeJobId, activeJob.id) })
+			})
 		]);
 
 		if (!updatedActiveJob) {
@@ -229,7 +225,7 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 
 		return json({
 			activeJob: updatedActiveJob,
-			activeRoute,
+			activeRoute: null, // Routes are now fetched on-demand via /api/active-routes/[activeJobId]
 			employeeStartLocation: updatedActiveJob.employeeStartLocation,
 			jobPickupAddress,
 			jobDeliverAddress

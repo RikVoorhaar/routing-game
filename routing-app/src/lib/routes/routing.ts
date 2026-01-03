@@ -39,16 +39,30 @@ interface ServerPathPoint {
 	is_walking_segment: boolean;
 }
 
+export interface ShortestPathOptions {
+	maxSpeed?: number;
+	includePath?: boolean; // If false, returns metadata only (no path array)
+}
+
 export async function getShortestPath(
 	from: Coordinate,
 	to: Coordinate,
-	maxSpeed?: number
+	options?: ShortestPathOptions | number // Support legacy maxSpeed parameter
 ): Promise<RoutingResult> {
 	const ROUTING_SERVER_URL = getRoutingServerUrl();
+	
+	// Handle legacy maxSpeed parameter
+	const opts: ShortestPathOptions =
+		typeof options === 'number' ? { maxSpeed: options } : options || {};
+	
 	let url = `${ROUTING_SERVER_URL}/api/v1/shortest_path?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`;
 
-	if (maxSpeed !== undefined && maxSpeed > 0) {
-		url += `&max_speed=${maxSpeed}`;
+	if (opts.maxSpeed !== undefined && opts.maxSpeed > 0) {
+		url += `&max_speed=${opts.maxSpeed}`;
+	}
+
+	if (opts.includePath === false) {
+		url += `&include_path=0`;
 	}
 
 	const response = await fetchWithKeepAlive(url);
@@ -62,14 +76,16 @@ export async function getShortestPath(
 		throw new Error(data.error || 'Failed to get shortest path ' + url);
 	}
 
-	// Convert the path to our PathPoint type
-	const path: PathPoint[] = data.path.map((point: ServerPathPoint) => ({
-		coordinates: { lat: point.coordinates.lat, lon: point.coordinates.lon },
-		cumulative_time_seconds: point.cumulative_time_seconds,
-		cumulative_distance_meters: point.cumulative_distance_meters,
-		max_speed_kmh: point.max_speed_kmh,
-		is_walking_segment: point.is_walking_segment
-	}));
+	// Convert the path to our PathPoint type (only if path is included)
+	const path: PathPoint[] = data.path
+		? data.path.map((point: ServerPathPoint) => ({
+				coordinates: { lat: point.coordinates.lat, lon: point.coordinates.lon },
+				cumulative_time_seconds: point.cumulative_time_seconds,
+				cumulative_distance_meters: point.cumulative_distance_meters,
+				max_speed_kmh: point.max_speed_kmh,
+				is_walking_segment: point.is_walking_segment
+			}))
+		: []; // Empty path array for metadata-only responses
 
 	return {
 		path,
@@ -98,13 +114,17 @@ export async function getRandomRouteInAnnulus(
 	from: Coordinate,
 	minDistance: number,
 	maxDistance: number,
-	maxSpeed?: number
+	maxSpeed?: number,
+	includePath: boolean = true
 ): Promise<RouteInAnnulus> {
 	// Get a random destination address in the annulus
 	const destination = await getRandomAddressInAnnulus(from, minDistance, maxDistance);
 
-	// Get the route to that destination
-	const routingResult = await getShortestPath(from, destination, maxSpeed);
+	// Get the route to that destination (with optional path inclusion)
+	const routingResult = await getShortestPath(from, destination, {
+		maxSpeed,
+		includePath
+	});
 
 	// Preserve the full destination address information
 	return {

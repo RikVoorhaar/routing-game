@@ -73,26 +73,14 @@ export const GET: RequestHandler = async ({ params }) => {
 			addressIds.add(job.jobDeliverAddress);
 		});
 
-		// Get all addresses and active routes in parallel
-		const [addressesData, activeRoutesData] = await Promise.all([
-			db
-				.select()
-				.from(addresses)
-				.where(inArray(addresses.id, Array.from(addressIds))),
-			db
-				.select()
-				.from(activeRoutes)
-				.where(
-					inArray(
-						activeRoutes.activeJobId,
-						activeJobsData.map((job) => job.id)
-					)
-				)
-		]);
+		// Get all addresses (routes are now fetched on-demand via /api/active-routes/[activeJobId])
+		const addressesData = await db
+			.select()
+			.from(addresses)
+			.where(inArray(addresses.id, Array.from(addressIds)));
 
 		// Create maps for quick lookup
 		const addressMap = new Map(addressesData.map((addr) => [addr.id, addr]));
-		const activeRouteMap = new Map(activeRoutesData.map((route) => [route.activeJobId, route]));
 
 		// Create FullEmployeeData array
 		const fullEmployeeData: FullEmployeeData[] = allEmployees.map((employee) => {
@@ -115,7 +103,7 @@ export const GET: RequestHandler = async ({ params }) => {
 				employeeStartLocation: activeJob.employeeStartLocation,
 				jobPickupAddress: addressMap.get(activeJob.jobPickupAddress) || null,
 				jobDeliverAddress: addressMap.get(activeJob.jobDeliverAddress) || null,
-				activeRoute: activeRouteMap.get(activeJob.id) || null
+				activeRoute: null // Routes are now fetched on-demand via /api/active-routes/[activeJobId]
 			};
 		});
 

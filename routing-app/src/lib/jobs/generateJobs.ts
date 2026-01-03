@@ -1,10 +1,9 @@
 import { type InferSelectModel } from 'drizzle-orm';
-import { addresses, jobs, routes } from '$lib/server/db/schema';
+import { addresses, jobs } from '$lib/server/db/schema';
 import { getRandomRouteInAnnulus, type RouteInAnnulus } from '$lib/routes/routing';
 import { type Coordinate } from '$lib/server/db/schema';
 import type { InferInsertModel } from 'drizzle-orm';
 import { db } from '$lib/server/db/standalone';
-import { inArray } from 'drizzle-orm';
 import { distance } from '@turf/turf';
 import { JobCategory } from '$lib/jobs/jobCategories';
 import { config } from '$lib/server/config';
@@ -183,10 +182,13 @@ export async function generateJobFromAddress(
 			lon: Number(startAddress.lon)
 		};
 
+		// Get route metadata only (no path array) for job generation
 		const routeInAnnulus: RouteInAnnulus = await getRandomRouteInAnnulus(
 			startLocation,
 			minDistanceKm,
-			maxDistanceKm
+			maxDistanceKm,
+			undefined, // maxSpeed not needed for job generation
+			false // includePath=false: metadata only
 		);
 		const routeResult = routeInAnnulus.route;
 		const endAddress = routeInAnnulus.destination;
@@ -215,24 +217,11 @@ export async function generateJobFromAddress(
 			return false; // Suspiciously long route, skip silently
 		}
 
-		// Create route record with address IDs
-		const routeRecord = {
-			id: crypto.randomUUID(),
-			startAddressId: startAddress.id,
-			endAddressId: endAddress.id,
-			lengthTime: routeResult.travelTimeSeconds,
-			routeData: routeResult
-		};
-
-		// Insert route
-		await db.insert(routes).values(routeRecord);
-
-		// Create job record
+		// Create job record (no route record needed)
 		const jobRecord: JobInsert = {
 			location: `SRID=4326;POINT(${startAddress.lon} ${startAddress.lat})`, // PostGIS POINT geometry with SRID
 			startAddressId: startAddress.id,
 			endAddressId: endAddress.id,
-			routeId: routeRecord.id,
 			jobTier,
 			jobCategory,
 			totalDistanceKm
@@ -251,20 +240,11 @@ export async function generateJobFromAddress(
 }
 
 /**
- * Clears all existing jobs and their associated routes
+ * Clears all existing jobs
  */
 export async function clearAllJobs(): Promise<void> {
-	// Get all job route IDs before deletion
-	const jobRoutes = await db.select({ routeId: jobs.routeId }).from(jobs);
-	const routeIds = jobRoutes.map((jr) => jr.routeId);
-
-	// Delete jobs first (foreign key constraint)
+	// Delete all jobs
 	await db.delete(jobs);
 
-	// Delete associated routes
-	if (routeIds.length > 0) {
-		await db.delete(routes).where(inArray(routes.id, routeIds));
-	}
-
-	console.log(`Cleared ${jobRoutes.length} jobs and their routes`);
+	console.log('Cleared all jobs');
 }

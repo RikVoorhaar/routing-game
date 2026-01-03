@@ -72,12 +72,27 @@ crow::response ApiHandlers::handleShortestPath(const crow::request& req) {
     // Parse coordinates from request
     double from_lat, from_lon, to_lat, to_lon;
     if (!parseCoordinates(req, from_lat, from_lon, to_lat, to_lon)) {
-        auto error_response = JsonBuilder::buildErrorResponse(
+        auto error_json = JsonBuilder::buildErrorResponse(
             "Invalid or missing coordinates. Format: /api/v1/shortest_path?from=latitude,longitude&to=latitude,longitude"
         );
+        // Get serialized JSON string by creating a temporary response
+        crow::response temp_resp(error_json);
+        std::string error_string = temp_resp.body;
+        auto compressed = JsonBuilder::compressGzip(error_string);
+        
+        crow::response resp;
+        if (!compressed.empty()) {
+            resp.body = std::string(reinterpret_cast<const char*>(compressed.data()), compressed.size());
+            resp.add_header("Content-Encoding", "gzip");
+        } else {
+            resp.body = error_string;
+        }
+        resp.add_header("Content-Type", "application/json");
+        resp.code = 400;
+        
         long long end_time = RoutingKit::get_micro_time();
         LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
-        return crow::response(400, error_response);
+        return resp;
     }
     
     LOG("Routing from (" << from_lat << "," << from_lon << ") to (" << to_lat << "," << to_lon << ")");
@@ -95,12 +110,37 @@ crow::response ApiHandlers::handleShortestPath(const crow::request& req) {
     LOG("Path length: " << result.node_path.size() << " nodes, travel time: " << result.total_travel_time_ms << " ms");
     
     if (!result.success) {
-        auto error_response = JsonBuilder::buildErrorResponse(
+        auto error_json = JsonBuilder::buildErrorResponse(
             "No route found between coordinates"
         );
+        // Get serialized JSON string by creating a temporary response
+        crow::response temp_resp(error_json);
+        std::string error_string = temp_resp.body;
+        auto compressed = JsonBuilder::compressGzip(error_string);
+        
+        crow::response resp;
+        if (!compressed.empty()) {
+            resp.body = std::string(reinterpret_cast<const char*>(compressed.data()), compressed.size());
+            resp.add_header("Content-Encoding", "gzip");
+        } else {
+            resp.body = error_string;
+        }
+        resp.add_header("Content-Type", "application/json");
+        resp.code = 404;
+        
         long long end_time = RoutingKit::get_micro_time();
         LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
-        return crow::response(404, error_response);
+        return resp;
+    }
+    
+    // Check for optional include_path parameter (default: true, set to 0 to skip path array)
+    bool include_path = true;
+    std::string include_path_param = req.url_params.get("include_path") ? req.url_params.get("include_path") : "";
+    if (!include_path_param.empty()) {
+        if (include_path_param == "0" || include_path_param == "false") {
+            include_path = false;
+            LOG("include_path=0: returning metadata-only response");
+        }
     }
     
     // Check for optional max_speed parameter
@@ -118,14 +158,6 @@ crow::response ApiHandlers::handleShortestPath(const crow::request& req) {
         }
     }
     
-    // Process the path into points with coordinates and travel times
-    long long process_start = RoutingKit::get_micro_time();
-    auto route_points = engine_->processPathIntoPoints(result, max_speed_kmh);
-    long long process_end = RoutingKit::get_micro_time();
-    if (RoutingEngine::isTimingEnabled()) {
-        LOG("[TIMING] processPathIntoPoints: " << (process_end - process_start) / 1000.0 << " ms");
-    }
-    
     // If max speed was applied, recalculate the total travel time
     RoutingResult modified_result = result;
     if (max_speed_kmh.has_value()) {
@@ -133,18 +165,54 @@ crow::response ApiHandlers::handleShortestPath(const crow::request& req) {
         LOG("Total travel time with max speed " << max_speed_kmh.value() << " km/h: " << modified_result.total_travel_time_ms << " ms");
     }
     
-    // Build and return the JSON response
+    // Build JSON response (with or without path)
     LOG("Sending response");
     long long json_start = RoutingKit::get_micro_time();
-    auto success_response = JsonBuilder::buildRouteResponse(modified_result, route_points);
+    crow::json::wvalue json_response;
+    std::vector<RoutePoint> route_points;
+    
+    if (include_path) {
+        // Process the path into points with coordinates and travel times
+        long long process_start = RoutingKit::get_micro_time();
+        route_points = engine_->processPathIntoPoints(modified_result, max_speed_kmh);
+        long long process_end = RoutingKit::get_micro_time();
+        if (RoutingEngine::isTimingEnabled()) {
+            LOG("[TIMING] processPathIntoPoints: " << (process_end - process_start) / 1000.0 << " ms");
+        }
+        json_response = JsonBuilder::buildRouteResponse(modified_result, route_points);
+    } else {
+        json_response = JsonBuilder::buildLiteRouteResponse(modified_result);
+    }
+    
     long long json_end = RoutingKit::get_micro_time();
     if (RoutingEngine::isTimingEnabled()) {
         LOG("[TIMING] JsonBuilder::buildRouteResponse: " << (json_end - json_start) / 1000.0 << " ms");
     }
     
+    // Convert JSON to string and compress with gzip
+    // Get serialized JSON string by creating a temporary response
+    crow::response temp_resp(json_response);
+    std::string json_string = temp_resp.body;
+    auto compressed = JsonBuilder::compressGzip(json_string);
+    
+    if (compressed.empty()) {
+        LOG("Warning: gzip compression failed, sending uncompressed response");
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms");
+        crow::response resp(json_response);
+        resp.add_header("Content-Type", "application/json");
+        return resp;
+    }
+    
+    // Create response with compressed data
+    crow::response resp;
+    resp.body = std::string(reinterpret_cast<const char*>(compressed.data()), compressed.size());
+    resp.add_header("Content-Type", "application/json");
+    resp.add_header("Content-Encoding", "gzip");
+    
     long long end_time = RoutingKit::get_micro_time();
-    LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms");
-    return crow::response(success_response);
+    LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (compressed: " << compressed.size() << " bytes, original: " << json_string.size() << " bytes)");
+    return resp;
 }
 
 bool ApiHandlers::parseCoordinates(const crow::request& req, 
