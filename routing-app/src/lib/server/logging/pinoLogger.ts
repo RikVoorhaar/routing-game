@@ -25,6 +25,29 @@ function getPinoLevel(level: number): pino.Level {
 }
 
 /**
+ * Try to create a pino-pretty stream if available.
+ * Returns the stream entry if available, null otherwise.
+ */
+function tryCreatePrettyStream(level: pino.Level): pino.StreamEntry | null {
+	try {
+		return {
+			level,
+			stream: pino.transport({
+				target: 'pino-pretty',
+				options: {
+					colorize: true,
+					translateTime: 'HH:MM:ss.l',
+					ignore: 'pid,hostname'
+				}
+			})
+		};
+	} catch (error) {
+		// pino-pretty not available, skip pretty printing
+		return null;
+	}
+}
+
+/**
  * Creates a safe wrapper stream that validates JSON lines before writing.
  * This prevents corrupted JSON from being written (e.g., from accidental file edits,
  * rotation issues, or other corruption sources).
@@ -164,18 +187,8 @@ function createServerLogger() {
 
 		// Create multi-stream: pretty to stdout, validated JSON to file
 		const streams: pino.StreamEntry[] = [
-			// Pretty output to stdout
-			{
-				level,
-				stream: pino.transport({
-					target: 'pino-pretty',
-					options: {
-						colorize: true,
-						translateTime: 'HH:MM:ss.l',
-						ignore: 'pid,hostname'
-					}
-				})
-			},
+			// Pretty output to stdout (if pino-pretty is available)
+			...(tryCreatePrettyStream(level) ? [tryCreatePrettyStream(level)!] : []),
 			// Validated JSON to rotating file
 			{
 				level,
