@@ -52,3 +52,36 @@ Left to do:
 
 - We will also need a new UI, and get rid of the two column system, and instead just use tabs to switch between the map and the employees and the upgrades section. 
 - The employee markers are very big and ugly, and should just be a small pin icon with a progress bar and an ETA.
+
+**DONE**
+- add redis stuff
+- When clicking on a job, it does load the route, but it doesn't update the duration
+- Job search still takes very long, need to look at the outputs.
+
+
+**Route computation optimization (TODO)**
+- Currently, route modifications (concatenation of employee-to-pickup + pickup-to-delivery routes, and application of speed multipliers) happen on the app server after fetching routes from the routing server
+- This should be moved to the routing server itself:
+  - The routing server should accept a request to compute a complete route from employee start → job pickup → job delivery
+  - The routing server should handle concatenation and speed multiplier application internally
+  - This reduces computation load on the app server and reduces data transfer (only one route response instead of two)
+  - The routing server already has all the necessary data and can do this more efficiently
+  - Implementation: Add a new endpoint like `/api/v1/complete_job_route` that takes start location, pickup location, delivery location, maxSpeed, and speedMultiplier, and returns the final modified route
+
+**Job search query optimization (TODO - Option 1: Euclidean distance)**
+- Current performance: tier queries take ~156ms (4 parallel PostGIS queries using ST_DistanceSphere)
+- Problem: PostGIS distance calculations are expensive, even with spatial indexes
+- Proposed solution: Use Euclidean distance on lat/lon columns instead of PostGIS great circle distance
+  - Filter and order using simple math: `(lat1-lat2)² + (lon1-lon2)²` 
+  - Use B-tree indexes on `jobs.lat` and `jobs.lon` columns (already exist)
+  - Much faster: simple arithmetic vs PostGIS function calls
+  - Accuracy: Good enough for filtering/ordering nearby jobs (Euclidean is fine for small distances)
+  - Expected improvement: tier queries from ~156ms → ~10-30ms (5-15x faster)
+  - Note: On deployed version, DB operations take ~40ms due to network latency, so this optimization will be even more impactful
+- Implementation approach:
+  1. Add indexes on `jobs.lat` and `jobs.lon` if not already present (check schema)
+  2. Replace `ST_DistanceSphere` query with Euclidean distance calculation
+  3. Use bounding box filter first: `WHERE lat BETWEEN ... AND lon BETWEEN ...` (uses indexes)
+  4. Order by Euclidean distance squared (avoid sqrt for performance): `ORDER BY (lat - empLat)² + (lon - empLon)²`
+  5. Test and benchmark against current PostGIS approach
+  6. Consider hybrid: Euclidean for filtering, PostGIS for final ordering (if accuracy needed)

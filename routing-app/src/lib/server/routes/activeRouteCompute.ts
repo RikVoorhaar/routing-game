@@ -1,17 +1,13 @@
 import { db } from '$lib/server/db';
 import { addresses, activeJobs } from '$lib/server/db/schema';
-import type { InferInsertModel } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
-import { nanoid } from 'nanoid';
 import { getShortestPath } from '$lib/routes/routing';
-import type { Employee, Job, GameState, RoutingResult, Address } from '$lib/server/db/schema';
+import type { Employee, Job, GameState, RoutingResult, Address, Coordinate } from '$lib/server/db/schema';
 import { getEmployeeMaxSpeed } from '$lib/employeeUtils';
 import { concatenateRoutes, applyMaxSpeed } from '$lib/routes/route-utils';
 import { config } from '$lib/server/config';
-import { computeJobXp, computeJobReward } from '$lib/jobs/jobUtils';
 import { gzipSync } from 'zlib';
 import { serverLog } from '$lib/server/logging/serverLogger';
-import { setRoute } from '$lib/server/routeCache/activeRouteCache';
 
 /**
  * Performance timing helper - logs at INFO level so it's always visible
@@ -24,19 +20,16 @@ function time(label: string): () => void {
 	};
 }
 
-type ActiveJobInsert = InferInsertModel<typeof activeJobs>;
-
 /**
- * Creates a route from employee's current location to job start location using the routing engine
+ * Creates a route from a start location to job start location using the routing engine
  */
 async function computeRouteToJob(
-	employee: Employee,
+	startLocation: Coordinate,
 	jobStartAddressId: string,
+	employeeMaxSpeed: number,
 	addressMap?: Map<string, Address>
 ): Promise<RoutingResult> {
 	const timer = time('computeRouteToJob');
-	// Employee location is a Coordinate (lat/lon)
-	const employeeLocation = employee.location;
 
 	// Get the job start address (from cache if provided, otherwise fetch)
 	const addressTimer = time('fetch_address_to_job');
@@ -54,12 +47,9 @@ async function computeRouteToJob(
 		throw new Error('Job start address not found');
 	}
 
-	// Use the routing engine to compute the actual route with employee's max speed
-	const employeeMaxSpeed = getEmployeeMaxSpeed(employee);
-
-	const routingTimer = time('routing_employee_to_job');
+	const routingTimer = time('routing_to_job');
 	const routingResult = await getShortestPath(
-		{ lat: employeeLocation.lat, lon: employeeLocation.lon },
+		{ lat: startLocation.lat, lon: startLocation.lon },
 		{ lat: jobStartAddress.lat, lon: jobStartAddress.lon },
 		{ maxSpeed: employeeMaxSpeed, includePath: true }
 	);
@@ -100,15 +90,38 @@ function modifyRoute(
 }
 
 /**
- * Main function to compute all aspects of an active job
+ * Compute a route for an active job using the stored employeeStartLocation
+ * This is the reusable helper that can be called from both job-search (if needed) and active-routes endpoints
+ *
+ * Parameters
+ * -----------
+ * activeJobId: string
+ *     The active job ID (for linking the route)
+ * activeJob: { employeeStartLocation: Coordinate; jobPickupAddress: string; jobDeliverAddress: string }
+ *     The active job data (must have employeeStartLocation set)
+ * job: Job
+ *     The job record
+ * employee: Employee
+ *     The employee record (for speed calculations)
+ * gameState: GameState
+ *     The game state (for multipliers)
+ * addressMap?: Map<string, Address>
+ *     Optional pre-fetched address map for performance
+ *
+ * Returns
+ * --------
+ * { activeRoute: ActiveRouteInsert, durationSeconds: number }
+ *     The computed active route with gzipped data and the actual duration
  */
-export async function computeActiveJob(
-	employee: Employee,
+export async function computeActiveRouteForActiveJob(
+	activeJobId: string,
+	activeJob: { employeeStartLocation: Coordinate; jobPickupAddress: string; jobDeliverAddress: string },
 	job: Job,
+	employee: Employee,
 	gameState: GameState,
 	addressMap?: Map<string, Address>
-): Promise<{ activeJob: ActiveJobInsert; activeRoute: ActiveRouteInsert }> {
-	const totalTimer = time(`computeActiveJob_job_${job.id}`);
+): Promise<{ activeRoute: ActiveRouteInsert; durationSeconds: number }> {
+	const totalTimer = time(`computeActiveRouteForActiveJob_job_${job.id}`);
 
 	// Get job start and end addresses (from cache if provided, otherwise fetch)
 	const addressTimer = time('fetch_job_addresses');
@@ -151,8 +164,8 @@ export async function computeActiveJob(
 			t();
 			return result;
 		})(),
-		// Compute route from employee to job start
-		computeRouteToJob(employee, job.startAddressId, addressMap)
+		// Compute route from employeeStartLocation to job start (using stored location, not current)
+		computeRouteToJob(activeJob.employeeStartLocation, job.startAddressId, employeeMaxSpeed, addressMap)
 	]);
 	routingTimer();
 
@@ -161,39 +174,12 @@ export async function computeActiveJob(
 	const modifiedRoute = modifyRoute(routeToJob, jobRoute, employee, gameState, job);
 	modifyTimer();
 
-	// Create the active job ID
-	const activeJobId = nanoid();
-
 	// Serialize route JSON and compress with gzip
 	const serializeTimer = time('serialize_and_compress');
 	const routeJson = JSON.stringify(modifiedRoute);
 	const routeDataGzip = gzipSync(Buffer.from(routeJson, 'utf-8'));
 	serializeTimer();
 
-	// Store route in Redis with 24h TTL
-	const ttlSeconds = 24 * 3600; // 24 hours
-	await setRoute(activeJobId, routeDataGzip, ttlSeconds);
-
-	// Compute payout
-	const computedPayout = computeJobReward(job.totalDistanceKm, config, gameState);
-
-	const xp = computeJobXp(job, config, gameState);
-
-	// Create the active job data structure
-	const activeJob: ActiveJobInsert = {
-		id: activeJobId,
-		employeeId: employee.id,
-		jobId: job.id,
-		gameStateId: gameState.id,
-		durationSeconds: modifiedRoute.travelTimeSeconds,
-		reward: computedPayout,
-		xp,
-		jobCategory: job.jobCategory,
-		employeeStartLocation: employee.location,
-		jobPickupAddress: job.startAddressId,
-		jobDeliverAddress: job.endAddressId
-	};
-
 	totalTimer();
-	return { activeJob };
+	return { routeDataGzip, durationSeconds: modifiedRoute.travelTimeSeconds };
 }

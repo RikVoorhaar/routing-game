@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { employees, activeJobs, addresses, activeRoutes } from '$lib/server/db/schema';
+import { employees, activeJobs, addresses } from '$lib/server/db/schema';
 import type { FullEmployeeData } from '$lib/server/db/schema';
 import { eq, and, isNotNull, inArray, asc } from 'drizzle-orm';
 import { processCompletedJobs } from '$lib/jobs/jobCompletion';

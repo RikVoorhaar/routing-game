@@ -1,17 +1,18 @@
 import { writable } from 'svelte/store';
-import type { Job, ActiveJob, Address, Coordinate, ActiveRoute } from '$lib/server/db/schema';
+import type { Job, ActiveJob, Address, Coordinate, RoutingResult } from '$lib/server/db/schema';
 
 // Store for the currently selected job
 export const selectedJob = writable<Job | null>(null);
 
 // New store for selected active job with complete data including routes and addresses
 // Note: activeRoute is optional because routes are fetched on-demand
+// Addresses can be null if not loaded yet (loaded on-demand if needed)
 export interface SelectedActiveJobData {
 	activeJob: ActiveJob;
 	employeeStartLocation: Coordinate;
-	jobPickupAddress: Address;
-	jobDeliverAddress: Address;
-	activeRoute?: ActiveRoute | null;
+	jobPickupAddress: Address | null;
+	jobDeliverAddress: Address | null;
+	activeRoute?: RoutingResult | null; // RoutingResult from route computation, not ActiveRoute from DB
 }
 
 export const selectedActiveJobData = writable<SelectedActiveJobData | null>(null);

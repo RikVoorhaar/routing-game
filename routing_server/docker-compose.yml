@@ -8,16 +8,16 @@ services:
       - "8050:8080"
     volumes:
       - ../osm_files:/data/osm
-    # environment:
-    #   - OSM_FILE=/data/osm/utrecht-latest.ways.osm.pbf
-    #   - ADDRESS_FILE=/data/osm/utrecht-latest.addresses.csv.gz
+    environment:
+      - OSM_FILE=/data/osm/utrecht-latest.ways.osm.pbf
+      - ADDRESS_FILE=/data/osm/utrecht-latest.addresses.csv.gz
     # environment:
     #   - OSM_FILE=/data/osm/netherlands-latest.simplified.ways.osm.pbf
     #   - ADDRESS_FILE=/data/osm/netherlands-latest.addresses.csv.gz
-    environment:
-      - OSM_FILE=/data/osm/europe-latest.ways.osm.pbf
-      - ADDRESS_FILE=/data/osm/europe-latest.addresses.csv
-      - ROUTING_TIMING=1
+    # environment:
+    #   - OSM_FILE=/data/osm/europe-latest.ways.osm.pbf
+    #   - ADDRESS_FILE=/data/osm/europe-latest.addresses.csv
+    #   - ROUTING_TIMING=1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -45,6 +45,18 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: routing-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
   postgres_data: 

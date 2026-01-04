@@ -1,9 +1,11 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { activeRoutes, activeJobs, gameStates } from '$lib/server/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { activeJobs, gameStates, jobs, employees, addresses } from '$lib/server/db/schema';
+import { eq, inArray } from 'drizzle-orm';
 import { serverLog } from '$lib/server/logging/serverLogger';
+import { computeActiveRouteForActiveJob } from '$lib/server/routes/activeRouteCompute';
+import { getRoute, setRoute } from '$lib/server/routeCache/activeRouteCache';
 
 // GET /api/active-routes/[activeJobId] - Get gzipped route data for an active job
 export const GET: RequestHandler = async ({ params, locals }) => {
@@ -54,104 +56,91 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			return error(403, 'Access denied');
 		}
 
-		// Get the active route with gzipped data
-		const activeRoute = await db.query.activeRoutes.findFirst({
-			where: eq(activeRoutes.activeJobId, activeJobId)
-		});
+		// Check Redis cache first
+		let routeDataGzip = await getRoute(activeJobId);
 
-		if (!activeRoute) {
-			serverLog.api.error({ activeJobId }, 'Active route not found in database');
-			return error(404, 'Active route not found');
-		}
+		// If route doesn't exist in cache, compute it on-demand
+		if (!routeDataGzip) {
+			serverLog.api.info({ activeJobId }, 'Route not found in cache, computing on-demand');
 
-		// Check if routeDataGzip exists
-		if (!activeRoute.routeDataGzip) {
-			serverLog.api.error(
-				{
-					activeJobId,
-					routeId: activeRoute.id,
-					routeDataGzip: activeRoute.routeDataGzip
-				},
-				'routeDataGzip is null or undefined'
-			);
-			return error(500, 'Route data is missing');
-		}
+			// Fetch job and employee data needed for route computation
+			const [job, employee] = await Promise.all([
+				db.query.jobs.findFirst({
+					where: eq(jobs.id, activeJob.jobId)
+				}),
+				db.query.employees.findFirst({
+					where: eq(employees.id, activeJob.employeeId)
+				})
+			]);
 
-		serverLog.api.info(
-			{
-				activeJobId,
-				routeId: activeRoute.id,
-				routeDataType: typeof activeRoute.routeDataGzip,
-				isBuffer: Buffer.isBuffer(activeRoute.routeDataGzip),
-				isUint8Array: activeRoute.routeDataGzip instanceof Uint8Array,
-				hasValue: !!activeRoute.routeDataGzip,
-				valueLength: Buffer.isBuffer(activeRoute.routeDataGzip)
-					? activeRoute.routeDataGzip.length
-					: activeRoute.routeDataGzip instanceof Uint8Array
-						? activeRoute.routeDataGzip.length
-						: String(activeRoute.routeDataGzip).length
-			},
-			'Route data retrieved from database'
-		);
-
-		// Convert Buffer to ArrayBuffer for Response constructor
-		// The routeDataGzip is stored as bytea (Buffer) in the database
-		let routeDataBuffer: Buffer;
-		try {
-			if (Buffer.isBuffer(activeRoute.routeDataGzip)) {
-				routeDataBuffer = activeRoute.routeDataGzip;
-			} else if (activeRoute.routeDataGzip instanceof Uint8Array) {
-				routeDataBuffer = Buffer.from(activeRoute.routeDataGzip);
-			} else if (typeof activeRoute.routeDataGzip === 'string') {
-				// Handle case where it might be returned as a hex string or base64
-				routeDataBuffer = Buffer.from(activeRoute.routeDataGzip, 'binary');
-			} else {
-				// Fallback: try to convert to Buffer
-				serverLog.api.error(
-					{
-						activeJobId,
-						type: typeof activeRoute.routeDataGzip,
-						value: activeRoute.routeDataGzip
-					},
-					'Unexpected routeDataGzip type'
-				);
-				routeDataBuffer = Buffer.from(activeRoute.routeDataGzip as any);
+			if (!job) {
+				serverLog.api.error({ activeJobId, jobId: activeJob.jobId }, 'Job not found');
+				return error(404, 'Job not found');
 			}
-		} catch (conversionErr) {
-			serverLog.api.error(
-				{
+
+			if (!employee) {
+				serverLog.api.error({ activeJobId, employeeId: activeJob.employeeId }, 'Employee not found');
+				return error(404, 'Employee not found');
+			}
+
+			// Pre-fetch addresses for performance
+			const addressIds = [job.startAddressId, job.endAddressId];
+			const fetchedAddresses = await db
+				.select()
+				.from(addresses)
+				.where(inArray(addresses.id, addressIds));
+
+			const addressMap = new Map<string, (typeof fetchedAddresses)[0]>();
+			fetchedAddresses.forEach((addr) => {
+				addressMap.set(addr.id, addr);
+			});
+
+			// Compute the route using the helper function
+			serverLog.api.info({ activeJobId }, 'Computing route');
+			const { routeDataGzip: computedRouteData, durationSeconds } =
+				await computeActiveRouteForActiveJob(
 					activeJobId,
-					error: conversionErr instanceof Error ? conversionErr.message : String(conversionErr),
-					stack: conversionErr instanceof Error ? conversionErr.stack : undefined
-				},
-				'Error converting route data to Buffer'
+					{
+						employeeStartLocation: activeJob.employeeStartLocation,
+						jobPickupAddress: activeJob.jobPickupAddress,
+						jobDeliverAddress: activeJob.jobDeliverAddress
+					},
+					job,
+					employee,
+					gameState,
+					addressMap
+				);
+
+			// Store the computed route in Redis with 24h TTL
+			const ttlSeconds = 24 * 3600; // 24 hours
+			await setRoute(activeJobId, computedRouteData, ttlSeconds);
+
+			// Update the active job with the real duration in Postgres
+			await db.update(activeJobs).set({ durationSeconds }).where(eq(activeJobs.id, activeJobId));
+
+			serverLog.api.info(
+				{ activeJobId, durationSeconds },
+				'Route computed and stored in Redis'
 			);
-			return error(
-				500,
-				`Failed to convert route data: ${conversionErr instanceof Error ? conversionErr.message : String(conversionErr)}`
-			);
+
+			routeDataGzip = computedRouteData;
+		} else {
+			serverLog.api.info({ activeJobId, dataLength: routeDataGzip.length }, 'Route retrieved from Redis cache');
 		}
 
-		if (!routeDataBuffer || routeDataBuffer.length === 0) {
+		if (!routeDataGzip || routeDataGzip.length === 0) {
 			serverLog.api.error(
-				{ activeJobId, bufferLength: routeDataBuffer?.length },
+				{ activeJobId, bufferLength: routeDataGzip?.length },
 				'Empty route data buffer'
 			);
 			return error(500, 'Route data is empty');
 		}
 
-		serverLog.api.debug(
-			{ activeJobId, bufferLength: routeDataBuffer.length },
-			'Route data buffer created successfully'
-		);
-
-		// In Node.js 18+, Response constructor accepts Buffer directly
-		// But we'll convert to Uint8Array for maximum compatibility
-		// Create a new Uint8Array view of the buffer
+		// Convert Buffer to Uint8Array for Response constructor
 		const uint8Array = new Uint8Array(
-			routeDataBuffer.buffer,
-			routeDataBuffer.byteOffset,
-			routeDataBuffer.byteLength
+			routeDataGzip.buffer,
+			routeDataGzip.byteOffset,
+			routeDataGzip.byteLength
 		);
 
 		serverLog.api.info({ activeJobId, dataLength: uint8Array.length }, 'Returning route data');

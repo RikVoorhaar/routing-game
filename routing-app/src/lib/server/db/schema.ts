@@ -9,8 +9,7 @@ import {
 	jsonb,
 	index,
 	serial,
-	varchar,
-	customType
+	varchar
 } from 'drizzle-orm/pg-core';
 import { sql, type InferSelectModel } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
@@ -178,7 +177,7 @@ export const activeJobs = pgTable(
 		generatedTime: timestamp('generated_time', { withTimezone: true }).default(
 			sql`CURRENT_TIMESTAMP`
 		),
-		durationSeconds: doublePrecision('duration_seconds').notNull(),
+		durationSeconds: doublePrecision('duration_seconds'), // null until route is computed
 		reward: doublePrecision('reward').notNull(),
 		// Single XP value for the job (awarded to both employee XP and global category XP)
 		xp: integer('xp').notNull(),
@@ -198,31 +197,6 @@ export const activeJobs = pgTable(
 		index('active_jobs_generated_time').on(table.generatedTime),
 		index('active_jobs_employee_job_idx').on(table.employeeId, table.jobId)
 	]
-);
-
-// Custom type for bytea (binary data)
-const bytea = customType<{ data: Buffer; driverParam: Buffer }>({
-	dataType: () => 'bytea',
-	toDriver: (value: Buffer) => value,
-	fromDriver: (value: unknown) => {
-		if (Buffer.isBuffer(value)) return value;
-		if (typeof value === 'string') return Buffer.from(value, 'binary');
-		if (value instanceof Uint8Array) return Buffer.from(value);
-		return Buffer.from(String(value), 'binary');
-	}
-});
-
-// Modified route associated to an active job - stores gzipped route JSON as binary
-export const activeRoutes = pgTable(
-	'active_route',
-	{
-		id: text('id').notNull().primaryKey(),
-		activeJobId: text('active_job_id')
-			.notNull()
-			.references(() => activeJobs.id, { onDelete: 'cascade' }),
-		routeDataGzip: bytea('route_data_gzip').notNull() // bytea: Gzipped route JSON data
-	},
-	(table) => [index('active_routes_active_job_idx').on(table.activeJobId)]
 );
 
 // Employees table - tracks user's employees and their states
@@ -382,5 +356,4 @@ export type Job = InferSelectModel<typeof jobs>;
 export type GameState = InferSelectModel<typeof gameStates>;
 export type Address = InferSelectModel<typeof addresses>;
 export type ActiveJob = InferSelectModel<typeof activeJobs>;
-export type ActiveRoute = InferSelectModel<typeof activeRoutes>;
 export type Region = InferSelectModel<typeof regions>;

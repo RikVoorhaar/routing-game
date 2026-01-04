@@ -63,25 +63,58 @@
 	}
 
 	async function loadJobDetails() {
-		if (!$selectedJob || !currentActiveJob || !$currentGameState) return;
+		if (!$selectedJob || !currentActiveJob || !$currentGameState || !$selectedEmployee) return;
 
 		try {
 			// Fetch route data on-demand (only when job is clicked/selected)
 			isLoadingRoute = true;
 			const routeData = await getRoute(currentActiveJob.id);
-			isLoadingRoute = false;
-
+			
 			if (routeData) {
-				// Addresses are not needed immediately - they'll be loaded by the route renderer if needed
-				// The activeJob already contains the address IDs
+				// Fetch updated active job to get the computed durationSeconds
+				try {
+					const updatedActiveJobResponse = await fetch(`/api/active-jobs?jobId=${$selectedJob.id}&gameStateId=${$currentGameState.id}`);
+					if (updatedActiveJobResponse.ok) {
+						const activeJobsList = await updatedActiveJobResponse.json();
+						const updatedActiveJob = activeJobsList.find((aj: any) => aj.id === currentActiveJob.id);
+						
+						if (updatedActiveJob) {
+							// Update search results with the updated active job
+							if ($searchResults) {
+								const updatedResults = $searchResults.map((r) =>
+									r.activeJob.id === updatedActiveJob.id
+										? { ...r, activeJob: updatedActiveJob }
+										: r
+								);
+								jobSearchActions.setSearchResults($selectedEmployee, updatedResults);
+							}
+
+							// Use updated active job with computed duration
+							setSelectedActiveJobData({
+								activeJob: updatedActiveJob,
+								employeeStartLocation: updatedActiveJob.employeeStartLocation,
+								jobPickupAddress: null,
+								jobDeliverAddress: null,
+								activeRoute: routeData
+							});
+							isLoadingRoute = false;
+							return;
+						}
+					}
+				} catch (fetchError) {
+					console.warn('Failed to fetch updated active job, using cached data:', fetchError);
+				}
+				
+				// Fallback to original if update fetch fails
 				setSelectedActiveJobData({
 					activeJob: currentActiveJob,
 					employeeStartLocation: currentActiveJob.employeeStartLocation,
-					jobPickupAddress: null, // Addresses loaded on-demand if needed
-					jobDeliverAddress: null, // Addresses loaded on-demand if needed
+					jobPickupAddress: null,
+					jobDeliverAddress: null,
 					activeRoute: routeData
 				});
 			}
+			isLoadingRoute = false;
 		} catch (error) {
 			console.error('Error loading job details:', error);
 			isLoadingRoute = false;

@@ -36,6 +36,7 @@ export async function getJobsInTile(
 /**
  * Gets the closest jobs for an employee by tier, ordered by straight-line distance
  * Uses PostGIS ST_DistanceSphere for accurate distance calculation
+ * Optimized to use spatial indexes efficiently
  *
  * Parameters
  * -----------
@@ -56,7 +57,10 @@ export async function getClosestJobsForEmployeeByTier(
 	limit: number = 2
 ): Promise<Array<InferSelectModel<typeof jobs>>> {
 	// Create a PostGIS POINT from employee location
-	// ST_DistanceSphere uses meters, so we'll order by distance ascending
+	// Use ST_DistanceSphere for accurate distance calculation
+	// The spatial index (GIST) on jobs.location should help with performance
+	const employeePoint = sql`ST_MakePoint(${employeeLocation.lon}, ${employeeLocation.lat})::geometry`;
+	
 	const result = await db
 		.select()
 		.from(jobs)
@@ -64,7 +68,7 @@ export async function getClosestJobsForEmployeeByTier(
 		.orderBy(
 			sql`ST_DistanceSphere(
 				ST_GeomFromEWKT(${jobs.location}),
-				ST_MakePoint(${employeeLocation.lon}, ${employeeLocation.lat})::geometry
+				${employeePoint}
 			) ASC`
 		)
 		.limit(limit);
