@@ -11,7 +11,6 @@
 	import { regionOverlayEnabled, NUTS_HOVER_MAX_ZOOM } from '$lib/stores/regionOverlay';
 	import { loadNutsGeoJson, createNutsLayer, setNutsInteractivity } from '$lib/map/nutsOverlay';
 	import { MapManager } from './map/MapManager';
-	import { JobLoader } from './map/JobLoader';
 	import MarkerRenderer from './map/MarkerRenderer.svelte';
 	import RouteRenderer from './map/RouteRenderer.svelte';
 	import { allSearchResultJobs, jobSearchActions } from '$lib/stores/jobSearch';
@@ -38,7 +37,6 @@
 
 	// Manager instances
 	let mapManager: MapManager | null = null;
-	let jobLoader: JobLoader | null = null;
 	let markerRenderer: any = null; // Reference to MarkerRenderer component
 
 	// Animation state
@@ -179,20 +177,14 @@
 		if (!browser) return;
 
 		try {
-			// Initialize map manager
-			mapManager = new MapManager(mapElement, loadJobsForVisibleTiles);
-			const { map, L: leafletLib } = await mapManager.init();
-			leafletMap = map;
-			L = leafletLib;
+		// Initialize map manager (no tile callback needed since tile-based loading is deprecated)
+		mapManager = new MapManager(mapElement);
+		const { map, L: leafletLib } = await mapManager.init();
+		leafletMap = map;
+		L = leafletLib;
 
-			// Initialize job loader
-			jobLoader = new JobLoader();
-
-			// Initial map update
-			updateDisplayedRoutes();
-
-			// Load initial jobs (non-blocking)
-			loadJobsForVisibleTiles();
+		// Initial map update
+		updateDisplayedRoutes();
 
 			// Start animation loop
 			startAnimation();
@@ -639,10 +631,6 @@
 
 		if (mapManager) {
 			mapManager.destroy();
-		}
-
-		if (jobLoader) {
-			jobLoader.clearJobs();
 		}
 	});
 </script>

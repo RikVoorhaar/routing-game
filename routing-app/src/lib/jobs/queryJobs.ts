@@ -1,50 +1,9 @@
 import { type InferSelectModel } from 'drizzle-orm';
 import { jobs } from '$lib/server/db/schema';
 import { db } from '$lib/server/db/standalone';
-import { sql, desc, eq, and } from 'drizzle-orm';
-import { getTileBounds } from '$lib/geo';
+import { sql, eq, and } from 'drizzle-orm';
 import type { Coordinate } from '$lib/server/db/schema';
 import { config } from '$lib/server/config';
-
-/**
- * Gets jobs within a tile using x,y,z tile coordinates
- * @deprecated Tile-based job loading is deprecated. Use employee-driven job search instead.
- */
-export async function getJobsInTile(
-	x: number,
-	y: number,
-	z: number,
-	limit: number = 100
-): Promise<Array<InferSelectModel<typeof jobs>>> {
-	// Convert tile coordinates to geographic bounds (4326)
-	const bounds = getTileBounds(x, y, z);
-
-	// Transform bounds envelope to 3857 to match job.location SRID
-	// Use Drizzle query builder to get proper field name conversion
-	// Transform location back to 4326 EWKT format for frontend compatibility
-	const result = await db
-		.select({
-			id: jobs.id,
-			location: sql<string>`ST_AsEWKT(ST_Transform(${jobs.location}, 4326))`.as('location'),
-			startAddressId: jobs.startAddressId,
-			endAddressId: jobs.endAddressId,
-			jobTier: jobs.jobTier,
-			jobCategory: jobs.jobCategory,
-			totalDistanceKm: jobs.totalDistanceKm,
-			generatedTime: jobs.generatedTime
-		})
-		.from(jobs)
-		.where(
-			sql`ST_Within(
-            ${jobs.location},
-            ST_Transform(ST_MakeEnvelope(${bounds.west}, ${bounds.south}, ${bounds.east}, ${bounds.north}, 4326), 3857)
-        )`
-		)
-		.orderBy(desc(jobs.totalDistanceKm))
-		.limit(limit);
-
-	return result;
-}
 
 /**
  * Gets the closest jobs for an employee by tier, ordered by straight-line distance

@@ -49,7 +49,6 @@ export const handle: Handle = async ({ event, resolve }) => {
 		const path = event.url.pathname;
 		const method = event.request.method;
 		const isNoisyEndpoint =
-			path.startsWith('/api/jobs/') || // Tile-loading requests
 			(path === '/api/active-jobs' && method === 'GET') || // Polling requests
 			path === '/api/config' || // Config requests
 			path.startsWith('/_app/') || // SvelteKit internal
