@@ -1,90 +1,90 @@
 {
-  "version": "7",
-  "dialect": "postgresql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1766661598769,
-      "tag": "0000_upgrade_system_redesign",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1766661882475,
-      "tag": "0001_remove_route_level",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1766699055508,
-      "tag": "0002_active_job_single_xp",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1766925080586,
-      "tag": "0003_eager_exiles",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1767130528621,
-      "tag": "0004_refactor_employee_location",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1767423443671,
-      "tag": "0005_add_regions_table",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1767442613928,
-      "tag": "0006_drop_job_approx_fields",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1767446055475,
-      "tag": "0007_low_grandmaster",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1767463378463,
-      "tag": "0008_messy_victor_mancha",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1767511815268,
-      "tag": "0009_square_lady_bullseye",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1767530361494,
-      "tag": "0010_fuzzy_monster_badoon",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1767560049360,
-      "tag": "0011_migrate_job_location_to_geometry_3857",
-      "breakpoints": true
-    }
-  ]
+	"version": "7",
+	"dialect": "postgresql",
+	"entries": [
+		{
+			"idx": 0,
+			"version": "7",
+			"when": 1766661598769,
+			"tag": "0000_upgrade_system_redesign",
+			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "7",
+			"when": 1766661882475,
+			"tag": "0001_remove_route_level",
+			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1766699055508,
+			"tag": "0002_active_job_single_xp",
+			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "7",
+			"when": 1766925080586,
+			"tag": "0003_eager_exiles",
+			"breakpoints": true
+		},
+		{
+			"idx": 4,
+			"version": "7",
+			"when": 1767130528621,
+			"tag": "0004_refactor_employee_location",
+			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "7",
+			"when": 1767423443671,
+			"tag": "0005_add_regions_table",
+			"breakpoints": true
+		},
+		{
+			"idx": 6,
+			"version": "7",
+			"when": 1767442613928,
+			"tag": "0006_drop_job_approx_fields",
+			"breakpoints": true
+		},
+		{
+			"idx": 7,
+			"version": "7",
+			"when": 1767446055475,
+			"tag": "0007_low_grandmaster",
+			"breakpoints": true
+		},
+		{
+			"idx": 8,
+			"version": "7",
+			"when": 1767463378463,
+			"tag": "0008_messy_victor_mancha",
+			"breakpoints": true
+		},
+		{
+			"idx": 9,
+			"version": "7",
+			"when": 1767511815268,
+			"tag": "0009_square_lady_bullseye",
+			"breakpoints": true
+		},
+		{
+			"idx": 10,
+			"version": "7",
+			"when": 1767530361494,
+			"tag": "0010_fuzzy_monster_badoon",
+			"breakpoints": true
+		},
+		{
+			"idx": 11,
+			"version": "7",
+			"when": 1767560049360,
+			"tag": "0011_migrate_job_location_to_geometry_3857",
+			"breakpoints": true
+		}
+	]
 }
