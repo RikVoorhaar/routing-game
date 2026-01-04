@@ -177,14 +177,14 @@
 		if (!browser) return;
 
 		try {
-		// Initialize map manager (no tile callback needed since tile-based loading is deprecated)
-		mapManager = new MapManager(mapElement);
-		const { map, L: leafletLib } = await mapManager.init();
-		leafletMap = map;
-		L = leafletLib;
+			// Initialize map manager (no tile callback needed since tile-based loading is deprecated)
+			mapManager = new MapManager(mapElement);
+			const { map, L: leafletLib } = await mapManager.init();
+			leafletMap = map;
+			L = leafletLib;
 
-		// Initial map update
-		updateDisplayedRoutes();
+			// Initial map update
+			updateDisplayedRoutes();
 
 			// Start animation loop
 			startAnimation();
