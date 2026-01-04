@@ -47,6 +47,16 @@ export interface ShortestPathOptions {
 	includePath?: boolean; // If false, returns metadata only (no path array)
 }
 
+export interface CompleteJobRouteOptions {
+	maxSpeed?: number;
+	speedMultiplier?: number;
+}
+
+export interface CompleteJobRouteResult {
+	compressedRouteData: Buffer;
+	durationSeconds: number;
+}
+
 export async function getShortestPath(
 	from: Coordinate,
 	to: Coordinate,
@@ -135,5 +145,95 @@ export async function getRandomRouteInAnnulus(
 	return {
 		route: routingResult,
 		destination
+	};
+}
+
+/**
+ * Get a complete job route from start → pickup → delivery.
+ * Returns compressed route data and duration without decompressing the body.
+ * Metadata is read from HTTP headers to avoid decompression/recompression overhead.
+ */
+export async function getCompleteJobRoute(
+	from: Coordinate,
+	via: Coordinate,
+	to: Coordinate,
+	options?: CompleteJobRouteOptions
+): Promise<CompleteJobRouteResult> {
+	// Validate coordinates
+	if (
+		typeof from?.lat !== 'number' ||
+		typeof from?.lon !== 'number' ||
+		typeof via?.lat !== 'number' ||
+		typeof via?.lon !== 'number' ||
+		typeof to?.lat !== 'number' ||
+		typeof to?.lon !== 'number' ||
+		!isFinite(from.lat) ||
+		!isFinite(from.lon) ||
+		!isFinite(via.lat) ||
+		!isFinite(via.lon) ||
+		!isFinite(to.lat) ||
+		!isFinite(to.lon)
+	) {
+		throw new Error(
+			`Invalid coordinates: from=${JSON.stringify(from)}, via=${JSON.stringify(via)}, to=${JSON.stringify(to)}`
+		);
+	}
+
+	const ROUTING_SERVER_URL = getRoutingServerUrl();
+
+	let url = `${ROUTING_SERVER_URL}/api/v1/complete_job_route?from=${from.lat},${from.lon}&via=${via.lat},${via.lon}&to=${to.lat},${to.lon}`;
+
+	if (options?.maxSpeed !== undefined && options.maxSpeed > 0) {
+		url += `&max_speed=${options.maxSpeed}`;
+	}
+
+	if (options?.speedMultiplier !== undefined && options.speedMultiplier > 0) {
+		url += `&speed_multiplier=${options.speedMultiplier}`;
+	}
+
+	const response = await fetchWithKeepAlive(url);
+
+	if (!response.ok) {
+		// Try to read error message from JSON body (may be compressed)
+		try {
+			const errorData = await profiledAsync('routing.http.json', async () => await response.json());
+			const errorMessage = errorData.error || errorData.message || 'Failed to get complete job route';
+			throw new Error(`${errorMessage} (URL: ${url}, status: ${response.status})`);
+		} catch (jsonError) {
+			// If JSON parsing fails, fall back to status text
+			if (jsonError instanceof Error && jsonError.message.includes('Failed to get complete job route')) {
+				throw jsonError; // Re-throw our error
+			}
+			throw new Error(`Failed to get complete job route: ${response.statusText} (URL: ${url}, status: ${response.status})`);
+		}
+	}
+
+	// Read metadata from headers (no decompression needed)
+	const travelTimeSecondsHeader = response.headers.get('X-Travel-Time-Seconds');
+	const successHeader = response.headers.get('X-Success');
+
+	if (!successHeader || successHeader !== 'true') {
+		// If success header indicates failure, try to get error from body
+		// But we still need to handle the compressed body
+		const errorText = response.headers.get('X-Error') || 'Failed to get complete job route';
+		throw new Error(errorText);
+	}
+
+	if (!travelTimeSecondsHeader) {
+		throw new Error('Missing X-Travel-Time-Seconds header in response');
+	}
+
+	const durationSeconds = parseFloat(travelTimeSecondsHeader);
+	if (isNaN(durationSeconds)) {
+		throw new Error(`Invalid X-Travel-Time-Seconds header value: ${travelTimeSecondsHeader}`);
+	}
+
+	// Get compressed body as Buffer (no decompression)
+	const arrayBuffer = await profiledAsync('routing.http.arrayBuffer', async () => await response.arrayBuffer());
+	const compressedRouteData = Buffer.from(arrayBuffer);
+
+	return {
+		compressedRouteData,
+		durationSeconds
 	};
 }
