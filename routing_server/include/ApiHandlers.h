@@ -38,6 +38,9 @@ private:
     // Handler for the uniform random address in annulus endpoint
     crow::response handleUniformRandomAddressInAnnulus(const crow::request& req);
     
+    // Handler for the complete job route endpoint
+    crow::response handleCompleteJobRoute(const crow::request& req);
+    
     // Parse coordinates from query parameters
     bool parseCoordinates(const crow::request& req, 
                           double& from_lat, double& from_lon, 

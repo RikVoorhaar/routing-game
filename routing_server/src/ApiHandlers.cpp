@@ -62,6 +62,13 @@ void ApiHandlers::registerRoutes(crow::SimpleApp& app) {
             return this->handleUniformRandomAddressInAnnulus(req);
         });
         
+    // Register the complete job route endpoint
+    CROW_ROUTE(app, "/api/v1/complete_job_route")
+        .methods(crow::HTTPMethod::GET)
+        ([this](const crow::request& req) {
+            return this->handleCompleteJobRoute(req);
+        });
+        
     LOG("API routes registered");
 }
 
@@ -543,6 +550,255 @@ crow::response ApiHandlers::handleUniformRandomAddressInAnnulus(const crow::requ
     long long end_time = RoutingKit::get_micro_time();
     LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms");
     return crow::response(success_response);
+}
+
+crow::response ApiHandlers::handleCompleteJobRoute(const crow::request& req) {
+    long long start_time = RoutingKit::get_micro_time();
+    LOG("Received complete job route request: " + req.url);
+    
+    // Parse coordinates from request
+    std::string from_param = req.url_params.get("from") ? req.url_params.get("from") : "";
+    std::string via_param = req.url_params.get("via") ? req.url_params.get("via") : "";
+    std::string to_param = req.url_params.get("to") ? req.url_params.get("to") : "";
+    
+    double from_lat, from_lon, via_lat, via_lon, to_lat, to_lon;
+    
+    if (!parseCoordinate(from_param, from_lat, from_lon) ||
+        !parseCoordinate(via_param, via_lat, via_lon) ||
+        !parseCoordinate(to_param, to_lat, to_lon)) {
+        auto error_json = JsonBuilder::buildErrorResponse(
+            "Invalid or missing coordinates. Format: /api/v1/complete_job_route?from=latitude,longitude&via=latitude,longitude&to=latitude,longitude"
+        );
+        crow::response temp_resp(error_json);
+        std::string error_string = temp_resp.body;
+        auto compressed = JsonBuilder::compressGzip(error_string);
+        
+        crow::response resp;
+        if (!compressed.empty()) {
+            resp.body = std::string(reinterpret_cast<const char*>(compressed.data()), compressed.size());
+            resp.add_header("Content-Encoding", "gzip");
+        } else {
+            resp.body = error_string;
+        }
+        resp.add_header("Content-Type", "application/json");
+        resp.code = 400;
+        
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
+        return resp;
+    }
+    
+    LOG("Routing from (" << from_lat << "," << from_lon << ") via (" << via_lat << "," << via_lon << ") to (" << to_lat << "," << to_lon << ")");
+    
+    // Parse optional parameters
+    bool include_path = true;
+    std::string include_path_param = req.url_params.get("include_path") ? req.url_params.get("include_path") : "";
+    if (!include_path_param.empty()) {
+        if (include_path_param == "0" || include_path_param == "false") {
+            include_path = false;
+            LOG("include_path=0: returning metadata-only response");
+        }
+    }
+    
+    std::optional<unsigned> max_speed_kmh;
+    std::string max_speed_param = req.url_params.get("max_speed") ? req.url_params.get("max_speed") : "";
+    if (!max_speed_param.empty()) {
+        try {
+            unsigned max_speed = std::stoul(max_speed_param);
+            if (max_speed > 0) {
+                max_speed_kmh = max_speed;
+                LOG("Applying maximum speed limit: " << max_speed << " km/h");
+            }
+        } catch (const std::exception& e) {
+            LOG("Invalid max_speed parameter: " << e.what());
+        }
+    }
+    
+    double speed_multiplier = 1.0;
+    std::string speed_multiplier_param = req.url_params.get("speed_multiplier") ? req.url_params.get("speed_multiplier") : "";
+    if (!speed_multiplier_param.empty()) {
+        try {
+            speed_multiplier = std::stod(speed_multiplier_param);
+            if (speed_multiplier <= 0.0) {
+                LOG("Invalid speed_multiplier (must be > 0), using default 1.0");
+                speed_multiplier = 1.0;
+            } else {
+                LOG("Applying speed multiplier: " << speed_multiplier);
+            }
+        } catch (const std::exception& e) {
+            LOG("Invalid speed_multiplier parameter: " << e.what() << ", using default 1.0");
+        }
+    }
+    
+    // Compute first leg: from -> via
+    LOG("Computing first leg (from -> via)...");
+    long long leg1_start = RoutingKit::get_micro_time();
+    RoutingResult leg1_result = engine_->computeShortestPathFromCoordinates(from_lat, from_lon, via_lat, via_lon);
+    long long leg1_end = RoutingKit::get_micro_time();
+    if (RoutingEngine::isTimingEnabled()) {
+        LOG("[TIMING] leg1 computeShortestPathFromCoordinates: " << (leg1_end - leg1_start) / 1000.0 << " ms");
+    }
+    
+    if (!leg1_result.success) {
+        auto error_json = JsonBuilder::buildErrorResponse(
+            "No route found from start to pickup location"
+        );
+        crow::response temp_resp(error_json);
+        std::string error_string = temp_resp.body;
+        auto compressed = JsonBuilder::compressGzip(error_string);
+        
+        crow::response resp;
+        if (!compressed.empty()) {
+            resp.body = std::string(reinterpret_cast<const char*>(compressed.data()), compressed.size());
+            resp.add_header("Content-Encoding", "gzip");
+        } else {
+            resp.body = error_string;
+        }
+        resp.add_header("Content-Type", "application/json");
+        resp.code = 404;
+        
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
+        return resp;
+    }
+    
+    // Compute second leg: via -> to
+    LOG("Computing second leg (via -> to)...");
+    long long leg2_start = RoutingKit::get_micro_time();
+    RoutingResult leg2_result = engine_->computeShortestPathFromCoordinates(via_lat, via_lon, to_lat, to_lon);
+    long long leg2_end = RoutingKit::get_micro_time();
+    if (RoutingEngine::isTimingEnabled()) {
+        LOG("[TIMING] leg2 computeShortestPathFromCoordinates: " << (leg2_end - leg2_start) / 1000.0 << " ms");
+    }
+    
+    if (!leg2_result.success) {
+        auto error_json = JsonBuilder::buildErrorResponse(
+            "No route found from pickup to delivery location"
+        );
+        crow::response temp_resp(error_json);
+        std::string error_string = temp_resp.body;
+        auto compressed = JsonBuilder::compressGzip(error_string);
+        
+        crow::response resp;
+        if (!compressed.empty()) {
+            resp.body = std::string(reinterpret_cast<const char*>(compressed.data()), compressed.size());
+            resp.add_header("Content-Encoding", "gzip");
+        } else {
+            resp.body = error_string;
+        }
+        resp.add_header("Content-Type", "application/json");
+        resp.code = 404;
+        
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (error)");
+        return resp;
+    }
+    
+    // Apply max speed to both legs if provided
+    if (max_speed_kmh.has_value()) {
+        leg1_result.total_travel_time_ms = engine_->recalculateTotalTravelTime(leg1_result, max_speed_kmh.value());
+        leg2_result.total_travel_time_ms = engine_->recalculateTotalTravelTime(leg2_result, max_speed_kmh.value());
+        LOG("Total travel time leg1 with max speed: " << leg1_result.total_travel_time_ms << " ms");
+        LOG("Total travel time leg2 with max speed: " << leg2_result.total_travel_time_ms << " ms");
+    }
+    
+    // Combine the two legs
+    RoutingResult combined_result;
+    combined_result.success = true;
+    combined_result.total_geo_distance_m = leg1_result.total_geo_distance_m + leg2_result.total_geo_distance_m;
+    combined_result.total_travel_time_ms = leg1_result.total_travel_time_ms + leg2_result.total_travel_time_ms;
+    
+    // Apply speed multiplier to total travel time
+    combined_result.total_travel_time_ms = static_cast<unsigned>(combined_result.total_travel_time_ms * speed_multiplier);
+    
+    // Build response
+    LOG("Building response");
+    long long json_start = RoutingKit::get_micro_time();
+    crow::json::wvalue json_response;
+    
+    if (include_path) {
+        // Process both legs into points
+        std::vector<RoutePoint> leg1_points = engine_->processPathIntoPoints(leg1_result, max_speed_kmh);
+        std::vector<RoutePoint> leg2_points = engine_->processPathIntoPoints(leg2_result, max_speed_kmh);
+        
+        // Get final cumulative time and distance from leg1 (before multiplier)
+        unsigned leg1_final_time_ms = 0;
+        unsigned leg1_final_distance_m = 0;
+        if (!leg1_points.empty()) {
+            leg1_final_time_ms = leg1_points.back().time_ms;
+            leg1_final_distance_m = leg1_points.back().distance_m;
+        }
+        
+        // Concatenate: leg1 points + leg2 points with offset
+        std::vector<RoutePoint> combined_points;
+        combined_points.reserve(leg1_points.size() + leg2_points.size());
+        
+        // Add all leg1 points with speed multiplier applied
+        for (const auto& point : leg1_points) {
+            RoutePoint multiplied_point = point;
+            multiplied_point.time_ms = static_cast<unsigned>(point.time_ms * speed_multiplier);
+            combined_points.push_back(multiplied_point);
+        }
+        
+        // Calculate leg1 final values after multiplier for offsetting leg2
+        unsigned leg1_final_time_ms_multiplied = static_cast<unsigned>(leg1_final_time_ms * speed_multiplier);
+        
+        // Add leg2 points with offset and speed multiplier applied
+        for (const auto& point : leg2_points) {
+            RoutePoint offset_point = point;
+            // Offset by leg1's final values (after multiplier)
+            offset_point.time_ms = leg1_final_time_ms_multiplied + static_cast<unsigned>(point.time_ms * speed_multiplier);
+            offset_point.distance_m = leg1_final_distance_m + point.distance_m;
+            combined_points.push_back(offset_point);
+        }
+        
+        // Update combined_result with modified total time (already has multiplier applied)
+        json_response = JsonBuilder::buildRouteResponse(combined_result, combined_points);
+    } else {
+        json_response = JsonBuilder::buildLiteRouteResponse(combined_result);
+    }
+    
+    long long json_end = RoutingKit::get_micro_time();
+    if (RoutingEngine::isTimingEnabled()) {
+        LOG("[TIMING] JsonBuilder::buildRouteResponse: " << (json_end - json_start) / 1000.0 << " ms");
+    }
+    
+    // Extract metadata values before compressing
+    double travel_time_seconds = combined_result.total_travel_time_ms / 1000.0;
+    unsigned total_distance_meters = combined_result.total_geo_distance_m;
+    bool success = combined_result.success;
+    
+    // Convert JSON to string and compress with gzip
+    crow::response temp_resp(json_response);
+    std::string json_string = temp_resp.body;
+    auto compressed = JsonBuilder::compressGzip(json_string);
+    
+    if (compressed.empty()) {
+        LOG("Warning: gzip compression failed, sending uncompressed response");
+        long long end_time = RoutingKit::get_micro_time();
+        LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms");
+        crow::response resp(json_response);
+        resp.add_header("Content-Type", "application/json");
+        // Add metadata headers even for uncompressed response
+        resp.add_header("X-Travel-Time-Seconds", std::to_string(travel_time_seconds));
+        resp.add_header("X-Total-Distance-Meters", std::to_string(total_distance_meters));
+        resp.add_header("X-Success", success ? "true" : "false");
+        return resp;
+    }
+    
+    // Create response with compressed data
+    crow::response resp;
+    resp.body = std::string(reinterpret_cast<const char*>(compressed.data()), compressed.size());
+    resp.add_header("Content-Type", "application/json");
+    resp.add_header("Content-Encoding", "gzip");
+    // Add metadata headers for app server to read without decompressing
+    resp.add_header("X-Travel-Time-Seconds", std::to_string(travel_time_seconds));
+    resp.add_header("X-Total-Distance-Meters", std::to_string(total_distance_meters));
+    resp.add_header("X-Success", success ? "true" : "false");
+    
+    long long end_time = RoutingKit::get_micro_time();
+    LOG("Request completed in " << (end_time - start_time) / 1000.0 << " ms (compressed: " << compressed.size() << " bytes, original: " << json_string.size() << " bytes)");
+    return resp;
 }
 
 } // namespace RoutingServer 

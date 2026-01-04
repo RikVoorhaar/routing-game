@@ -11,9 +11,9 @@
 	import { regionOverlayEnabled, NUTS_HOVER_MAX_ZOOM } from '$lib/stores/regionOverlay';
 	import { loadNutsGeoJson, createNutsLayer, setNutsInteractivity } from '$lib/map/nutsOverlay';
 	import { MapManager } from './map/MapManager';
-	import { JobLoader } from './map/JobLoader';
 	import MarkerRenderer from './map/MarkerRenderer.svelte';
 	import RouteRenderer from './map/RouteRenderer.svelte';
+	import { allSearchResultJobs, jobSearchActions } from '$lib/stores/jobSearch';
 	import type {
 		Employee,
 		Address,
@@ -37,7 +37,6 @@
 
 	// Manager instances
 	let mapManager: MapManager | null = null;
-	let jobLoader: JobLoader | null = null;
 	let markerRenderer: any = null; // Reference to MarkerRenderer component
 
 	// Animation state
@@ -178,20 +177,14 @@
 		if (!browser) return;
 
 		try {
-			// Initialize map manager
-			mapManager = new MapManager(mapElement, loadJobsForVisibleTiles);
+			// Initialize map manager (no tile callback needed since tile-based loading is deprecated)
+			mapManager = new MapManager(mapElement);
 			const { map, L: leafletLib } = await mapManager.init();
 			leafletMap = map;
 			L = leafletLib;
 
-			// Initialize job loader
-			jobLoader = new JobLoader();
-
 			// Initial map update
 			updateDisplayedRoutes();
-
-			// Load initial jobs (non-blocking)
-			loadJobsForVisibleTiles();
 
 			// Start animation loop
 			startAnimation();
@@ -595,68 +588,21 @@
 		return DEFAULT_LOCATION;
 	}
 
-	function loadJobsForVisibleTiles() {
-		// Clear any existing timeout to debounce the calls
-		if (jobLoadingTimeout) {
-			clearTimeout(jobLoadingTimeout);
+	// Reactive: Update job markers when search results change
+	$: if (markerRenderer && leafletMap && $allSearchResultJobs) {
+		// Render all search result jobs (visible at all zoom levels)
+		if (markerRenderer.renderSearchResultJobs && $allSearchResultJobs.length > 0) {
+			markerRenderer.renderSearchResultJobs($allSearchResultJobs);
+		} else if (markerRenderer.clearSearchResultJobs) {
+			// Clear markers if no search results
+			markerRenderer.clearSearchResultJobs();
 		}
+	}
 
-		// Debounce job loading by 300ms to avoid excessive calls during panning/zooming
-		jobLoadingTimeout = setTimeout(async () => {
-			if (!mapManager || !jobLoader) {
-				log.warn('[RouteMap] loadJobsForVisibleTiles called but managers not initialized');
-				return;
-			}
-
-			try {
-				const visibleTiles = mapManager.getVisibleTiles();
-				const zoomThreshold = get(mapDisplaySettings).jobZoomThreshold;
-
-				log.debug(
-					'[RouteMap] Loading jobs for tiles:',
-					visibleTiles.length,
-					'tiles, zoom threshold:',
-					zoomThreshold
-				);
-
-				// Load jobs in the background
-				const result = await jobLoader.loadJobsForTiles(visibleTiles, zoomThreshold);
-
-				// Handle tile-based updates
-				if (result) {
-					log.debug(
-						'[RouteMap] Tile changes - New tiles:',
-						result.newTiles.length,
-						'Removed tiles:',
-						result.removedTiles.length
-					);
-
-					// Handle tile-based rendering directly instead of updating the store
-					if (markerRenderer) {
-						// Remove markers for unloaded tiles
-						result.removedTiles.forEach((tileKey) => {
-							if (markerRenderer.clearTileJobs) {
-								markerRenderer.clearTileJobs(tileKey);
-							}
-						});
-
-						// Add markers for new tiles
-						result.newTiles.forEach((tileKey) => {
-							const tileJobs = jobLoader?.getJobsForTile(tileKey) || [];
-							if (markerRenderer.renderTileJobs && tileJobs.length > 0) {
-								markerRenderer.renderTileJobs(tileKey, tileJobs);
-							}
-						});
-					}
-
-					// Note: No longer updating currentMapJobs store since we're doing tile-based rendering
-				} else {
-					log.debug('[RouteMap] No tile changes, skipping job update');
-				}
-			} catch (error) {
-				log.error('[RouteMap] Error loading jobs:', error);
-			}
-		}, 300); // 300ms debounce
+	function loadJobsForVisibleTiles() {
+		// Disabled: We now use employee-driven job search instead of tile-based loading
+		// This function is kept for MapManager compatibility but does nothing
+		return;
 	}
 
 	onMount(() => {
@@ -685,10 +631,6 @@
 
 		if (mapManager) {
 			mapManager.destroy();
-		}
-
-		if (jobLoader) {
-			jobLoader.clearJobs();
 		}
 	});
 </script>

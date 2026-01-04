@@ -15,7 +15,7 @@ export function setActiveProfiler(profiler: Profiler | null): void {
 	activeProfiler = profiler;
 }
 
-export function getActiveProfiler(): Profiler | null {
+function getActiveProfiler(): Profiler | null {
 	return activeProfiler;
 }
 

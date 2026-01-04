@@ -21,3 +21,4 @@ WHERE location IS NOT NULL AND (location->>'lat') IS NOT NULL AND (location->>'l
 
 
 
+

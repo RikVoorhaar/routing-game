@@ -9,8 +9,7 @@ import {
 	jsonb,
 	index,
 	serial,
-	varchar,
-	customType
+	varchar
 } from 'drizzle-orm/pg-core';
 import { sql, type InferSelectModel } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
@@ -178,7 +177,7 @@ export const activeJobs = pgTable(
 		generatedTime: timestamp('generated_time', { withTimezone: true }).default(
 			sql`CURRENT_TIMESTAMP`
 		),
-		durationSeconds: doublePrecision('duration_seconds').notNull(),
+		durationSeconds: doublePrecision('duration_seconds'), // null until route is computed
 		reward: doublePrecision('reward').notNull(),
 		// Single XP value for the job (awarded to both employee XP and global category XP)
 		xp: integer('xp').notNull(),
@@ -198,31 +197,6 @@ export const activeJobs = pgTable(
 		index('active_jobs_generated_time').on(table.generatedTime),
 		index('active_jobs_employee_job_idx').on(table.employeeId, table.jobId)
 	]
-);
-
-// Custom type for bytea (binary data)
-const bytea = customType<{ data: Buffer; driverParam: Buffer }>({
-	dataType: () => 'bytea',
-	toDriver: (value: Buffer) => value,
-	fromDriver: (value: unknown) => {
-		if (Buffer.isBuffer(value)) return value;
-		if (typeof value === 'string') return Buffer.from(value, 'binary');
-		if (value instanceof Uint8Array) return Buffer.from(value);
-		return Buffer.from(String(value), 'binary');
-	}
-});
-
-// Modified route associated to an active job - stores gzipped route JSON as binary
-export const activeRoutes = pgTable(
-	'active_route',
-	{
-		id: text('id').notNull().primaryKey(),
-		activeJobId: text('active_job_id')
-			.notNull()
-			.references(() => activeJobs.id, { onDelete: 'cascade' }),
-		routeDataGzip: bytea('route_data_gzip').notNull() // bytea: Gzipped route JSON data
-	},
-	(table) => [index('active_routes_active_job_idx').on(table.activeJobId)]
 );
 
 // Employees table - tracks user's employees and their states
@@ -251,7 +225,8 @@ export const jobs = pgTable(
 	{
 		id: serial('id').primaryKey(), // Auto-increment key
 		// PostGIS geometry column for efficient spatial queries
-		location: text('location').notNull(), // POINT geometry as text (handled by PostGIS)
+		// Note: Stored as geometry(Point,3857) in DB, but Drizzle schema uses text for compatibility
+		location: text('location').notNull(), // geometry(Point,3857) - handled by PostGIS
 		startAddressId: varchar('start_address_id')
 			.notNull()
 			.references(() => addresses.id, { onDelete: 'cascade' }),
@@ -270,9 +245,8 @@ export const jobs = pgTable(
 		index('jobs_tier_idx').on(table.jobTier),
 		index('jobs_category_idx').on(table.jobCategory),
 		index('jobs_generated_time_idx').on(table.generatedTime),
-		index('jobs_start_address_idx').on(table.startAddressId), // Index for finding addresses without jobs
-		// Create a spatial index on the geometry column for efficient spatial queries
-		index('jobs_location_idx').on(sql`${table.location}`)
+		index('jobs_start_address_idx').on(table.startAddressId) // Index for finding addresses without jobs
+		// Note: Spatial GiST index on location is created by createSpatialIndexes() helper function
 	]
 );
 
@@ -333,13 +307,15 @@ export async function setupPostGIS(db: PostgresJsDatabase<Record<string, never>>
 export async function createSpatialIndexes(db: PostgresJsDatabase<Record<string, never>>) {
 	console.log('Creating spatial indexes...');
 
-	// Create spatial index on jobs location column (PostGIS POINT geometry)
+	// Create spatial index on jobs location column (geometry(Point,3857))
+	// The location column is now a native geometry type, so we can index it directly
 	await db.execute(sql`
     CREATE INDEX IF NOT EXISTS idx_jobs_location_gist 
-    ON job USING GIST (ST_GeomFromEWKT(location))
+    ON job USING GIST (location)
   `);
 
 	// Create spatial index on addresses location column (PostGIS POINT geometry)
+	// Addresses still use text/EWKT format, so we keep the expression index
 	await db.execute(sql`
     CREATE INDEX IF NOT EXISTS idx_addresses_location_gist 
     ON address USING GIST (ST_GeomFromEWKT(location))
@@ -382,5 +358,4 @@ export type Job = InferSelectModel<typeof jobs>;
 export type GameState = InferSelectModel<typeof gameStates>;
 export type Address = InferSelectModel<typeof addresses>;
 export type ActiveJob = InferSelectModel<typeof activeJobs>;
-export type ActiveRoute = InferSelectModel<typeof activeRoutes>;
 export type Region = InferSelectModel<typeof regions>;

@@ -143,6 +143,17 @@ function validateConfig(config: GameConfig): void {
 			}
 		}
 
+		if (!config.jobs.search) {
+			errors.push('jobs.search section is required');
+		} else {
+			if (
+				typeof config.jobs.search.radiusMeters !== 'number' ||
+				config.jobs.search.radiusMeters <= 0
+			) {
+				errors.push('jobs.search.radiusMeters must be a positive number');
+			}
+		}
+
 		if (!config.jobs.categories) {
 			errors.push('jobs.categories section is required');
 		}

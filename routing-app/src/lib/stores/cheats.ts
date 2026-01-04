@@ -1,7 +1,7 @@
 import { writable, derived } from 'svelte/store';
 import { currentUser } from './gameData';
 
-export interface CheatSettings {
+interface CheatSettings {
 	showTileDebug: boolean;
 }
 

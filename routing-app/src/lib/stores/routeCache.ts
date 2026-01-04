@@ -5,8 +5,8 @@ import { log } from '$lib/logger';
 // Cache for active route data keyed by activeJobId
 const routeCache = new Map<string, RoutingResult>();
 
-// Store to track loading states
-export const routeLoadingStates = writable<Record<string, boolean>>({});
+// Store to track loading states (internal use only)
+const routeLoadingStates = writable<Record<string, boolean>>({});
 
 /**
  * Fetch route data for an active job from the API
@@ -34,7 +34,12 @@ async function fetchRoute(activeJobId: string): Promise<RoutingResult | null> {
 
 		return routeData;
 	} catch (error) {
-		log.error(`[RouteCache] Error fetching route for activeJobId ${activeJobId}:`, error);
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		const errorStack = error instanceof Error ? error.stack : undefined;
+		log.error(
+			`[RouteCache] Error fetching route for activeJobId ${activeJobId}: ${errorMessage}`,
+			errorStack ? { stack: errorStack } : error
+		);
 		return null;
 	} finally {
 		// Update loading state
@@ -70,18 +75,4 @@ export async function prefetchRoutes(activeJobIds: string[]): Promise<void> {
 
 	// Fetch all uncached routes in parallel
 	await Promise.all(uncachedIds.map((id) => fetchRoute(id)));
-}
-
-/**
- * Clear the route cache
- */
-export function clearRouteCache(): void {
-	routeCache.clear();
-}
-
-/**
- * Remove a specific route from cache
- */
-export function removeRouteFromCache(activeJobId: string): void {
-	routeCache.delete(activeJobId);
 }

@@ -64,6 +64,27 @@
 			"when": 1767463378463,
 			"tag": "0008_messy_victor_mancha",
 			"breakpoints": true
+		},
+		{
+			"idx": 9,
+			"version": "7",
+			"when": 1767511815268,
+			"tag": "0009_square_lady_bullseye",
+			"breakpoints": true
+		},
+		{
+			"idx": 10,
+			"version": "7",
+			"when": 1767530361494,
+			"tag": "0010_fuzzy_monster_badoon",
+			"breakpoints": true
+		},
+		{
+			"idx": 11,
+			"version": "7",
+			"when": 1767560049360,
+			"tag": "0011_migrate_job_location_to_geometry_3857",
+			"breakpoints": true
 		}
 	]
 }

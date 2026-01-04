@@ -97,6 +97,9 @@ export interface GameConfig {
 			minTileLevel: number;
 			temperature: number;
 		};
+		search: {
+			radiusMeters: number;
+		};
 		categories: {
 			multipliers: Record<string, number>;
 			minTiers: Record<string, number>;

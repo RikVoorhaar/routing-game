@@ -26,14 +26,14 @@
 	export let animationTimestamp: number = 0;
 
 	let employeeMarkers: Record<string, any> = {};
-	let jobMarkersByTile: Map<string, any[]> = new Map(); // Track markers per tile
+	let searchResultJobMarkers: any[] = []; // Track search result job markers
 
-	// Expose tile-based job rendering methods
-	export function renderTileJobs(tileKey: string, jobs: Job[]) {
-		console.log('[MarkerRenderer] Rendering', jobs.length, 'jobs for tile', tileKey);
+	// Expose search result job rendering method
+	export function renderSearchResultJobs(jobs: Job[]) {
+		console.log('[MarkerRenderer] Rendering', jobs.length, 'search result jobs');
 
-		// Clear existing markers for this tile first
-		clearTileJobs(tileKey);
+		// Clear existing search result markers
+		clearSearchResultJobs();
 
 		const markers: any[] = [];
 
@@ -44,34 +44,23 @@
 			}
 		});
 
-		// Store markers for this tile
-		jobMarkersByTile.set(tileKey, markers);
-		console.log('[MarkerRenderer] Created', markers.length, 'markers for tile', tileKey);
+		// Store markers
+		searchResultJobMarkers = markers;
+		console.log('[MarkerRenderer] Created', markers.length, 'search result job markers');
 	}
 
-	export function clearTileJobs(tileKey: string) {
-		const existingMarkers = jobMarkersByTile.get(tileKey);
-		if (existingMarkers) {
-			console.log('[MarkerRenderer] Clearing', existingMarkers.length, 'markers for tile', tileKey);
-			existingMarkers.forEach((marker) => {
-				if (marker && map.hasLayer(marker)) {
-					map.removeLayer(marker);
-				}
-			});
-			jobMarkersByTile.delete(tileKey);
-		}
-	}
-
-	export function clearAllTileJobs() {
-		console.log('[MarkerRenderer] Clearing all job markers');
-		for (const [tileKey, markers] of jobMarkersByTile.entries()) {
-			markers.forEach((marker) => {
-				if (marker && map.hasLayer(marker)) {
-					map.removeLayer(marker);
-				}
-			});
-		}
-		jobMarkersByTile.clear();
+	export function clearSearchResultJobs() {
+		console.log(
+			'[MarkerRenderer] Clearing',
+			searchResultJobMarkers.length,
+			'search result job markers'
+		);
+		searchResultJobMarkers.forEach((marker) => {
+			if (marker && map.hasLayer(marker)) {
+				map.removeLayer(marker);
+			}
+		});
+		searchResultJobMarkers = [];
 	}
 
 	// Reactive updates for employees, activeJobsByEmployee, and routesByEmployee
@@ -435,7 +424,12 @@
 			}
 		});
 
-		clearAllTileJobs();
+		// Clear search result job markers
+		searchResultJobMarkers.forEach((marker) => {
+			if (marker && map.hasLayer(marker)) {
+				map.removeLayer(marker);
+			}
+		});
 	});
 </script>
 

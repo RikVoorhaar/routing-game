@@ -1,16 +1,10 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import {
-	gameStates,
-	employees,
-	activeJobs,
-	jobs,
-	activeRoutes,
-	addresses
-} from '$lib/server/db/schema';
+import { gameStates, employees, activeJobs, jobs, addresses } from '$lib/server/db/schema';
 import { eq, and, ne } from 'drizzle-orm';
 import { computeActiveJob } from '$lib/jobs/activeJobComputation';
+import { extendRouteTTL } from '$lib/server/routeCache/activeRouteCache';
 
 // GET /api/active-jobs?jobId=123&gameStateId=abc - Get active jobs for a specific job and gameState
 export const GET: RequestHandler = async ({ url, locals }) => {
@@ -207,6 +201,17 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 			// Update the active job with start time (keep the same ID)
 			await tx.update(activeJobs).set({ startTime }).where(eq(activeJobs.id, activeJob.id));
 		});
+
+		// Extend Redis TTL for the route if durationSeconds is available
+		if (activeJob.durationSeconds !== null) {
+			// TTL = job duration + 10 minutes buffer
+			const newTtlSeconds = Math.round(activeJob.durationSeconds) + 600;
+			const extended = await extendRouteTTL(activeJobId, newTtlSeconds);
+			if (!extended) {
+				// Route doesn't exist in Redis - this is fine, it will be computed on-demand when needed
+				// Log at debug level since this is expected behavior if route wasn't cached yet
+			}
+		}
 
 		// Get the updated active job and complete data (route fetched on-demand)
 		const [updatedActiveJob, jobPickupAddress, jobDeliverAddress] = await Promise.all([

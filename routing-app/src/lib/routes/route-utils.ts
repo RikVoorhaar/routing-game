@@ -1,5 +1,9 @@
 import type { RoutingResult } from '$lib/server/db/schema';
 
+/**
+ * @deprecated Use `/api/v1/complete_job_route` endpoint instead. This function will be removed in a future version.
+ * The routing server now handles route concatenation server-side, avoiding the need for client-side manipulation.
+ */
 export function concatenateRoutes(route1: RoutingResult, route2: RoutingResult): RoutingResult {
 	// Get the final cumulative time and distance from route1
 	const route1FinalTime =
@@ -25,6 +29,10 @@ export function concatenateRoutes(route1: RoutingResult, route2: RoutingResult):
 	};
 }
 
+/**
+ * @deprecated Use `/api/v1/complete_job_route` endpoint instead. This function will be removed in a future version.
+ * The routing server now handles speed limiting and multiplier application server-side, avoiding the need for client-side manipulation.
+ */
 export function applyMaxSpeed(
 	route: RoutingResult,
 	maxSpeedKmh: number,

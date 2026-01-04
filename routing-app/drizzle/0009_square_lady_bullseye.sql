@@ -1,0 +1,1 @@
+ALTER TABLE "active_job" ALTER COLUMN "duration_seconds" DROP NOT NULL;
