@@ -197,14 +197,20 @@ export async function getCompleteJobRoute(
 		// Try to read error message from JSON body (may be compressed)
 		try {
 			const errorData = await profiledAsync('routing.http.json', async () => await response.json());
-			const errorMessage = errorData.error || errorData.message || 'Failed to get complete job route';
+			const errorMessage =
+				errorData.error || errorData.message || 'Failed to get complete job route';
 			throw new Error(`${errorMessage} (URL: ${url}, status: ${response.status})`);
 		} catch (jsonError) {
 			// If JSON parsing fails, fall back to status text
-			if (jsonError instanceof Error && jsonError.message.includes('Failed to get complete job route')) {
+			if (
+				jsonError instanceof Error &&
+				jsonError.message.includes('Failed to get complete job route')
+			) {
 				throw jsonError; // Re-throw our error
 			}
-			throw new Error(`Failed to get complete job route: ${response.statusText} (URL: ${url}, status: ${response.status})`);
+			throw new Error(
+				`Failed to get complete job route: ${response.statusText} (URL: ${url}, status: ${response.status})`
+			);
 		}
 	}
 
@@ -229,7 +235,10 @@ export async function getCompleteJobRoute(
 	}
 
 	// Get compressed body as Buffer (no decompression)
-	const arrayBuffer = await profiledAsync('routing.http.arrayBuffer', async () => await response.arrayBuffer());
+	const arrayBuffer = await profiledAsync(
+		'routing.http.arrayBuffer',
+		async () => await response.arrayBuffer()
+	);
 	const compressedRouteData = Buffer.from(arrayBuffer);
 
 	return {

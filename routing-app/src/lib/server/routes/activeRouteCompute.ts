@@ -2,13 +2,7 @@ import { db } from '$lib/server/db';
 import { addresses, activeJobs } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCompleteJobRoute } from '$lib/routes/routing';
-import type {
-	Employee,
-	Job,
-	GameState,
-	Address,
-	Coordinate
-} from '$lib/server/db/schema';
+import type { Employee, Job, GameState, Address, Coordinate } from '$lib/server/db/schema';
 import { getEmployeeMaxSpeed } from '$lib/employeeUtils';
 import { config } from '$lib/server/config';
 import { serverLog } from '$lib/server/logging/serverLogger';
