@@ -69,22 +69,24 @@
 			// Fetch route data on-demand (only when job is clicked/selected)
 			isLoadingRoute = true;
 			const routeData = await getRoute(currentActiveJob.id);
-			
+
 			if (routeData) {
 				// Fetch updated active job to get the computed durationSeconds
 				try {
-					const updatedActiveJobResponse = await fetch(`/api/active-jobs?jobId=${$selectedJob.id}&gameStateId=${$currentGameState.id}`);
+					const updatedActiveJobResponse = await fetch(
+						`/api/active-jobs?jobId=${$selectedJob.id}&gameStateId=${$currentGameState.id}`
+					);
 					if (updatedActiveJobResponse.ok) {
 						const activeJobsList = await updatedActiveJobResponse.json();
-						const updatedActiveJob = activeJobsList.find((aj: any) => aj.id === currentActiveJob.id);
-						
+						const updatedActiveJob = activeJobsList.find(
+							(aj: any) => aj.id === currentActiveJob.id
+						);
+
 						if (updatedActiveJob) {
 							// Update search results with the updated active job
 							if ($searchResults) {
 								const updatedResults = $searchResults.map((r) =>
-									r.activeJob.id === updatedActiveJob.id
-										? { ...r, activeJob: updatedActiveJob }
-										: r
+									r.activeJob.id === updatedActiveJob.id ? { ...r, activeJob: updatedActiveJob } : r
 								);
 								jobSearchActions.setSearchResults($selectedEmployee, updatedResults);
 							}
@@ -104,7 +106,7 @@
 				} catch (fetchError) {
 					console.warn('Failed to fetch updated active job, using cached data:', fetchError);
 				}
-				
+
 				// Fallback to original if update fetch fails
 				setSelectedActiveJobData({
 					activeJob: currentActiveJob,

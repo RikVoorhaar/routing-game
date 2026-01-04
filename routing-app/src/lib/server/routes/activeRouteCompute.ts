@@ -2,7 +2,14 @@ import { db } from '$lib/server/db';
 import { addresses, activeJobs } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { getShortestPath } from '$lib/routes/routing';
-import type { Employee, Job, GameState, RoutingResult, Address, Coordinate } from '$lib/server/db/schema';
+import type {
+	Employee,
+	Job,
+	GameState,
+	RoutingResult,
+	Address,
+	Coordinate
+} from '$lib/server/db/schema';
 import { getEmployeeMaxSpeed } from '$lib/employeeUtils';
 import { concatenateRoutes, applyMaxSpeed } from '$lib/routes/route-utils';
 import { config } from '$lib/server/config';
@@ -115,7 +122,11 @@ function modifyRoute(
  */
 export async function computeActiveRouteForActiveJob(
 	activeJobId: string,
-	activeJob: { employeeStartLocation: Coordinate; jobPickupAddress: string; jobDeliverAddress: string },
+	activeJob: {
+		employeeStartLocation: Coordinate;
+		jobPickupAddress: string;
+		jobDeliverAddress: string;
+	},
 	job: Job,
 	employee: Employee,
 	gameState: GameState,
@@ -165,7 +176,12 @@ export async function computeActiveRouteForActiveJob(
 			return result;
 		})(),
 		// Compute route from employeeStartLocation to job start (using stored location, not current)
-		computeRouteToJob(activeJob.employeeStartLocation, job.startAddressId, employeeMaxSpeed, addressMap)
+		computeRouteToJob(
+			activeJob.employeeStartLocation,
+			job.startAddressId,
+			employeeMaxSpeed,
+			addressMap
+		)
 	]);
 	routingTimer();
 

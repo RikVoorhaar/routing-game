@@ -79,7 +79,10 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			}
 
 			if (!employee) {
-				serverLog.api.error({ activeJobId, employeeId: activeJob.employeeId }, 'Employee not found');
+				serverLog.api.error(
+					{ activeJobId, employeeId: activeJob.employeeId },
+					'Employee not found'
+				);
 				return error(404, 'Employee not found');
 			}
 
@@ -118,14 +121,14 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			// Update the active job with the real duration in Postgres
 			await db.update(activeJobs).set({ durationSeconds }).where(eq(activeJobs.id, activeJobId));
 
-			serverLog.api.info(
-				{ activeJobId, durationSeconds },
-				'Route computed and stored in Redis'
-			);
+			serverLog.api.info({ activeJobId, durationSeconds }, 'Route computed and stored in Redis');
 
 			routeDataGzip = computedRouteData;
 		} else {
-			serverLog.api.info({ activeJobId, dataLength: routeDataGzip.length }, 'Route retrieved from Redis cache');
+			serverLog.api.info(
+				{ activeJobId, dataLength: routeDataGzip.length },
+				'Route retrieved from Redis cache'
+			);
 		}
 
 		if (!routeDataGzip || routeDataGzip.length === 0) {

@@ -1,12 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import {
-	employees,
-	activeJobs,
-	gameStates,
-	jobs
-} from '$lib/server/db/schema';
+import { employees, activeJobs, gameStates, jobs } from '$lib/server/db/schema';
 import { eq, and, isNull, isNotNull, inArray } from 'drizzle-orm';
 import { getClosestJobsForEmployeeByTier } from '$lib/jobs/queryJobs';
 import { getVehicleTierByLevel } from '$lib/vehicleUtils';

@@ -1,13 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import {
-	gameStates,
-	employees,
-	activeJobs,
-	jobs,
-	addresses
-} from '$lib/server/db/schema';
+import { gameStates, employees, activeJobs, jobs, addresses } from '$lib/server/db/schema';
 import { eq, and, ne } from 'drizzle-orm';
 import { computeActiveJob } from '$lib/jobs/activeJobComputation';
 import { extendRouteTTL } from '$lib/server/routeCache/activeRouteCache';

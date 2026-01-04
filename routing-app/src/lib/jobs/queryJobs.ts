@@ -60,7 +60,7 @@ export async function getClosestJobsForEmployeeByTier(
 	// Use ST_DistanceSphere for accurate distance calculation
 	// The spatial index (GIST) on jobs.location should help with performance
 	const employeePoint = sql`ST_MakePoint(${employeeLocation.lon}, ${employeeLocation.lat})::geometry`;
-	
+
 	const result = await db
 		.select()
 		.from(jobs)
