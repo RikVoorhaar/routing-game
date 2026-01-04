@@ -43,7 +43,7 @@ interface ServerPathPoint {
 	is_walking_segment: boolean;
 }
 
-export interface ShortestPathOptions {
+interface ShortestPathOptions {
 	maxSpeed?: number;
 	includePath?: boolean; // If false, returns metadata only (no path array)
 }
@@ -58,7 +58,7 @@ export interface CompleteJobRouteResult {
 	durationSeconds: number;
 }
 
-export async function getShortestPath(
+async function getShortestPath(
 	from: Coordinate,
 	to: Coordinate,
 	options?: ShortestPathOptions | number // Support legacy maxSpeed parameter

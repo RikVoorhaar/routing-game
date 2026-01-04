@@ -13,7 +13,7 @@ import { profiledAsync, profiledSync, profiledCount } from '$lib/profiling';
 type JobInsert = InferInsertModel<typeof jobs>;
 
 // Maximum job tier (constant)
-export const MAX_TIER = 8;
+const MAX_TIER = 8;
 
 // Route distance ranges by tier (in kilometers)
 // Ranges have significant overlap and follow powers of 2.5

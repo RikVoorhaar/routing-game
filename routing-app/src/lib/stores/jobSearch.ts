@@ -62,7 +62,7 @@ export const getSearchResultsForEmployee = (employeeId: string) => {
 /**
  * Get all search results (for map rendering)
  */
-export const allSearchResults = derived(searchResultsByEmployeeId, ($results) => {
+const allSearchResults = derived(searchResultsByEmployeeId, ($results) => {
 	// Flatten all results into a single array
 	const allResults: JobSearchResult[] = [];
 	for (const results of Object.values($results)) {

@@ -1,13 +1,6 @@
 import * as turf from '@turf/turf';
 import type { Coordinate } from '$lib/server/db/schema';
 
-export interface TileBounds {
-	north: number;
-	south: number;
-	east: number;
-	west: number;
-}
-
 /**
  * Calculate the geodesic distance between two points in kilometers
  */
@@ -52,31 +45,5 @@ export function randomCoordinateInAnnulus(
 	return {
 		lat: destination.geometry.coordinates[1],
 		lon: destination.geometry.coordinates[0]
-	};
-}
-
-/**
- * Get the geographic bounds (min/max lon/lat) of a given tile
- * @param x Tile X coordinate
- * @param y Tile Y coordinate
- * @param z Zoom level
- * @returns Geographic bounds of the tile
- */
-export function getTileBounds(x: number, y: number, z: number): TileBounds {
-	const n = Math.pow(2, z);
-
-	// Calculate longitude bounds
-	const west = (x / n) * 360 - 180;
-	const east = ((x + 1) / n) * 360 - 180;
-
-	// Calculate latitude bounds using Web Mercator projection
-	const north = (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / n))) * 180) / Math.PI;
-	const south = (Math.atan(Math.sinh(Math.PI * (1 - (2 * (y + 1)) / n))) * 180) / Math.PI;
-
-	return {
-		north,
-		south,
-		east,
-		west
 	};
 }
