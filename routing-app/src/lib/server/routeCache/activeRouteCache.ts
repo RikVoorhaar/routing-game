@@ -27,8 +27,13 @@ export async function getRoute(activeJobId: string): Promise<Buffer | null> {
 		if (!data) {
 			return null;
 		}
-		// Redis returns string, convert to Buffer
-		return Buffer.from(data, 'binary');
+		// redis package returns string by default, convert to Buffer
+		// If it's already a Buffer, use it directly
+		if (Buffer.isBuffer(data)) {
+			return data;
+		}
+		// Convert string to Buffer (redis stores binary as string)
+		return Buffer.from(data as string, 'binary');
 	} catch (err) {
 		serverLog.api.error(
 			{
@@ -66,9 +71,8 @@ export async function setRoute(
 ): Promise<void> {
 	try {
 		const key = getKey(activeJobId);
-		// Convert Buffer to string for Redis (binary encoding)
-		const dataString = gzippedData.toString('binary');
-		await redisClient.setEx(key, ttlSeconds, dataString);
+		// Convert Buffer to binary string for Redis (preserves binary data)
+		await redisClient.setEx(key, ttlSeconds, gzippedData.toString('binary'));
 	} catch (err) {
 		serverLog.api.error(
 			{

@@ -8,16 +8,16 @@ services:
       - "8050:8080"
     volumes:
       - ../osm_files:/data/osm
-    environment:
-      - OSM_FILE=/data/osm/utrecht-latest.ways.osm.pbf
-      - ADDRESS_FILE=/data/osm/utrecht-latest.addresses.csv.gz
+    # environment:
+    #   - OSM_FILE=/data/osm/utrecht-latest.ways.osm.pbf
+    #   - ADDRESS_FILE=/data/osm/utrecht-latest.addresses.csv.gz
     # environment:
     #   - OSM_FILE=/data/osm/netherlands-latest.simplified.ways.osm.pbf
     #   - ADDRESS_FILE=/data/osm/netherlands-latest.addresses.csv.gz
-    # environment:
-    #   - OSM_FILE=/data/osm/europe-latest.ways.osm.pbf
-    #   - ADDRESS_FILE=/data/osm/europe-latest.addresses.csv
-    #   - ROUTING_TIMING=1
+    environment:
+      - OSM_FILE=/data/osm/europe-latest.ways.osm.pbf
+      - ADDRESS_FILE=/data/osm/europe-latest.addresses.csv
+      - ROUTING_TIMING=1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s

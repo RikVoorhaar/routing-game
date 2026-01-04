@@ -34,7 +34,12 @@ async function fetchRoute(activeJobId: string): Promise<RoutingResult | null> {
 
 		return routeData;
 	} catch (error) {
-		log.error(`[RouteCache] Error fetching route for activeJobId ${activeJobId}:`, error);
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		const errorStack = error instanceof Error ? error.stack : undefined;
+		log.error(
+			`[RouteCache] Error fetching route for activeJobId ${activeJobId}: ${errorMessage}`,
+			errorStack ? { stack: errorStack } : error
+		);
 		return null;
 	} finally {
 		// Update loading state

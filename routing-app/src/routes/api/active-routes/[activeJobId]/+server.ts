@@ -139,18 +139,10 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			return error(500, 'Route data is empty');
 		}
 
-		// Convert Buffer to Uint8Array for Response constructor
-		const uint8Array = new Uint8Array(
-			routeDataGzip.buffer,
-			routeDataGzip.byteOffset,
-			routeDataGzip.byteLength
-		);
+		serverLog.api.info({ activeJobId, dataLength: routeDataGzip.length }, 'Returning route data');
 
-		serverLog.api.info({ activeJobId, dataLength: uint8Array.length }, 'Returning route data');
-
-		// Return the gzipped route data with appropriate headers
-		// The browser will automatically decompress it when Content-Encoding: gzip is set
-		return new Response(uint8Array, {
+		// Return gzip data with Content-Encoding header
+		return new Response(routeDataGzip, {
 			headers: {
 				'Content-Type': 'application/json',
 				'Content-Encoding': 'gzip'
