@@ -59,7 +59,7 @@ Left to do:
 - Job search still takes very long, need to look at the outputs.
 
 
-**Route computation optimization (TODO)**
+**Route computation optimization DONE**
 - Currently, route modifications (concatenation of employee-to-pickup + pickup-to-delivery routes, and application of speed multipliers) happen on the app server after fetching routes from the routing server
 - This should be moved to the routing server itself:
   - The routing server should accept a request to compute a complete route from employee start → job pickup → job delivery
@@ -68,7 +68,7 @@ Left to do:
   - The routing server already has all the necessary data and can do this more efficiently
   - Implementation: Add a new endpoint like `/api/v1/complete_job_route` that takes start location, pickup location, delivery location, maxSpeed, and speedMultiplier, and returns the final modified route
 
-**Job search query optimization (TODO - Option 1: Euclidean distance)**
+**Job search query optimization (not prioritized for now)**
 - Current performance: tier queries take ~156ms (4 parallel PostGIS queries using ST_DistanceSphere)
 - Problem: PostGIS distance calculations are expensive, even with spatial indexes
 - Proposed solution: Use Euclidean distance on lat/lon columns instead of PostGIS great circle distance
