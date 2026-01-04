@@ -196,7 +196,7 @@ export async function getCompleteJobRoute(
 	// fetch API automatically decompresses when Content-Encoding: gzip is present
 	const { URL } = await import('url');
 	const parsedUrl = new URL(url);
-	
+
 	const { compressedRouteData, durationSeconds } = await profiledAsync(
 		'routing.http.raw',
 		async () => {
@@ -255,7 +255,9 @@ export async function getCompleteJobRoute(
 							const durationSeconds = parseFloat(travelTimeSecondsHeader);
 							if (isNaN(durationSeconds)) {
 								reject(
-									new Error(`Invalid X-Travel-Time-Seconds header value: ${travelTimeSecondsHeader}`)
+									new Error(
+										`Invalid X-Travel-Time-Seconds header value: ${travelTimeSecondsHeader}`
+									)
 								);
 								return;
 							}
