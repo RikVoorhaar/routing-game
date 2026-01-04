@@ -4,6 +4,7 @@ import { getRandomRouteInAnnulus, type RouteInAnnulus } from '$lib/routes/routin
 import { type Coordinate } from '$lib/server/db/schema';
 import type { InferInsertModel } from 'drizzle-orm';
 import { db } from '$lib/server/db/standalone';
+import { sql } from 'drizzle-orm';
 import { distance } from '@turf/turf';
 import { JobCategory } from '$lib/jobs/jobCategories';
 import { config } from '$lib/server/config';
@@ -234,21 +235,29 @@ export async function generateJobFromAddress(
 		}
 
 		// Create job record (no route record needed)
-		const jobRecord: JobInsert = {
-			location: `SRID=4326;POINT(${startAddress.lon} ${startAddress.lat})`, // PostGIS POINT geometry with SRID
-			startAddressId: startAddress.id,
-			endAddressId: endAddress.id,
-			jobTier,
-			jobCategory,
-			totalDistanceKm
-		};
-
-		// Insert job
+		// Store location as geometry(Point,3857) - transform from lat/lon (4326) to WebMercator (3857)
+		// We use raw SQL insert since Drizzle doesn't natively support geometry types in insert values
 		if (options?.dryRun) {
 			profiledCount('job.db.insert.skipped', 1);
 		} else {
 			await profiledAsync('job.db.insert', async () => {
-				await db.insert(jobs).values(jobRecord);
+				await db.execute(sql`
+					INSERT INTO job (
+						start_address_id,
+						end_address_id,
+						job_tier,
+						job_category,
+						total_distance_km,
+						location
+					) VALUES (
+						${startAddress.id},
+						${endAddress.id},
+						${jobTier},
+						${jobCategory},
+						${totalDistanceKm},
+						ST_Transform(ST_SetSRID(ST_MakePoint(${startAddress.lon}, ${startAddress.lat}), 4326), 3857)
+					)
+				`);
 			});
 		}
 

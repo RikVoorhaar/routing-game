@@ -32,6 +32,9 @@ jobs:
     minTileLevel: 12
     temperature: 2.0 # Temperature parameter for tier distribution (weights: 2^{-tier/temperature})
 
+  search:
+    radiusMeters: 5000 # Maximum search radius for job queries (in meters, WebMercator)
+
   categories:
     multipliers:
       GROCERIES: 1.0

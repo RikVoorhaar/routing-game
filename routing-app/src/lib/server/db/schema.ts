@@ -225,7 +225,8 @@ export const jobs = pgTable(
 	{
 		id: serial('id').primaryKey(), // Auto-increment key
 		// PostGIS geometry column for efficient spatial queries
-		location: text('location').notNull(), // POINT geometry as text (handled by PostGIS)
+		// Note: Stored as geometry(Point,3857) in DB, but Drizzle schema uses text for compatibility
+		location: text('location').notNull(), // geometry(Point,3857) - handled by PostGIS
 		startAddressId: varchar('start_address_id')
 			.notNull()
 			.references(() => addresses.id, { onDelete: 'cascade' }),
@@ -244,9 +245,8 @@ export const jobs = pgTable(
 		index('jobs_tier_idx').on(table.jobTier),
 		index('jobs_category_idx').on(table.jobCategory),
 		index('jobs_generated_time_idx').on(table.generatedTime),
-		index('jobs_start_address_idx').on(table.startAddressId), // Index for finding addresses without jobs
-		// Create a spatial index on the geometry column for efficient spatial queries
-		index('jobs_location_idx').on(sql`${table.location}`)
+		index('jobs_start_address_idx').on(table.startAddressId) // Index for finding addresses without jobs
+		// Note: Spatial GiST index on location is created by createSpatialIndexes() helper function
 	]
 );
 
@@ -307,13 +307,15 @@ export async function setupPostGIS(db: PostgresJsDatabase<Record<string, never>>
 export async function createSpatialIndexes(db: PostgresJsDatabase<Record<string, never>>) {
 	console.log('Creating spatial indexes...');
 
-	// Create spatial index on jobs location column (PostGIS POINT geometry)
+	// Create spatial index on jobs location column (geometry(Point,3857))
+	// The location column is now a native geometry type, so we can index it directly
 	await db.execute(sql`
     CREATE INDEX IF NOT EXISTS idx_jobs_location_gist 
-    ON job USING GIST (ST_GeomFromEWKT(location))
+    ON job USING GIST (location)
   `);
 
 	// Create spatial index on addresses location column (PostGIS POINT geometry)
+	// Addresses still use text/EWKT format, so we keep the expression index
 	await db.execute(sql`
     CREATE INDEX IF NOT EXISTS idx_addresses_location_gist 
     ON address USING GIST (ST_GeomFromEWKT(location))

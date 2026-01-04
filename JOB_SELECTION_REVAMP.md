@@ -85,3 +85,21 @@ Left to do:
   4. Order by Euclidean distance squared (avoid sqrt for performance): `ORDER BY (lat - empLat)² + (lon - empLon)²`
   5. Test and benchmark against current PostGIS approach
   6. Consider hybrid: Euclidean for filtering, PostGIS for final ordering (if accuracy needed)
+
+**Coordinate system standardization (future optimization)**
+- Current state: `job.location` is now `geometry(Point,3857)` (Web Mercator meters), but `address.lat`/`address.lon` and `employee.location` are still stored as degrees (EPSG:4326)
+- This requires `ST_Transform` when creating jobs and querying: `ST_Transform(ST_SetSRID(ST_MakePoint(lon, lat), 4326), 3857)`
+- Advantages of migrating addresses and employee locations to 3857:
+  - **Eliminate transform overhead**: No `ST_Transform` needed when creating jobs from addresses
+  - **Consistent coordinate system**: Everything in 3857 simplifies queries and reduces errors
+  - **Better spatial indexing**: Can use GiST indexes directly on address geometry columns (like jobs)
+  - **Faster distance calculations**: Web Mercator uses meters, making distance filters (`ST_DWithin`) more intuitive
+  - **Simpler code**: No need to remember which coordinate system each field uses
+- Implementation would require:
+  1. Migrate `address.location` from text/EWKT to `geometry(Point,3857)`
+  2. Update `address.lat`/`address.lon` columns to store 3857 meters (or remove if redundant with geometry)
+  3. Migrate `employee.location` JSONB field from lat/lon degrees (4326) to x/y meters (3857)
+  4. Update address extraction scripts (`extract_addresses.py`, etc.) to transform coordinates during insertion
+  5. Update all code that reads/writes address coordinates to use 3857
+  6. Update all code that reads/writes employee locations to use 3857
+  7. Remove `ST_Transform` calls in job generation and query functions
