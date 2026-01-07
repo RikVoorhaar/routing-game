@@ -125,9 +125,7 @@
 					</svg>
 				</div>
 				<h3 class="mb-3 text-2xl font-bold">No Employees Yet</h3>
-				<p class="mb-6 text-base-content/70">
-					Hire your first employee to start running routes!
-				</p>
+				<p class="mb-6 text-base-content/70">Hire your first employee to start running routes!</p>
 				<button class="btn btn-primary btn-lg" on:click={handleHireEmployee} disabled={isHiring}>
 					{#if isHiring}
 						<span class="loading loading-spinner loading-sm"></span>

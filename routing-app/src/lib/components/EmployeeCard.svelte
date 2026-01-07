@@ -624,7 +624,7 @@
 				{#if !activeJob?.startTime}
 					{#if hasSearchResults}
 						<button
-							class="btn btn-xs w-24 btn-disabled cursor-default !text-white"
+							class="btn btn-disabled btn-xs w-24 cursor-default !text-white"
 							disabled
 							on:click|stopPropagation={() => {}}
 						>

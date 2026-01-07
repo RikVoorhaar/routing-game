@@ -1,7 +1,14 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import { get } from 'svelte/store';
 	import { interpolateLocationAtTime } from '$lib/routes/routing-client';
-	import { formatTimeCompact, toRomanNumeral, formatCurrency, formatDistance, formatDuration } from '$lib/formatting';
+	import {
+		formatTimeCompact,
+		toRomanNumeral,
+		formatCurrency,
+		formatDistance,
+		formatDuration
+	} from '$lib/formatting';
 	import { getCategoryIcon, getCategoryName } from '$lib/jobs/jobCategories';
 	import { getTierColor } from '$lib/stores/mapDisplay';
 	import { selectEmployee } from '$lib/stores/selectedEmployee';
@@ -114,8 +121,8 @@
 						const markerIcon = L.divIcon({
 							html: createEmployeeMarkerHTML(employee.name, true, progress, eta, isSelected),
 							className: 'custom-employee-marker',
-							iconSize: [48, 48],
-							iconAnchor: [24, 24]
+							iconSize: [36, 36],
+							iconAnchor: [18, 18]
 						});
 						marker.setIcon(markerIcon);
 						marker.options.title = `${employee.name} (${Math.round(progress)}% complete, ETA: ${eta})`;
@@ -126,8 +133,8 @@
 				// Check if marker currently shows active state (has animated styling)
 				const currentIcon = marker.options.icon;
 				if (currentIcon && currentIcon.options && currentIcon.options.iconSize) {
-					// If icon size is 48 (animated), recreate with idle state
-					if (currentIcon.options.iconSize[1] === 48) {
+					// If icon size is 36 (animated), recreate with idle state
+					if (currentIcon.options.iconSize[1] === 36) {
 						const position = getEmployeePosition(employee);
 						marker.setLatLng([position.lat, position.lon]);
 
@@ -135,8 +142,8 @@
 						const markerIcon = L.divIcon({
 							html: createEmployeeMarkerHTML(employee.name, false, 0, null, isSelected),
 							className: 'custom-employee-marker',
-							iconSize: [32, 32],
-							iconAnchor: [16, 16]
+							iconSize: [24, 24],
+							iconAnchor: [12, 12]
 						});
 						marker.setIcon(markerIcon);
 						marker.options.title = `${employee.name} (idle)`;
@@ -198,7 +205,12 @@
 	}
 
 	// Create popup HTML for job marker
-	function createJobPopupHTML(job: Job, jobTier: number, jobCategory: number, activeJob: ActiveJob | null): string {
+	function createJobPopupHTML(
+		job: Job,
+		jobTier: number,
+		jobCategory: number,
+		activeJob: ActiveJob | null
+	): string {
 		const tierColor = getTierColor(jobTier);
 		const categoryName = getCategoryName(jobCategory);
 		const configValue = $config;
@@ -253,7 +265,9 @@
 					</div>
 				</div>
 
-				${canAccept ? `
+				${
+					canAccept
+						? `
 					<button
 						id="accept-job-${job.id}"
 						style="
@@ -270,11 +284,13 @@
 						onmouseover="this.style.backgroundColor='#059669'"
 						onmouseout="this.style.backgroundColor='#10b981'"
 					>Accept Job</button>
-				` : `
+				`
+						: `
 					<div style="text-align: center; color: #888; font-size: 12px; padding: 8px;">
 						${activeJob?.startTime ? 'Job already started' : 'Loading...'}
 					</div>
-				`}
+				`
+				}
 			</div>
 		`;
 	}
@@ -314,19 +330,27 @@
 			let activeJob: ActiveJob | null = null;
 			const employee = $selectedEmployee;
 			if (employee) {
-				const searchResults = getSearchResultsForEmployee(employee);
+				const searchResultsStore = getSearchResultsForEmployee(employee);
+				const searchResults = get(searchResultsStore);
 				const result = searchResults?.find((r: any) => r.job.id === job.id);
 				activeJob = result?.activeJob || null;
 			}
 
 			// Create popup with initial HTML
 			const popupContent = createJobPopupHTML(job, jobTier, jobCategory, activeJob);
+			console.log('[MarkerRenderer] Creating popup for job', job.id, 'with content:', popupContent.substring(0, 100));
 			const popup = L.popup({
 				maxWidth: 300,
 				className: 'job-tooltip-popup'
 			}).setContent(popupContent);
 
 			marker.bindPopup(popup);
+
+			// Also add a direct click handler to ensure popup opens
+			marker.on('click', () => {
+				console.log('[MarkerRenderer] Job marker clicked:', job.id);
+				marker.openPopup();
+			});
 
 			// When popup opens, load route and set up accept button handler
 			marker.on('popupopen', async () => {
@@ -349,7 +373,12 @@
 
 									if (updatedActiveJob) {
 										// Update popup with duration
-										const updatedContent = createJobPopupHTML(job, jobTier, jobCategory, updatedActiveJob);
+										const updatedContent = createJobPopupHTML(
+											job,
+											jobTier,
+											jobCategory,
+											updatedActiveJob
+										);
 										popup.setContent(updatedContent);
 
 										// Set up event listener for Accept button
@@ -517,8 +546,8 @@
 					employee.id === $selectedEmployee
 				),
 				className: 'custom-employee-marker',
-				iconSize: isAnimated ? [48, 48] : [32, 32],
-				iconAnchor: isAnimated ? [24, 24] : [16, 16]
+				iconSize: isAnimated ? [36, 36] : [24, 24],
+				iconAnchor: isAnimated ? [18, 18] : [12, 12]
 			});
 
 			try {
@@ -560,8 +589,8 @@
 	): string {
 		if (isAnimated && eta) {
 			// Active employee: circular progress marker with ETA
-			const size = 48;
-			const strokeWidth = 4;
+			const size = 36;
+			const strokeWidth = 3;
 			const radius = (size - strokeWidth) / 2;
 			const circumference = 2 * Math.PI * radius;
 			const dashOffset = circumference * (1 - progress / 100);
@@ -576,8 +605,7 @@
                     position: relative;
                     cursor: pointer;
                 ">
-                    <!-- Background circle -->
-                    <svg width="${size}" height="${size}" style="position: absolute; top: 0; left: 0;">
+                    <svg width="${size}" height="${size}" style="position: absolute; top: 0; left: 0; z-index: 1;">
                         <circle
                             cx="${size / 2}"
                             cy="${size / 2}"
@@ -586,7 +614,6 @@
                             stroke="rgba(255,255,255,0.3)"
                             stroke-width="${strokeWidth}"
                         />
-                        <!-- Progress arc -->
                         <circle
                             cx="${size / 2}"
                             cy="${size / 2}"
@@ -601,22 +628,24 @@
                             style="transition: stroke-dashoffset 0.3s ease;"
                         />
                     </svg>
-                    <!-- ETA text centered -->
                     <div style="
                         position: absolute;
                         top: 50%;
                         left: 50%;
                         transform: translate(-50%, -50%);
                         color: white;
-                        font-size: 11px;
+                        font-size: 12px;
                         font-weight: bold;
-                        text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+                        text-shadow: 0 0 4px rgba(0,0,0,0.6);
+                        z-index: 2;
+                        pointer-events: none;
+                        line-height: 1;
                     ">${eta}</div>
                 </div>
             `;
 		} else {
 			// Idle employee: small gray circle
-			const size = 32;
+			const size = 24;
 			const bgColor = isSelected ? '#3b82f6' : '#6b7280';
 			const scaleTransform = isSelected ? 'scale(1.2)' : 'scale(1)';
 
