@@ -144,6 +144,28 @@ export function formatTimeRemaining(seconds: number | string): string {
 }
 
 /**
+ * Formats time in a compact format for map markers (shows only most significant unit)
+ * Examples: 2h30m10s -> "2h", 30m10s -> "30m", 10s -> "10s"
+ * @param seconds Duration in seconds
+ * @returns Compact time string showing only the most significant unit
+ */
+export function formatTimeCompact(seconds: number): string {
+	if (seconds <= 0) return '0s';
+
+	const hours = Math.floor(seconds / 3600);
+	const minutes = Math.floor((seconds % 3600) / 60);
+	const remainingSeconds = Math.floor(seconds % 60);
+
+	if (hours > 0) {
+		return `${hours}h`;
+	} else if (minutes > 0) {
+		return `${minutes}m`;
+	} else {
+		return `${remainingSeconds}s`;
+	}
+}
+
+/**
  * Converts a number to Roman numeral (for job tiers)
  * @param tier The tier number to convert
  * @returns Roman numeral string (e.g., "I", "II", "III", etc.)

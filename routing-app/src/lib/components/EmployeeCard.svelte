@@ -2,6 +2,7 @@
 	import { createEventDispatcher } from 'svelte';
 	import { onDestroy } from 'svelte';
 	import { selectedEmployee, selectEmployee } from '$lib/stores/selectedEmployee';
+	import { switchToTab } from '$lib/stores/activeTab';
 	import type {
 		Employee,
 		ActiveJob,
@@ -13,7 +14,7 @@
 	import { selectedRoute, clearSelection } from '$lib/stores/selectedRoute';
 	import { formatMoney, formatAddress, formatTimeFromMs } from '$lib/formatting';
 	import { currentGameState, gameDataActions, gameDataAPI } from '$lib/stores/gameData';
-	import { jobSearchActions } from '$lib/stores/jobSearch';
+	import { jobSearchActions, getSearchResultsForEmployee } from '$lib/stores/jobSearch';
 	import { clearSelectedJob } from '$lib/stores/selectedJob';
 	import { getLevelFromXp, getXpForLevel, getXpToNextLevel } from '$lib/xp/xpUtils';
 	import {
@@ -310,6 +311,15 @@
 		}
 	}
 
+	function handleGoToMap(e: MouseEvent) {
+		e.stopPropagation(); // Prevent card click
+		// Select this employee
+		selectEmployee(employee.id);
+		// Switch to map tab
+		switchToTab('map');
+		// The map will center on the employee automatically via the selectedEmployee store
+	}
+
 	async function handleVehicleUpgrade(e: MouseEvent) {
 		e.stopPropagation(); // Prevent card click
 		if (!nextVehicleLevel || !$currentGameState || isPurchasingUpgrade || !canAffordUpgrade) return;
@@ -357,6 +367,9 @@
 			addError('Employee already has an active job in progress', 'error');
 			return;
 		}
+
+		// Select this employee first
+		selectEmployee(employee.id);
 
 		isSearchingJobs = true;
 		try {
@@ -453,11 +466,15 @@
 
 	// Get next vehicle stats for hover preview (reuse nextVehicleConfig)
 	$: nextVehicle = nextVehicleConfig;
+
+	// Check for search results for this employee (subscribe to the derived store)
+	$: employeeSearchResultsStore = getSearchResultsForEmployee(employee.id);
+	$: hasSearchResults = $employeeSearchResultsStore && $employeeSearchResultsStore.length > 0;
+	$: jobCount = $employeeSearchResultsStore?.length || 0;
 </script>
 
 <div
 	class={cardClass}
-	class:h-24={true}
 	on:click={handleClick}
 	on:keydown={(e) => {
 		if (e.key === 'Enter' || e.key === ' ') {
@@ -467,7 +484,7 @@
 	role="button"
 	tabindex="0"
 >
-	<div class="grid h-full grid-cols-2 gap-3 p-3">
+	<div class="grid grid-cols-2 gap-3 p-3">
 		<!-- Left Column: Name, Progress Bar, ETA -->
 		<div class="flex min-w-0 flex-col">
 			<h3 class="mb-1 truncate text-left text-sm font-semibold">{employee.name}</h3>
@@ -601,21 +618,59 @@
 				{/if}
 			</div>
 
-			<!-- Search Jobs Button (only show when selected and idle) -->
-			{#if isSelected && !activeJob?.startTime}
-				<button
-					class="btn btn-primary btn-xs w-full"
-					disabled={isSearchingJobs}
-					on:click|stopPropagation={handleSearchJobs}
-				>
-					{#if isSearchingJobs}
-						<span class="loading loading-spinner loading-xs"></span>
-						Searching...
+			<!-- Action Buttons Row -->
+			<div class="flex w-full justify-end gap-1">
+				<!-- Search Jobs Button (always show when idle) -->
+				{#if !activeJob?.startTime}
+					{#if hasSearchResults}
+						<button
+							class="btn btn-xs w-24 btn-disabled cursor-default !text-white"
+							disabled
+							on:click|stopPropagation={() => {}}
+						>
+							{jobCount} job{jobCount !== 1 ? 's' : ''}
+						</button>
 					{:else}
-						🔍 Search Jobs
+						<button
+							class="btn btn-primary btn-xs w-24"
+							disabled={isSearchingJobs}
+							on:click|stopPropagation={handleSearchJobs}
+						>
+							{#if isSearchingJobs}
+								<div class="flex items-center gap-1">
+									<span class="loading loading-spinner loading-xs"></span>
+									<span>Searching...</span>
+								</div>
+							{:else}
+								🔍 Search
+							{/if}
+						</button>
 					{/if}
+				{/if}
+
+				<!-- Go to Map Button (always visible) -->
+				<button
+					class="btn btn-outline btn-xs w-24"
+					on:click|stopPropagation={handleGoToMap}
+					title="View on map"
+				>
+					<svg
+						class="h-3 w-3"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+						/>
+					</svg>
+					Map
 				</button>
-			{/if}
+			</div>
 		</div>
 	</div>
 </div>
