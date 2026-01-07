@@ -18,6 +18,7 @@
 	let isCreating = false;
 	let createError = '';
 	let isUpdatingCheats = false;
+	let isLoading = true;
 
 	// Initialize stores with page data
 	onMount(() => {
@@ -25,6 +26,7 @@
 			cheatsEnabled: $page.data.cheatsEnabled,
 			gameStates: gameStates
 		});
+		isLoading = false;
 	});
 
 	async function handleCreateCharacter() {
@@ -100,7 +102,12 @@
 		</p>
 	</div>
 
-	{#if $availableGameStates.length === 0}
+	{#if isLoading}
+		<div class="py-16 text-center">
+			<span class="loading loading-spinner loading-lg text-primary"></span>
+			<p class="mt-4 text-base-content/70">Loading characters...</p>
+		</div>
+	{:else if $availableGameStates.length === 0}
 		<div class="py-16 text-center">
 			<div class="mb-8">
 				<svg
