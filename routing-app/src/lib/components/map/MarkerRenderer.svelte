@@ -301,7 +301,8 @@
 		const level = getLevelFromXp(employee.xp);
 		const xpForCurrentLevel = level >= 0 ? getXpForLevel(level) : 0;
 		const xpForNextLevel = level >= 0 && level < 120 ? getXpForLevel(level + 1) : 0;
-		const xpProgress = typeof employee?.xp === 'number' ? Math.max(0, employee.xp - xpForCurrentLevel) : 0;
+		const xpProgress =
+			typeof employee?.xp === 'number' ? Math.max(0, employee.xp - xpForCurrentLevel) : 0;
 		const xpNeeded = xpForNextLevel > xpForCurrentLevel ? xpForNextLevel - xpForCurrentLevel : 1;
 		const xpProgressPercent = xpNeeded > 0 ? (xpProgress / xpNeeded) * 100 : 0;
 
