@@ -213,7 +213,7 @@ private:
     std::ofstream& m_csv_file;
     ankerl::unordered_dense::set<osmium::object_id_type> m_nodes_needed;
     bool m_simplify = false;
-    bool m_ignore_routability = false;
+    bool m_routable_only = false;
     
     uint64_t m_processed_nodes = 0;
     uint64_t m_processed_ways = 0;
@@ -321,10 +321,10 @@ private:
     }
     
 public:
-    Pass1Handler(std::ofstream& csv_file, uint64_t file_size, bool simplify, bool ignore_routability)
+    Pass1Handler(std::ofstream& csv_file, uint64_t file_size, bool simplify, bool routable_only)
         : m_csv_file(csv_file)
         , m_simplify(simplify)
-        , m_ignore_routability(ignore_routability)
+        , m_routable_only(routable_only)
         , m_file_size(file_size)
         , m_start_time(std::chrono::steady_clock::now())
         , m_last_progress_time(m_start_time) {
@@ -354,9 +354,9 @@ public:
             m_seen_ways = true;
         }
         
-        // Collect node IDs from routable ways (or ferry/highway ways if ignore_routability is set)
+        // Collect node IDs: by default include routable ways + ferry/highway, or only routable if flag is set
         bool should_include = RoutableWays::is_routable_way(way.tags());
-        if (m_ignore_routability && !should_include) {
+        if (!m_routable_only && !should_include) {
             should_include = is_ferry_or_highway(way.tags());
         }
         if (should_include) {
@@ -400,7 +400,7 @@ private:
     const ankerl::unordered_dense::set<osmium::object_id_type>& m_nodes_needed;
     osmium::io::Writer& m_writer;
     bool m_simplify = false;
-    bool m_ignore_routability = false;
+    bool m_routable_only = false;
     
     uint64_t m_processed_nodes = 0;
     uint64_t m_processed_ways = 0;
@@ -466,11 +466,11 @@ private:
     }
     
 public:
-    Pass2Handler(const ankerl::unordered_dense::set<osmium::object_id_type>& nodes_needed, osmium::io::Writer& writer, uint64_t file_size, bool simplify, bool ignore_routability)
+    Pass2Handler(const ankerl::unordered_dense::set<osmium::object_id_type>& nodes_needed, osmium::io::Writer& writer, uint64_t file_size, bool simplify, bool routable_only)
         : m_nodes_needed(nodes_needed)
         , m_writer(writer)
         , m_simplify(simplify)
-        , m_ignore_routability(ignore_routability)
+        , m_routable_only(routable_only)
         , m_file_size(file_size)
         , m_start_time(std::chrono::steady_clock::now())
         , m_last_progress_time(m_start_time) {
@@ -507,9 +507,9 @@ public:
     void way(const osmium::Way& way) {
         m_processed_ways++;
         
-        // Write routable ways (or ferry/highway ways if ignore_routability is set)
+        // Write ways: by default include routable ways + ferry/highway, or only routable if flag is set
         bool should_include = RoutableWays::is_routable_way(way.tags());
-        if (m_ignore_routability && !should_include) {
+        if (!m_routable_only && !should_include) {
             should_include = is_ferry_or_highway(way.tags());
         }
         if (should_include) {
@@ -666,7 +666,7 @@ std::string get_default_csv_name(const std::string& input_file) {
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <input_file> [--output <osm_file>] [--output-dir <dir>] [--simplify] [--ignore-routability]\n";
+        std::cerr << "Usage: " << argv[0] << " <input_file> [--output <osm_file>] [--output-dir <dir>] [--simplify] [--routable-only]\n";
         return 1;
     }
     
@@ -674,7 +674,7 @@ int main(int argc, char* argv[]) {
     std::string output_file;
     std::string output_dir;
     bool simplify = false;
-    bool ignore_routability = false;
+    bool routable_only = false;
     
     // Parse command line arguments
     for (int i = 2; i < argc; i++) {
@@ -695,8 +695,8 @@ int main(int argc, char* argv[]) {
             }
         } else if (arg == "--simplify") {
             simplify = true;
-        } else if (arg == "--ignore-routability") {
-            ignore_routability = true;
+        } else if (arg == "--routable-only") {
+            routable_only = true;
         }
     }
     
@@ -768,7 +768,7 @@ int main(int argc, char* argv[]) {
         // ===== PASS 1: Collect node IDs and extract addresses =====
         std::cout << "\nPass 1/2: Collecting node IDs from routable ways and extracting addresses...\n";
         osmium::io::Reader reader1(input_file);
-        Pass1Handler pass1_handler(csv_file, file_size, simplify, ignore_routability);
+        Pass1Handler pass1_handler(csv_file, file_size, simplify, routable_only);
         osmium::apply(reader1, pass1_handler);
         reader1.close();
         pass1_handler.finalize_progress();
@@ -785,7 +785,7 @@ int main(int argc, char* argv[]) {
         std::cout << "\nPass 2/2: Writing nodes and routable ways...\n";
         osmium::io::Reader reader2(input_file);
         osmium::io::Writer writer(output_file);
-        Pass2Handler pass2_handler(pass1_handler.nodes_needed(), writer, file_size, simplify, ignore_routability);
+        Pass2Handler pass2_handler(pass1_handler.nodes_needed(), writer, file_size, simplify, routable_only);
         if (simplify) {
             using index_type = osmium::index::map::SparseFileArray<osmium::unsigned_object_id_type, osmium::Location>;
             index_type index;
