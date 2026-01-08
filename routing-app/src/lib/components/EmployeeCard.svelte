@@ -6,6 +6,7 @@
 	import type {
 		Employee,
 		ActiveJob,
+		TravelJob,
 		Address,
 		UpgradeState,
 		GameState
@@ -27,6 +28,7 @@
 	export let employee: Employee;
 	export let availableRoutes: any[] = [];
 	export let activeJob: ActiveJob | null = null;
+	export let travelJob: TravelJob | null = null;
 	export let gameStateId: string;
 
 	const dispatch = createEventDispatcher<{
@@ -62,6 +64,7 @@
 
 	// Job progress calculation - explicitly track activeJob changes for reactivity
 	let jobProgress: ReturnType<typeof calculateJobProgress> = null;
+	let travelProgress: ReturnType<typeof calculateTravelProgress> = null;
 
 	$: {
 		// Force reactivity by explicitly referencing activeJob and its properties
@@ -72,19 +75,30 @@
 		jobProgress = activeJob ? calculateJobProgress(activeJob) : null;
 	}
 
-	// Set up interval to update progress every second when job is active
-	$: if (activeJob && activeJob.startTime) {
+	$: {
+		// Track travel job changes for reactivity
+		const travelJobId = travelJob?.id;
+		const travelJobStartTime = travelJob?.startTime;
+
+		travelProgress = travelJob ? calculateTravelProgress(travelJob) : null;
+	}
+
+	// Set up interval to update progress smoothly
+	// Update progress bar every 100ms for smooth animation
+	// ETA text will update smoothly too, but formatTimeFromMs rounds to seconds anyway
+	$: if ((activeJob && activeJob.startTime) || (travelJob && travelJob.startTime)) {
 		// Clear any existing interval
 		if (progressUpdateInterval) {
 			clearInterval(progressUpdateInterval);
 		}
 		progressUpdateInterval = setInterval(() => {
-			// Recalculate progress using the current activeJob prop
-			// This will update the ETA every second for smooth animation
+			// Recalculate progress using the current props
+			// This will update both progress bar and ETA smoothly
 			jobProgress = activeJob ? calculateJobProgress(activeJob) : null;
-		}, 1000);
+			travelProgress = travelJob ? calculateTravelProgress(travelJob) : null;
+		}, 100); // Update every 100ms for smooth progress bar animation
 	} else {
-		// Clear interval when job is not active
+		// Clear interval when neither job nor travel is active
 		if (progressUpdateInterval) {
 			clearInterval(progressUpdateInterval);
 			progressUpdateInterval = null;
@@ -175,6 +189,26 @@
 			remainingTimeMs,
 			isComplete,
 			currentPhase: 'on_job' as const // ActiveJob doesn't have currentPhase, default to 'on_job'
+		};
+	}
+
+	function calculateTravelProgress(travelJob: TravelJob) {
+		if (!travelJob.startTime) {
+			return null;
+		}
+
+		const startTime = new Date(travelJob.startTime).getTime();
+		const currentTime = Date.now();
+		const totalDurationMs = (travelJob.durationSeconds || 0) * 1000;
+		const elapsed = currentTime - startTime;
+		const progress = Math.min(100, (elapsed / totalDurationMs) * 100);
+		const remainingTimeMs = Math.max(0, totalDurationMs - elapsed);
+		const isComplete = progress >= 100;
+
+		return {
+			progress,
+			remainingTimeMs,
+			isComplete
 		};
 	}
 
@@ -368,6 +402,12 @@
 			return;
 		}
 
+		// Check if employee is currently traveling
+		if (travelJob?.startTime) {
+			addError('Employee is currently traveling and cannot search for jobs', 'error');
+			return;
+		}
+
 		// Select this employee first
 		selectEmployee(employee.id);
 
@@ -471,6 +511,10 @@
 	$: employeeSearchResultsStore = getSearchResultsForEmployee(employee.id);
 	$: hasSearchResults = $employeeSearchResultsStore && $employeeSearchResultsStore.length > 0;
 	$: jobCount = $employeeSearchResultsStore?.length || 0;
+
+	// Computed values for progress bar
+	$: progressValue = activeJob && jobProgress ? jobProgress.progress : travelJob && travelProgress ? travelProgress.progress : 0;
+	$: isActive = (activeJob && jobProgress) || (travelJob && travelProgress);
 </script>
 
 <div
@@ -489,12 +533,15 @@
 		<div class="flex min-w-0 flex-col">
 			<h3 class="mb-1 truncate text-left text-sm font-semibold">{employee.name}</h3>
 			<div class="mb-1">
-				<progress
-					class="progress progress-primary h-2 w-full"
-					class:opacity-50={!activeJob || !jobProgress}
-					value={activeJob && jobProgress ? jobProgress.progress : 0}
-					max="100"
-				></progress>
+				<div
+					class="h-2 w-full overflow-hidden rounded-full bg-base-300"
+					class:opacity-50={!isActive}
+				>
+					<div
+						class="h-full bg-primary transition-all duration-100 ease-linear"
+						style="width: {progressValue}%;"
+					></div>
+				</div>
 			</div>
 			<div class="text-left text-xs font-semibold text-base-content/80">
 				{#if activeJob && jobProgress && !jobProgress.isComplete}
@@ -504,6 +551,8 @@
 							• {formatMoney(activeJob.reward)} • {activeJob.xp} XP
 						</span>
 					{/if}
+				{:else if travelJob && travelProgress && !travelProgress.isComplete}
+					Traveling: {formatTimeFromMs(travelProgress.remainingTimeMs)}
 				{:else}
 					Idle
 				{/if}
@@ -621,7 +670,7 @@
 			<!-- Action Buttons Row -->
 			<div class="flex w-full justify-end gap-1">
 				<!-- Search Jobs Button (always show when idle) -->
-				{#if !activeJob?.startTime}
+				{#if !activeJob?.startTime && !travelJob?.startTime}
 					{#if hasSearchResults}
 						<button
 							class="btn btn-disabled btn-xs w-24 cursor-default !text-white"

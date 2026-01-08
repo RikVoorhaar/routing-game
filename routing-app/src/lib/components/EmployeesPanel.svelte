@@ -139,9 +139,11 @@
 			<div class="max-h-[600px] space-y-3 overflow-y-auto pr-2">
 				{#each sortedEmployeeData as fed (fed.employee.id)}
 					{@const activeJob = fed.activeJob}
+					{@const travelJob = fed.travelJob}
 					<EmployeeCard
 						employee={fed.employee}
 						{activeJob}
+						{travelJob}
 						gameStateId={$currentGameState?.id || ''}
 					/>
 				{/each}

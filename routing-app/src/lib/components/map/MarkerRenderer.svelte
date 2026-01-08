@@ -2,27 +2,23 @@
 	import { onDestroy } from 'svelte';
 	import { get } from 'svelte/store';
 	import { interpolateLocationAtTime } from '$lib/routes/routing-client';
-	import {
-		formatTimeCompact,
-		toRomanNumeral,
-		formatCurrency,
-		formatDistance,
-		formatDuration
-	} from '$lib/formatting';
-	import { getCategoryIcon, getCategoryName } from '$lib/jobs/jobCategories';
-	import { getTierColor } from '$lib/stores/mapDisplay';
+	import { formatTimeCompact } from '$lib/formatting';
 	import { selectEmployee, selectedEmployee } from '$lib/stores/selectedEmployee';
 	import { switchToTab } from '$lib/stores/activeTab';
-	import { getLevelFromXp, getXpForLevel } from '$lib/xp/xpUtils';
 	import { selectedJob, selectJob, setSelectedActiveJobData } from '$lib/stores/selectedJob';
 	import { getSearchResultsForEmployee, jobSearchActions } from '$lib/stores/jobSearch';
-	import { currentGameState, gameDataActions, gameDataAPI } from '$lib/stores/gameData';
+	import { currentGameState, gameDataActions, gameDataAPI, fullEmployeeData } from '$lib/stores/gameData';
 	import { getRoute } from '$lib/stores/routeCache';
 	import { addError } from '$lib/stores/errors';
 	import { computeJobXp, computeJobReward } from '$lib/jobs/jobUtils';
 	import { config } from '$lib/stores/config';
 	import { DEFAULT_EMPLOYEE_LOCATION } from '$lib/employeeUtils';
 	import { log } from '$lib/logger';
+	import { createEmployeePopupHTML, EMPLOYEE_POPUP_GOTO_PANEL_BUTTON_ID, EMPLOYEE_POPUP_SEARCH_JOBS_BUTTON_ID, EMPLOYEE_POPUP_TRAVEL_BUTTON_ID } from './popups/employeePopup';
+	import { createJobPopupHTML, JOB_POPUP_ACCEPT_BUTTON_ID } from './popups/jobPopup';
+	import { createEmployeeMarkerHTML } from './markers/employeeMarker';
+	import { createJobMarkerHTML } from './markers/jobMarker';
+	import { travelModeActions } from '$lib/stores/travelMode';
 	import type {
 		Employee,
 		ActiveJob,
@@ -91,16 +87,21 @@
 		}
 	}
 
-	function updateEmployeePositions() {
+		function updateEmployeePositions() {
 		// Update positions of existing markers without recreating them
 		employees.forEach((employee) => {
 			const marker = employeeMarkers[employee.id];
 			if (!marker) return;
 
 			const activeJob = activeJobsByEmployee[employee.id];
-			if (activeJob && activeJob.startTime) {
-				// Calculate elapsed time since job started
-				const startTime = new Date(activeJob.startTime).getTime();
+			const travelJob = $fullEmployeeData.find((fed) => fed.employee.id === employee.id)?.travelJob;
+			const hasActiveJob = activeJob && activeJob.startTime;
+			const hasTravelJob = travelJob && travelJob.startTime;
+
+			if (hasActiveJob || hasTravelJob) {
+				// Use active job if available, otherwise use travel job
+				const currentJob = hasActiveJob ? activeJob : travelJob;
+				const startTime = new Date(currentJob!.startTime!).getTime();
 				const currentTime = Date.now();
 				const elapsedSeconds = (currentTime - startTime) / 1000;
 
@@ -113,8 +114,9 @@
 						marker.setLatLng([interpolatedPosition.lat, interpolatedPosition.lon]);
 
 						// Update progress and ETA for marker title
-						const progress = Math.min((elapsedSeconds / activeJob.durationSeconds) * 100, 100);
-						const remainingSeconds = Math.max(0, activeJob.durationSeconds - elapsedSeconds);
+						const durationSeconds = currentJob!.durationSeconds || 0;
+						const progress = Math.min((elapsedSeconds / durationSeconds) * 100, 100);
+						const remainingSeconds = Math.max(0, durationSeconds - elapsedSeconds);
 						const eta = formatTimeCompact(remainingSeconds);
 
 						// Update marker icon with new progress
@@ -205,155 +207,7 @@
 		}
 	}
 
-	// Create popup HTML for job marker
-	function createJobPopupHTML(
-		job: Job,
-		jobTier: number,
-		jobCategory: number,
-		activeJob: ActiveJob | null
-	): string {
-		const tierColor = getTierColor(jobTier);
-		const categoryName = getCategoryName(jobCategory);
-		const configValue = $config;
-		const gameState = $currentGameState;
 
-		if (!configValue || !gameState) {
-			return '<div>Loading...</div>';
-		}
-
-		const reward = formatCurrency(computeJobReward(job.totalDistanceKm, configValue, gameState));
-		const distance = formatDistance(job.totalDistanceKm);
-		const xp = computeJobXp(job, configValue, gameState);
-		const duration = activeJob?.durationSeconds ? formatDuration(activeJob.durationSeconds) : '-';
-		const canAccept = activeJob && !activeJob.startTime;
-
-		return `
-			<div class="job-popup" style="min-width: 250px; font-family: system-ui, sans-serif;">
-				<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-					<div style="display: flex; align-items: center; gap: 8px;">
-						<span style="
-							background-color: ${tierColor};
-							color: white;
-							padding: 2px 8px;
-							border-radius: 4px;
-							font-size: 11px;
-							font-weight: bold;
-						">Tier ${jobTier}</span>
-						<span style="font-size: 13px; font-weight: 600;">${categoryName}</span>
-					</div>
-				</div>
-
-				<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; font-size: 11px;">
-					<div style="text-align: center;">
-						<div style="color: #888; margin-bottom: 2px;">Distance</div>
-						<div style="font-weight: bold; color: #3b82f6;">${distance}</div>
-					</div>
-					<div style="text-align: center;">
-						<div style="color: #888; margin-bottom: 2px;">Duration</div>
-						<div style="font-weight: bold; color: #f59e0b;">${duration}</div>
-					</div>
-					<div style="text-align: center;">
-						<div style="color: #888; margin-bottom: 2px;">Value</div>
-						<div style="font-weight: bold; color: #10b981;">${reward}</div>
-					</div>
-					<div style="text-align: center;">
-						<div style="color: #888; margin-bottom: 2px;">XP</div>
-						<div style="font-weight: bold; color: #8b5cf6;">${xp}</div>
-					</div>
-					<div style="text-align: center; grid-column: span 2;">
-						<div style="color: #888; margin-bottom: 2px;">Category</div>
-						<div style="font-weight: bold;">${categoryName}</div>
-					</div>
-				</div>
-
-				${
-					canAccept
-						? `
-					<button
-						id="accept-job-${job.id}"
-						style="
-							width: 100%;
-							background-color: #10b981;
-							color: white;
-							border: none;
-							padding: 8px;
-							border-radius: 4px;
-							font-size: 13px;
-							font-weight: 600;
-							cursor: pointer;
-						"
-						onmouseover="this.style.backgroundColor='#059669'"
-						onmouseout="this.style.backgroundColor='#10b981'"
-					>Accept Job</button>
-				`
-						: `
-					<div style="text-align: center; color: #888; font-size: 12px; padding: 8px;">
-						${activeJob?.startTime ? 'Job already started' : 'Loading...'}
-					</div>
-				`
-				}
-			</div>
-		`;
-	}
-
-	// Create popup HTML for employee marker
-	function createEmployeePopupHTML(employee: Employee): string {
-		const level = getLevelFromXp(employee.xp);
-		const xpForCurrentLevel = level >= 0 ? getXpForLevel(level) : 0;
-		const xpForNextLevel = level >= 0 && level < 120 ? getXpForLevel(level + 1) : 0;
-		const xpProgress =
-			typeof employee?.xp === 'number' ? Math.max(0, employee.xp - xpForCurrentLevel) : 0;
-		const xpNeeded = xpForNextLevel > xpForCurrentLevel ? xpForNextLevel - xpForCurrentLevel : 1;
-		const xpProgressPercent = xpNeeded > 0 ? (xpProgress / xpNeeded) * 100 : 0;
-
-		return `
-			<div class="employee-popup" style="min-width: 220px; font-family: system-ui, sans-serif;">
-				<div style="margin-bottom: 12px;">
-					<div style="font-size: 15px; font-weight: 700; margin-bottom: 6px;">${employee.name}</div>
-					<div style="display: flex; align-items: center; gap: 6px;">
-						<span style="font-size: 12px; font-weight: 600;">Lv ${level}</span>
-						<div style="flex: 1; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden;">
-							<div style="height: 100%; background: #3b82f6; width: ${xpProgressPercent}%; transition: width 0.3s;"></div>
-						</div>
-						<span style="font-size: 10px; color: #888; white-space: nowrap;">${Math.floor(xpProgress)}/${xpNeeded}</span>
-					</div>
-				</div>
-
-				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-					<button
-						id="employee-goto-panel-${employee.id}"
-						style="
-							background-color: #3b82f6;
-							color: white;
-							border: none;
-							padding: 8px;
-							border-radius: 4px;
-							font-size: 12px;
-							font-weight: 600;
-							cursor: pointer;
-						"
-						onmouseover="this.style.backgroundColor='#2563eb'"
-						onmouseout="this.style.backgroundColor='#3b82f6'"
-					>Go to Panel</button>
-					<button
-						id="employee-search-jobs-${employee.id}"
-						style="
-							background-color: #10b981;
-							color: white;
-							border: none;
-							padding: 8px;
-							border-radius: 4px;
-							font-size: 12px;
-							font-weight: 600;
-							cursor: pointer;
-						"
-						onmouseover="this.style.backgroundColor='#059669'"
-						onmouseout="this.style.backgroundColor='#10b981'"
-					>Search Jobs</button>
-				</div>
-			</div>
-		`;
-	}
 
 	function createJobMarker(job: Job) {
 		try {
@@ -374,8 +228,9 @@
 			const jobTier = (job as any).job_tier ?? job.jobTier ?? 1;
 			const jobCategory = (job as any).job_category ?? job.jobCategory ?? 1;
 
+			const isSelected = $selectedJob?.id === job.id;
 			const markerIcon = L.divIcon({
-				html: createJobMarkerHTML(job, jobTier, jobCategory),
+				html: createJobMarkerHTML(job, jobTier, jobCategory, isSelected),
 				className: 'custom-job-marker',
 				iconSize: [30, 30],
 				iconAnchor: [15, 15]
@@ -397,7 +252,16 @@
 			}
 
 			// Create popup with initial HTML
-			const popupContent = createJobPopupHTML(job, jobTier, jobCategory, activeJob);
+			const configValue = $config;
+			const gameState = $currentGameState;
+			const popupContent = createJobPopupHTML(
+				job,
+				jobTier,
+				jobCategory,
+				activeJob,
+				configValue!,
+				gameState!
+			);
 			console.log(
 				'[MarkerRenderer] Creating popup for job',
 				job.id,
@@ -442,13 +306,17 @@
 											job,
 											jobTier,
 											jobCategory,
-											updatedActiveJob
+											updatedActiveJob,
+											configValue!,
+											gameState!
 										);
 										popup.setContent(updatedContent);
 
 										// Set up event listener for Accept button
 										setTimeout(() => {
-											const acceptButton = document.getElementById(`accept-job-${job.id}`);
+											const acceptButton = document.getElementById(
+												JOB_POPUP_ACCEPT_BUTTON_ID(job.id)
+											);
 											if (acceptButton) {
 												acceptButton.onclick = () => {
 													handleAcceptJob(job, updatedActiveJob);
@@ -477,7 +345,7 @@
 				} else {
 					// Set up event listener for Accept button even if no route loaded yet
 					setTimeout(() => {
-						const acceptButton = document.getElementById(`accept-job-${job.id}`);
+						const acceptButton = document.getElementById(JOB_POPUP_ACCEPT_BUTTON_ID(job.id));
 						if (acceptButton && activeJob) {
 							acceptButton.onclick = () => {
 								handleAcceptJob(job, activeJob);
@@ -504,49 +372,6 @@
 		}
 	}
 
-	function createJobMarkerHTML(job: Job, jobTier: number, jobCategory: number): string {
-		const tierColor = getTierColor(jobTier);
-		const categoryIcon = getCategoryIcon(jobCategory);
-		const tierRoman = toRomanNumeral(jobTier);
-		const isSelected = $selectedJob?.id === job.id;
-
-		return `
-            <div class="job-marker ${isSelected ? 'selected' : ''}" 
-                 style="
-                     background: ${tierColor}; 
-                     border: 2px solid ${isSelected ? '#ffffff' : 'rgba(0,0,0,0.3)'};
-                     border-radius: 50%;
-                     width: 26px;
-                     height: 26px;
-                     display: flex;
-                     align-items: center;
-                     justify-content: center;
-                     font-size: 12px;
-                     font-weight: bold;
-                     color: white;
-                     text-shadow: 0 1px 2px rgba(0,0,0,0.7);
-                     cursor: pointer;
-                     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                     ${isSelected ? 'transform: scale(1.2); box-shadow: 0 0 0 3px rgba(255,255,255,0.8);' : ''}
-                 ">
-                ${categoryIcon}
-                <div style="
-                    position: absolute;
-                    bottom: -8px;
-                    right: -8px;
-                    background: rgba(0,0,0,0.8);
-                    color: white;
-                    border-radius: 8px;
-                    padding: 1px 4px;
-                    font-size: 8px;
-                    font-weight: bold;
-                    line-height: 1;
-                    min-width: 12px;
-                    text-align: center;
-                ">${tierRoman}</div>
-            </div>
-        `;
-	}
 
 	function updateEmployeeMarkers() {
 		// Clear existing markers
@@ -560,6 +385,7 @@
 		// Add markers for each employee
 		employees.forEach((employee) => {
 			const activeJob = activeJobsByEmployee[employee.id];
+			const travelJob = $fullEmployeeData.find((fed) => fed.employee.id === employee.id)?.travelJob;
 
 			let position: Coordinate;
 			let isAnimated = false;
@@ -567,18 +393,23 @@
 			let progress = 0;
 			let eta: string | null = null;
 
-			if (activeJob && activeJob.startTime) {
-				// Employee is on an active job - calculate animated position
-				// Calculate elapsed time since job started
-				const startTime = new Date(activeJob.startTime).getTime();
+			// Check for active job or travel job
+			const hasActiveJob = activeJob && activeJob.startTime;
+			const hasTravelJob = travelJob && travelJob.startTime;
+
+			if (hasActiveJob || hasTravelJob) {
+				// Employee is on an active job or travel - calculate animated position
+				const currentJob = hasActiveJob ? activeJob : travelJob;
+				const startTime = new Date(currentJob!.startTime!).getTime();
 				const currentTime = Date.now();
 				const elapsedSeconds = (currentTime - startTime) / 1000;
 
-				// Calculate progress percentage based on job duration
-				progress = Math.min((elapsedSeconds / activeJob.durationSeconds) * 100, 100);
+				// Calculate progress percentage based on job/travel duration
+				const durationSeconds = currentJob!.durationSeconds || 0;
+				progress = Math.min((elapsedSeconds / durationSeconds) * 100, 100);
 
 				// Calculate ETA
-				const remainingSeconds = Math.max(0, activeJob.durationSeconds - elapsedSeconds);
+				const remainingSeconds = Math.max(0, durationSeconds - elapsedSeconds);
 				eta = formatTimeCompact(remainingSeconds);
 
 				// Try to interpolate position along route if route data is available
@@ -622,7 +453,8 @@
 				}).addTo(map);
 
 				// Create and bind employee popup
-				const popupContent = createEmployeePopupHTML(employee);
+				const hasActiveJob = !!activeJobsByEmployee[employee.id];
+				const popupContent = createEmployeePopupHTML(employee, hasActiveJob);
 				const popup = L.popup({
 					maxWidth: 250,
 					className: 'employee-tooltip-popup'
@@ -633,11 +465,20 @@
 				// Set up popup event handlers
 				marker.on('popupopen', () => {
 					selectEmployee(employee.id);
+					// Exit travel mode when employee marker is clicked
+					travelModeActions.exitTravelMode();
 
 					// Add button event handlers after popup opens
 					setTimeout(() => {
-						const gotoPanelButton = document.getElementById(`employee-goto-panel-${employee.id}`);
-						const searchJobsButton = document.getElementById(`employee-search-jobs-${employee.id}`);
+						const gotoPanelButton = document.getElementById(
+							EMPLOYEE_POPUP_GOTO_PANEL_BUTTON_ID(employee.id)
+						);
+						const searchJobsButton = document.getElementById(
+							EMPLOYEE_POPUP_SEARCH_JOBS_BUTTON_ID(employee.id)
+						);
+						const travelButton = document.getElementById(
+							EMPLOYEE_POPUP_TRAVEL_BUTTON_ID(employee.id)
+						);
 
 						if (gotoPanelButton) {
 							gotoPanelButton.onclick = () => {
@@ -661,12 +502,26 @@
 								}
 							};
 						}
+
+						if (travelButton) {
+							travelButton.onclick = () => {
+								const hasActiveJob = !!activeJobsByEmployee[employee.id];
+								if (hasActiveJob) {
+									addError('Employee must be idle to travel', 'error');
+									return;
+								}
+								travelModeActions.enterTravelMode(employee.id);
+								marker.closePopup();
+							};
+						}
 					}, 10);
 				});
 
 				// Keep click handler for backwards compatibility
 				marker.on('click', () => {
 					selectEmployee(employee.id);
+					// Exit travel mode when employee marker is clicked
+					travelModeActions.exitTravelMode();
 				});
 
 				employeeMarkers[employee.id] = marker;
@@ -688,90 +543,6 @@
 		}
 	}
 
-	function createEmployeeMarkerHTML(
-		name: string,
-		isAnimated: boolean,
-		progress: number,
-		eta: string | null,
-		isSelected: boolean
-	): string {
-		if (isAnimated && eta) {
-			// Active employee: circular progress marker with ETA
-			const size = 36;
-			const strokeWidth = 3;
-			const radius = (size - strokeWidth) / 2;
-			const circumference = 2 * Math.PI * radius;
-			const dashOffset = circumference * (1 - progress / 100);
-
-			const bgColor = isSelected ? '#3b82f6' : '#10b981';
-			const progressColor = '#ffffff';
-
-			return `
-                <div style="
-                    width: ${size}px;
-                    height: ${size}px;
-                    position: relative;
-                    cursor: pointer;
-                ">
-                    <svg width="${size}" height="${size}" style="position: absolute; top: 0; left: 0; z-index: 1;">
-                        <circle
-                            cx="${size / 2}"
-                            cy="${size / 2}"
-                            r="${radius}"
-                            fill="${bgColor}"
-                            stroke="rgba(255,255,255,0.3)"
-                            stroke-width="${strokeWidth}"
-                        />
-                        <circle
-                            cx="${size / 2}"
-                            cy="${size / 2}"
-                            r="${radius}"
-                            fill="none"
-                            stroke="${progressColor}"
-                            stroke-width="${strokeWidth}"
-                            stroke-linecap="round"
-                            stroke-dasharray="${circumference}"
-                            stroke-dashoffset="${dashOffset}"
-                            transform="rotate(-90 ${size / 2} ${size / 2})"
-                            style="transition: stroke-dashoffset 0.3s ease;"
-                        />
-                    </svg>
-                    <div style="
-                        position: absolute;
-                        top: 50%;
-                        left: 50%;
-                        transform: translate(-50%, -50%);
-                        color: white;
-                        font-size: 12px;
-                        font-weight: bold;
-                        text-shadow: 0 0 4px rgba(0,0,0,0.6);
-                        z-index: 2;
-                        pointer-events: none;
-                        line-height: 1;
-                    ">${eta}</div>
-                </div>
-            `;
-		} else {
-			// Idle employee: small gray circle
-			const size = 24;
-			const bgColor = isSelected ? '#3b82f6' : '#6b7280';
-			const scaleTransform = isSelected ? 'scale(1.2)' : 'scale(1)';
-
-			return `
-                <div style="
-                    width: ${size}px;
-                    height: ${size}px;
-                    background: ${bgColor};
-                    border-radius: 50%;
-                    border: 2px solid white;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                    cursor: pointer;
-                    transform: ${scaleTransform};
-                    transition: transform 0.2s ease;
-                "></div>
-            `;
-		}
-	}
 
 	function parseRouteData(routeDataString: string | object): PathPoint[] {
 		try {

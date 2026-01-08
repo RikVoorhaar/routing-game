@@ -1,0 +1,153 @@
+import { redisClient } from '../redis';
+import { serverLog } from '../logging/serverLogger';
+
+const KEY_PREFIX = 'travelRoute:';
+
+function getKey(travelJobId: string): string {
+	return `${KEY_PREFIX}${travelJobId}`;
+}
+
+/**
+ * Get gzipped route data from Redis cache
+ *
+ * Parameters
+ * -----------
+ * travelJobId: string
+ *     The travel job ID
+ *
+ * Returns
+ * --------
+ * Promise<Buffer | null>
+ *     The gzipped route data, or null if not found
+ */
+export async function getRoute(travelJobId: string): Promise<Buffer | null> {
+	try {
+		const key = getKey(travelJobId);
+		const data = await redisClient.get(key);
+		if (!data) {
+			return null;
+		}
+		// redis package returns string by default, convert to Buffer
+		// If it's already a Buffer, use it directly
+		if (Buffer.isBuffer(data)) {
+			return data;
+		}
+		// Convert string to Buffer (redis stores binary as string)
+		return Buffer.from(data as string, 'binary');
+	} catch (err) {
+		serverLog.api.error(
+			{
+				travelJobId,
+				error: err instanceof Error ? err.message : String(err),
+				stack: err instanceof Error ? err.stack : undefined
+			},
+			'Error getting travel route from Redis'
+		);
+		// Return null on error (cache miss) - don't throw, allow route computation to proceed
+		return null;
+	}
+}
+
+/**
+ * Store gzipped route data in Redis cache with TTL
+ *
+ * Parameters
+ * -----------
+ * travelJobId: string
+ *     The travel job ID
+ * gzippedData: Buffer
+ *     The gzipped route data to store
+ * ttlSeconds: number
+ *     Time to live in seconds
+ *
+ * Returns
+ * --------
+ * Promise<void>
+ */
+export async function setRoute(
+	travelJobId: string,
+	gzippedData: Buffer,
+	ttlSeconds: number
+): Promise<void> {
+	try {
+		const key = getKey(travelJobId);
+		// Convert Buffer to binary string for Redis (preserves binary data)
+		await redisClient.setEx(key, ttlSeconds, gzippedData.toString('binary'));
+	} catch (err) {
+		serverLog.api.error(
+			{
+				travelJobId,
+				ttlSeconds,
+				error: err instanceof Error ? err.message : String(err),
+				stack: err instanceof Error ? err.stack : undefined
+			},
+			'Error setting travel route in Redis'
+		);
+		// Don't throw - allow the application to continue even if Redis fails
+		// The route will just be recomputed on next request
+	}
+}
+
+/**
+ * Extend the TTL of a cached route
+ *
+ * Parameters
+ * -----------
+ * travelJobId: string
+ *     The travel job ID
+ * ttlSeconds: number
+ *     New time to live in seconds
+ *
+ * Returns
+ * --------
+ * Promise<boolean>
+ *     True if TTL was extended, false if key doesn't exist
+ */
+export async function extendRouteTTL(travelJobId: string, ttlSeconds: number): Promise<boolean> {
+	try {
+		const key = getKey(travelJobId);
+		const result = await redisClient.expire(key, ttlSeconds);
+		return result;
+	} catch (err) {
+		serverLog.api.error(
+			{
+				travelJobId,
+				ttlSeconds,
+				error: err instanceof Error ? err.message : String(err),
+				stack: err instanceof Error ? err.stack : undefined
+			},
+			'Error extending travel route TTL in Redis'
+		);
+		// Return false on error (key doesn't exist or Redis error)
+		return false;
+	}
+}
+
+/**
+ * Delete a cached route
+ *
+ * Parameters
+ * -----------
+ * travelJobId: string
+ *     The travel job ID
+ *
+ * Returns
+ * --------
+ * Promise<void>
+ */
+export async function deleteRoute(travelJobId: string): Promise<void> {
+	try {
+		const key = getKey(travelJobId);
+		await redisClient.del(key);
+	} catch (err) {
+		serverLog.api.error(
+			{
+				travelJobId,
+				error: err instanceof Error ? err.message : String(err),
+				stack: err instanceof Error ? err.stack : undefined
+			},
+			'Error deleting travel route from Redis'
+		);
+		// Don't throw - allow the application to continue even if Redis fails
+	}
+}

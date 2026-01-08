@@ -58,7 +58,7 @@ export interface CompleteJobRouteResult {
 	durationSeconds: number;
 }
 
-async function getShortestPath(
+export async function getShortestPath(
 	from: Coordinate,
 	to: Coordinate,
 	options?: ShortestPathOptions | number // Support legacy maxSpeed parameter

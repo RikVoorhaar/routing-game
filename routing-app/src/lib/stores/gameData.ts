@@ -1,5 +1,5 @@
 import { writable, derived, get } from 'svelte/store';
-import type { GameState, Job, Employee, ActiveJob, FullEmployeeData } from '$lib/server/db/schema';
+import type { GameState, Job, Employee, ActiveJob, TravelJob, FullEmployeeData } from '$lib/server/db/schema';
 import { addError } from './errors';
 import { log } from '$lib/logger';
 
@@ -36,8 +36,19 @@ export const activeJobsByEmployee = derived(fullEmployeeData, ($fullEmployeeData
 	return activeJobs;
 });
 
+export const travelJobsByEmployee = derived(fullEmployeeData, ($fullEmployeeData) => {
+	const travelJobs: Record<string, TravelJob | null> = {};
+	$fullEmployeeData.forEach((fed) => {
+		travelJobs[fed.employee.id] = fed.travelJob;
+	});
+	return travelJobs;
+});
+
 // Client-side timers for job completion
 const jobCompletionTimers = new Map<string, NodeJS.Timeout>();
+
+// Client-side timers for travel completion
+const travelCompletionTimers = new Map<string, NodeJS.Timeout>();
 
 // Function to schedule job completion
 function scheduleJobCompletion(employeeId: string, activeJob: ActiveJob) {
@@ -106,6 +117,73 @@ function scheduleJobCompletion(employeeId: string, activeJob: ActiveJob) {
 	}
 }
 
+// Function to schedule travel completion
+function scheduleTravelCompletion(employeeId: string, travelJob: TravelJob) {
+	if (!travelJob.startTime) return;
+
+	const startTime = new Date(travelJob.startTime).getTime();
+	const currentTime = Date.now();
+
+	// Calculate total completion time
+	const totalDuration = (travelJob.durationSeconds || 0) * 1000;
+	const elapsed = currentTime - startTime;
+	const remainingTime = Math.max(0, totalDuration - elapsed);
+
+	if (remainingTime > 0) {
+		log.debug(
+			'[GameData] Scheduling travel completion for employee',
+			employeeId,
+			'in',
+			remainingTime,
+			'ms'
+		);
+
+		const timer = setTimeout(async () => {
+			log.debug('[GameData] Auto-completing travel for employee:', employeeId);
+			try {
+				// Check if travel job still exists before completing
+				const currentFullData = get(fullEmployeeData);
+				const employeeData = currentFullData.find((fed) => fed.employee.id === employeeId);
+				if (
+					!employeeData ||
+					!employeeData.travelJob ||
+					employeeData.travelJob.id !== travelJob.id
+				) {
+					log.debug('[GameData] Travel already completed, skipping timer completion');
+					return;
+				}
+				await gameDataAPI.completeTravel(employeeId, travelJob.id);
+			} catch (error) {
+				log.error('[GameData] Failed to auto-complete travel:', error);
+				addError('Failed to complete travel automatically', 'error');
+			}
+		}, remainingTime);
+
+		travelCompletionTimers.set(employeeId, timer);
+	} else {
+		// Travel should already be completed, trigger completion immediately
+		log.debug('[GameData] Travel already past completion time, completing immediately');
+		setTimeout(async () => {
+			try {
+				// Check if travel job still exists before completing
+				const currentFullData = get(fullEmployeeData);
+				const employeeData = currentFullData.find((fed) => fed.employee.id === employeeId);
+				if (
+					!employeeData ||
+					!employeeData.travelJob ||
+					employeeData.travelJob.id !== travelJob.id
+				) {
+					log.debug('[GameData] Overdue travel already completed, skipping');
+					return;
+				}
+				await gameDataAPI.completeTravel(employeeId, travelJob.id);
+			} catch (error) {
+				log.error('[GameData] Failed to complete overdue travel:', error);
+			}
+		}, 100);
+	}
+}
+
 // Derived store to check if cheats are enabled
 export const cheatsEnabled = derived(currentUser, ($currentUser) => {
 	return $currentUser?.cheatsEnabled || false;
@@ -147,7 +225,8 @@ export const gameDataActions = {
 				employeeStartLocation: null,
 				jobPickupAddress: null,
 				jobDeliverAddress: null,
-				activeRoute: null
+				activeRoute: null,
+				travelJob: null
 			}));
 			gameDataActions.setFullEmployeeData(fedData);
 		}
@@ -248,9 +327,63 @@ export const gameDataActions = {
 			employeeStartLocation: null,
 			jobPickupAddress: null,
 			jobDeliverAddress: null,
-			activeRoute: null
+			activeRoute: null,
+			travelJob: null
 		};
 		fullEmployeeData.update((currentFullData) => [...currentFullData, newFed]);
+	},
+
+	// Set travel job for a specific employee and set up completion timer
+	setEmployeeTravelJob(employeeId: string, travelJob: TravelJob | null) {
+		fullEmployeeData.update((currentFullData) => {
+			return currentFullData.map((fed) =>
+				fed.employee.id === employeeId ? { ...fed, travelJob } : fed
+			);
+		});
+
+		// Clear any existing travel timer for this employee
+		const existingTimer = travelCompletionTimers.get(employeeId);
+		if (existingTimer) {
+			clearTimeout(existingTimer);
+			travelCompletionTimers.delete(employeeId);
+		}
+
+		// Set up completion timer if there's a travel job
+		if (travelJob && travelJob.startTime) {
+			// Check if travel job is already overdue and should be cleaned up
+			const startTime = new Date(travelJob.startTime).getTime();
+			const currentTime = Date.now();
+			const durationMs = (travelJob.durationSeconds || 0) * 1000;
+			const isOverdue = currentTime >= startTime + durationMs;
+
+			if (isOverdue) {
+				// Automatically cleanup overdue travel jobs
+				const gameState = get(currentGameState);
+				if (gameState) {
+					gameDataAPI.cleanupTravelJobs(employeeId, gameState.id).catch((error) => {
+						log.error('[GameData] Failed to auto-cleanup overdue travel job:', error);
+					});
+				}
+			} else {
+				scheduleTravelCompletion(employeeId, travelJob);
+			}
+		}
+	},
+
+	// Clear travel job for an employee (when travel is completed)
+	clearEmployeeTravelJob(employeeId: string) {
+		fullEmployeeData.update((currentFullData) => {
+			return currentFullData.map((fed) =>
+				fed.employee.id === employeeId ? { ...fed, travelJob: null } : fed
+			);
+		});
+
+		// Clear any completion timer
+		const existingTimer = travelCompletionTimers.get(employeeId);
+		if (existingTimer) {
+			clearTimeout(existingTimer);
+			travelCompletionTimers.delete(employeeId);
+		}
 	},
 
 	// Set active job for a specific employee and set up completion timer
@@ -385,6 +518,27 @@ export const gameDataAPI = {
 			// Update full employee data with timer scheduling
 			if (data.fullEmployeeData) {
 				gameDataActions.setFullEmployeeData(data.fullEmployeeData);
+
+				// Automatically cleanup stuck travel jobs for all employees
+				const currentTime = Date.now();
+				for (const fed of data.fullEmployeeData) {
+					if (fed.travelJob?.startTime) {
+						const startTime = new Date(fed.travelJob.startTime).getTime();
+						const durationMs = (fed.travelJob.durationSeconds || 0) * 1000;
+						const isOverdue = currentTime >= startTime + durationMs;
+
+						if (isOverdue) {
+							// Automatically cleanup overdue travel jobs
+							gameDataAPI.cleanupTravelJobs(fed.employee.id, gameState.id).catch((error) => {
+								log.error(
+									'[GameData] Failed to auto-cleanup overdue travel job for employee:',
+									fed.employee.id,
+									error
+								);
+							});
+						}
+					}
+				}
 			}
 
 			log.debug('[GameData] Employee data loaded successfully');
@@ -424,6 +578,66 @@ export const gameDataAPI = {
 		} catch (error) {
 			log.error('[GameData] Error completing job:', error);
 			addError('Failed to complete job', 'error');
+			throw error;
+		}
+	},
+
+	// Complete a specific travel
+	async completeTravel(employeeId: string, travelJobId: string) {
+		try {
+			log.debug('[GameData] Completing travel for employee:', employeeId, 'travel:', travelJobId);
+
+			const response = await fetch('/api/travel/complete', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ travelJobId, employeeId })
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.message || 'Failed to complete travel');
+			}
+
+			const result = await response.json();
+
+			// Refresh employee data to get updated location
+			await gameDataAPI.loadAllEmployeeData();
+
+			log.debug('[GameData] Travel completed successfully');
+			return result;
+		} catch (error) {
+			log.error('[GameData] Error completing travel:', error);
+			addError('Failed to complete travel', 'error');
+			throw error;
+		}
+	},
+
+	// Clean up stuck or duplicate travel jobs for an employee
+	async cleanupTravelJobs(employeeId: string, gameStateId: string) {
+		try {
+			log.debug('[GameData] Cleaning up travel jobs for employee:', employeeId);
+
+			const response = await fetch('/api/travel/cleanup', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ employeeId, gameStateId })
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.message || 'Failed to cleanup travel jobs');
+			}
+
+			const result = await response.json();
+
+			// Refresh employee data to get updated state
+			await gameDataAPI.loadAllEmployeeData();
+
+			log.debug('[GameData] Travel cleanup completed:', result);
+			return result;
+		} catch (error) {
+			log.error('[GameData] Error cleaning up travel jobs:', error);
+			addError('Failed to cleanup travel jobs', 'error');
 			throw error;
 		}
 	},

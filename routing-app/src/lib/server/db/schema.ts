@@ -199,6 +199,29 @@ export const activeJobs = pgTable(
 	]
 );
 
+// Travel jobs table - for employee travel to arbitrary locations
+export const travelJobs = pgTable(
+	'travel_job',
+	{
+		id: text('id').notNull().primaryKey(),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employees.id, { onDelete: 'cascade' }),
+		gameStateId: text('game_state_id')
+			.notNull()
+			.references(() => gameStates.id, { onDelete: 'cascade' }),
+		destinationLocation: jsonb('destination_location').$type<Coordinate>().notNull(), // { lat, lon }
+		startTime: timestamp('start_time', { withTimezone: true }),
+		durationSeconds: doublePrecision('duration_seconds'),
+		employeeStartLocation: jsonb('employee_start_location').$type<Coordinate>().notNull() // { lat, lon }
+	},
+	(table) => [
+		index('travel_jobs_game_state_idx').on(table.gameStateId),
+		index('travel_jobs_employee_idx').on(table.employeeId),
+		index('travel_jobs_start_time_idx').on(table.startTime)
+	]
+);
+
 // Employees table - tracks user's employees and their states
 export const employees = pgTable(
 	'employee',
@@ -351,6 +374,7 @@ export interface FullEmployeeData {
 	jobPickupAddress: Address | null;
 	jobDeliverAddress: Address | null;
 	activeRoute: ActiveRoute | null;
+	travelJob: TravelJob | null;
 }
 
 export type Employee = InferSelectModel<typeof employees>;
@@ -358,4 +382,5 @@ export type Job = InferSelectModel<typeof jobs>;
 export type GameState = InferSelectModel<typeof gameStates>;
 export type Address = InferSelectModel<typeof addresses>;
 export type ActiveJob = InferSelectModel<typeof activeJobs>;
+export type TravelJob = InferSelectModel<typeof travelJobs>;
 export type Region = InferSelectModel<typeof regions>;

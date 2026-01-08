@@ -13,13 +13,17 @@
 	import { MapManager } from './map/MapManager';
 	import MarkerRenderer from './map/MarkerRenderer.svelte';
 	import RouteRenderer from './map/RouteRenderer.svelte';
+	import TravelDestinationMarker from './map/TravelDestinationMarker.svelte';
 	import { allSearchResultJobs, jobSearchActions } from '$lib/stores/jobSearch';
+	import { travelModeState, travelModeActions, isInTravelMode } from '$lib/stores/travelMode';
+	import { currentGameState } from '$lib/stores/gameData';
 	import type {
 		Employee,
 		Address,
 		Coordinate,
 		RoutingResult,
-		PathPoint
+		PathPoint,
+		FullEmployeeData
 	} from '$lib/server/db/schema';
 	import type { DisplayableRoute } from '$lib/stores/mapDisplay';
 	import { formatAddress } from '$lib/formatting';
@@ -63,6 +67,15 @@
 				const activeJobId = routeDisplay.route.id.replace('active-', '');
 				// Find the employee who has this active job
 				const fed = $fullEmployeeData.find((fed) => fed.activeJob?.id === activeJobId);
+				if (fed && routeDisplay.route.path && Array.isArray(routeDisplay.route.path)) {
+					acc[fed.employee.id] = routeDisplay.route.path;
+				}
+			}
+			// Route IDs for travel routes are in format: "travel-{travelJobId}"
+			if (routeDisplay.isActive && routeDisplay.route.id.startsWith('travel-')) {
+				const travelJobId = routeDisplay.route.id.replace('travel-', '');
+				// Find the employee who has this travel job
+				const fed = $fullEmployeeData.find((fed) => fed.travelJob?.id === travelJobId);
 				if (fed && routeDisplay.route.path && Array.isArray(routeDisplay.route.path)) {
 					acc[fed.employee.id] = routeDisplay.route.path;
 				}
@@ -111,6 +124,71 @@
 	$: {
 		if (leafletMap && L) {
 			handleRegionOverlayToggle($regionOverlayEnabled);
+		}
+	}
+
+	// Travel mode click handler
+	let travelModeClickHandler: ((e: any) => void) | null = null;
+
+	// Reactive updates for travel mode
+	$: {
+		if (leafletMap && L) {
+			// Remove existing handler if it exists
+			if (travelModeClickHandler) {
+				leafletMap.off('click', travelModeClickHandler);
+				travelModeClickHandler = null;
+			}
+
+			// Add handler if in travel mode
+			if ($isInTravelMode) {
+				travelModeClickHandler = async (e: any) => {
+					const state = get(travelModeState);
+					if (!state.employeeId) {
+						return;
+					}
+
+					// Get employee location
+					const employee = $fullEmployeeData.find((fed) => fed.employee.id === state.employeeId);
+					if (!employee) {
+						return;
+					}
+
+					let employeeLocation: Coordinate;
+					if (typeof employee.employee.location === 'string') {
+						employeeLocation = JSON.parse(employee.employee.location);
+					} else {
+						employeeLocation = employee.employee.location as Coordinate;
+					}
+
+					// Set destination and fetch route
+					travelModeActions.setDestination({ lat: e.latlng.lat, lon: e.latlng.lng });
+
+					try {
+						const response = await fetch(
+							`/api/travel/route?fromLat=${employeeLocation.lat}&fromLon=${employeeLocation.lon}&toLat=${e.latlng.lat}&toLon=${e.latlng.lng}&employeeId=${state.employeeId}`
+						);
+
+						if (response.ok) {
+							const result = await response.json();
+							if (result.success) {
+								travelModeActions.setRouteResult({
+									path: result.path,
+									travelTimeSeconds: result.travelTimeSeconds,
+									totalDistanceMeters: result.totalDistanceMeters
+								});
+							} else {
+								travelModeActions.setRouteResult(null);
+							}
+						} else {
+							travelModeActions.setRouteResult(null);
+						}
+					} catch (error) {
+						console.error('Error fetching travel route:', error);
+						travelModeActions.setRouteResult(null);
+					}
+				};
+				leafletMap.on('click', travelModeClickHandler);
+			}
 		}
 	}
 
@@ -263,6 +341,23 @@
 					addRouteMarkers(fed, 'active');
 				}
 			}
+
+			// 3. Display travel job routes for employees
+			if (fed.travelJob && fed.travelJob.startTime) {
+				const travelRoute = await createRouteFromTravelJob(fed);
+				if (travelRoute) {
+					const isSelected = travelRoute.id === $selectedRoute;
+					mapDisplayActions.addRoute(travelRoute, {
+						isSelected,
+						isActive: true,
+						color: isSelected ? '#f59e0b' : '#f59e0b', // Orange/amber for travel
+						onClick: () => {
+							selectRoute(travelRoute.id);
+							zoomToRoute(travelRoute);
+						}
+					});
+				}
+			}
 		}
 	}
 
@@ -393,6 +488,42 @@
 			startTime: fed.activeJob.startTime,
 			routeData: parsedRouteData
 		};
+	}
+
+	async function createRouteFromTravelJob(fed: FullEmployeeData): Promise<DisplayableRoute | null> {
+		if (!fed.travelJob?.id) {
+			return null;
+		}
+
+		// Fetch route data from travel API
+		try {
+			const response = await fetch(`/api/travel/${fed.travelJob.id}`);
+			if (!response.ok) {
+				log.warn('[RouteMap] Failed to fetch travel route:', fed.travelJob.id);
+				return null;
+			}
+
+			// Browser automatically decompresses gzip when Content-Encoding: gzip is set
+			const routeData: RoutingResult = await response.json();
+
+			if (!routeData.path || !Array.isArray(routeData.path) || routeData.path.length === 0) {
+				log.warn('[RouteMap] Invalid travel route data');
+				return null;
+			}
+
+			return {
+				id: `travel-${fed.travelJob.id}`,
+				path: routeData.path,
+				travelTimeSeconds: routeData.travelTimeSeconds,
+				totalDistanceMeters: routeData.totalDistanceMeters,
+				destination: routeData.destination,
+				startTime: fed.travelJob.startTime,
+				routeData
+			};
+		} catch (error) {
+			log.error('[RouteMap] Error fetching travel route:', error);
+			return null;
+		}
 	}
 
 	function addRouteMarkers(data: any, routeType: string) {
@@ -533,27 +664,30 @@
 		}
 
 		animationInterval = setInterval(() => {
-			// Check if any employees are currently on active jobs
+			// Check if any employees are currently on active jobs or travel jobs
 			const hasAnimatedEmployees = $fullEmployeeData.some((fed) => {
-				return fed.activeJob && fed.activeJob.startTime;
+				return (
+					(fed.activeJob && fed.activeJob.startTime) ||
+					(fed.travelJob && fed.travelJob.startTime)
+				);
 			});
 
 			if (hasAnimatedEmployees) {
 				// Update animation timestamp to trigger marker position updates
+				// Don't call updateDisplayedRoutes() here - routes don't change during animation,
+				// only positions do. updateDisplayedRoutes() is expensive and causes infinite API calls.
 				animationTimestamp = Date.now();
-				// Trigger reactivity for route updates
-				updateDisplayedRoutes();
 			}
 		}, ANIMATION_INTERVAL_MS); // Update every ~33ms for smooth animation
 	}
 
-	function handleEmployeeSelection(employeeId: string) {
+	async function handleEmployeeSelection(employeeId: string) {
 		const fed = $fullEmployeeData.find((fed) => fed.employee.id === employeeId);
 		if (!fed || !leafletMap) return;
 
 		if (fed.activeJob && fed.activeJob.startTime && fed.activeRoute) {
 			// Employee is on an active job - zoom to show the job route
-			const activeRoute = createRouteFromFullEmployeeData(fed);
+			const activeRoute = await createRouteFromFullEmployeeData(fed);
 			if (activeRoute) {
 				zoomToRoute(activeRoute);
 			}
@@ -669,6 +803,8 @@
 		/>
 
 		<RouteRenderer map={leafletMap} {L} routes={$displayedRoutes} />
+
+		<TravelDestinationMarker map={leafletMap} {L} />
 	{/if}
 </div>
 
