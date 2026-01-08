@@ -513,7 +513,12 @@
 	$: jobCount = $employeeSearchResultsStore?.length || 0;
 
 	// Computed values for progress bar
-	$: progressValue = activeJob && jobProgress ? jobProgress.progress : travelJob && travelProgress ? travelProgress.progress : 0;
+	$: progressValue =
+		activeJob && jobProgress
+			? jobProgress.progress
+			: travelJob && travelProgress
+				? travelProgress.progress
+				: 0;
 	$: isActive = (activeJob && jobProgress) || (travelJob && travelProgress);
 </script>
 

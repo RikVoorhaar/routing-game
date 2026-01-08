@@ -667,8 +667,7 @@
 			// Check if any employees are currently on active jobs or travel jobs
 			const hasAnimatedEmployees = $fullEmployeeData.some((fed) => {
 				return (
-					(fed.activeJob && fed.activeJob.startTime) ||
-					(fed.travelJob && fed.travelJob.startTime)
+					(fed.activeJob && fed.activeJob.startTime) || (fed.travelJob && fed.travelJob.startTime)
 				);
 			});
 

@@ -38,7 +38,7 @@ export function createEmployeePopupHTML(employee: Employee, hasActiveJob: boolea
 		: 'background-color: #f59e0b; cursor: pointer;';
 	const travelButtonHover = hasActiveJob
 		? ''
-		: "onmouseover=\"this.style.backgroundColor='#d97706'\" onmouseout=\"this.style.backgroundColor='#f59e0b'\"";
+		: 'onmouseover="this.style.backgroundColor=\'#d97706\'" onmouseout="this.style.backgroundColor=\'#f59e0b\'"';
 
 	return `
 		<div class="employee-popup" style="min-width: 220px; font-family: system-ui, sans-serif;">

@@ -1,5 +1,12 @@
 import { writable, derived, get } from 'svelte/store';
-import type { GameState, Job, Employee, ActiveJob, TravelJob, FullEmployeeData } from '$lib/server/db/schema';
+import type {
+	GameState,
+	Job,
+	Employee,
+	ActiveJob,
+	TravelJob,
+	FullEmployeeData
+} from '$lib/server/db/schema';
 import { addError } from './errors';
 import { log } from '$lib/logger';
 

@@ -115,7 +115,10 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			const ttlSeconds = 24 * 3600; // 24 hours
 			await setRoute(travelJobId, routeDataGzip, ttlSeconds);
 
-			serverLog.api.info({ travelJobId, dataLength: routeDataGzip.length }, 'Route computed and stored in Redis');
+			serverLog.api.info(
+				{ travelJobId, dataLength: routeDataGzip.length },
+				'Route computed and stored in Redis'
+			);
 		} else {
 			serverLog.api.info(
 				{ travelJobId, dataLength: routeDataGzip.length },

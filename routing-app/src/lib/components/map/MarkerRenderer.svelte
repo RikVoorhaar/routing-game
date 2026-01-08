@@ -7,14 +7,24 @@
 	import { switchToTab } from '$lib/stores/activeTab';
 	import { selectedJob, selectJob, setSelectedActiveJobData } from '$lib/stores/selectedJob';
 	import { getSearchResultsForEmployee, jobSearchActions } from '$lib/stores/jobSearch';
-	import { currentGameState, gameDataActions, gameDataAPI, fullEmployeeData } from '$lib/stores/gameData';
+	import {
+		currentGameState,
+		gameDataActions,
+		gameDataAPI,
+		fullEmployeeData
+	} from '$lib/stores/gameData';
 	import { getRoute } from '$lib/stores/routeCache';
 	import { addError } from '$lib/stores/errors';
 	import { computeJobXp, computeJobReward } from '$lib/jobs/jobUtils';
 	import { config } from '$lib/stores/config';
 	import { DEFAULT_EMPLOYEE_LOCATION } from '$lib/employeeUtils';
 	import { log } from '$lib/logger';
-	import { createEmployeePopupHTML, EMPLOYEE_POPUP_GOTO_PANEL_BUTTON_ID, EMPLOYEE_POPUP_SEARCH_JOBS_BUTTON_ID, EMPLOYEE_POPUP_TRAVEL_BUTTON_ID } from './popups/employeePopup';
+	import {
+		createEmployeePopupHTML,
+		EMPLOYEE_POPUP_GOTO_PANEL_BUTTON_ID,
+		EMPLOYEE_POPUP_SEARCH_JOBS_BUTTON_ID,
+		EMPLOYEE_POPUP_TRAVEL_BUTTON_ID
+	} from './popups/employeePopup';
 	import { createJobPopupHTML, JOB_POPUP_ACCEPT_BUTTON_ID } from './popups/jobPopup';
 	import { createEmployeeMarkerHTML } from './markers/employeeMarker';
 	import { createJobMarkerHTML } from './markers/jobMarker';
@@ -87,7 +97,7 @@
 		}
 	}
 
-		function updateEmployeePositions() {
+	function updateEmployeePositions() {
 		// Update positions of existing markers without recreating them
 		employees.forEach((employee) => {
 			const marker = employeeMarkers[employee.id];
@@ -206,8 +216,6 @@
 			addError('Failed to accept job', 'error');
 		}
 	}
-
-
 
 	function createJobMarker(job: Job) {
 		try {
@@ -371,7 +379,6 @@
 			return null;
 		}
 	}
-
 
 	function updateEmployeeMarkers() {
 		// Clear existing markers
@@ -542,7 +549,6 @@
 			employeeMarkers['default'] = defaultMarker;
 		}
 	}
-
 
 	function parseRouteData(routeDataString: string | object): PathPoint[] {
 		try {
