@@ -47,6 +47,7 @@
 	let isPurchasingUpgrade = false;
 	let hoveredUpgradeButton = false;
 	let isSearchingJobs = false;
+	let isCanceling = false;
 
 	// Cleanup timeout and interval on component destroy
 	onDestroy(() => {
@@ -452,6 +453,34 @@
 		}
 	}
 
+	async function handleCancel(e: MouseEvent) {
+		e.stopPropagation(); // Prevent card click
+		if (!canCancel || isCanceling) return;
+
+		isCanceling = true;
+		try {
+			const response = await fetch(`/api/employees/${employee.id}/cancel`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' }
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.message || 'Failed to cancel job/travel');
+			}
+
+			// Refresh employee data
+			await gameDataAPI.loadAllEmployeeData();
+
+			addError('Job/travel canceled successfully', 'info');
+		} catch (err) {
+			const errorMessage = err instanceof Error ? err.message : 'Failed to cancel job/travel';
+			addError(errorMessage, 'error');
+		} finally {
+			isCanceling = false;
+		}
+	}
+
 	// Calculate employee level from XP
 	$: employeeLevel = typeof employee?.xp === 'number' ? getLevelFromXp(employee.xp) : 0;
 	$: xpForCurrentLevel = employeeLevel >= 0 ? getXpForLevel(employeeLevel) : 0;
@@ -520,6 +549,12 @@
 				? travelProgress.progress
 				: 0;
 	$: isActive = (activeJob && jobProgress) || (travelJob && travelProgress);
+
+	// Check if cancel button should be shown
+	$: canCancel =
+		((activeJob?.startTime && !jobProgress?.isComplete) ||
+			(travelJob?.startTime && !travelProgress?.isComplete)) &&
+		!isCanceling;
 </script>
 
 <div
@@ -674,6 +709,22 @@
 
 			<!-- Action Buttons Row -->
 			<div class="flex w-full justify-end gap-1">
+				<!-- Cancel Button (show when employee is active) -->
+				{#if canCancel}
+					<button
+						class="btn btn-error btn-xs w-24"
+						disabled={isCanceling}
+						on:click|stopPropagation={handleCancel}
+						title="Cancel current job/travel"
+					>
+						{#if isCanceling}
+							<span class="loading loading-spinner loading-xs"></span>
+						{:else}
+							✕ Cancel
+						{/if}
+					</button>
+				{/if}
+
 				<!-- Search Jobs Button (always show when idle) -->
 				{#if !activeJob?.startTime && !travelJob?.startTime}
 					{#if hasSearchResults}

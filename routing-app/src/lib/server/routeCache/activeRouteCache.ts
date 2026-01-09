@@ -122,3 +122,32 @@ export async function extendRouteTTL(activeJobId: string, ttlSeconds: number): P
 		return false;
 	}
 }
+
+/**
+ * Delete a cached route
+ *
+ * Parameters
+ * -----------
+ * activeJobId: string
+ *     The active job ID
+ *
+ * Returns
+ * --------
+ * Promise<void>
+ */
+export async function deleteRoute(activeJobId: string): Promise<void> {
+	try {
+		const key = getKey(activeJobId);
+		await redisClient.del(key);
+	} catch (err) {
+		serverLog.api.error(
+			{
+				activeJobId,
+				error: err instanceof Error ? err.message : String(err),
+				stack: err instanceof Error ? err.stack : undefined
+			},
+			'Error deleting active route from Redis'
+		);
+		// Don't throw - allow the application to continue even if Redis fails
+	}
+}

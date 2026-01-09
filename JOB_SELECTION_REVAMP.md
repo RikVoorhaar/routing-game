@@ -36,6 +36,7 @@ Left to do:
 - [ ] Add XP tracker for regions
 - [ ] Way to travel to islands, right now there is no way to get to e.g. Iceland or the UK or Sicily. (this can be done with ferry routes probably, this is WIP)
 - [ ] More addresses -- not just nodes also ways, and include all buildings. 
+- [ ] logic for verifying game state should be re-usable, now it is included in most server endpoints. 
 
 
 **regions plan** (done)
