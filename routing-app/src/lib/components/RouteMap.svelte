@@ -783,7 +783,9 @@
 
 	<!-- Travel Mode Indicator Bar -->
 	{#if $isInTravelMode && $travelModeState.employeeId}
-		{@const employee = $fullEmployeeData.find((fed) => fed.employee.id === $travelModeState.employeeId)?.employee}
+		{@const employee = $fullEmployeeData.find(
+			(fed) => fed.employee.id === $travelModeState.employeeId
+		)?.employee}
 		{@const routeResult = $travelModeState.routeResult}
 		<div class="travel-mode-indicator">
 			<div class="flex items-center justify-between gap-4 px-4 py-2">
@@ -793,7 +795,7 @@
 						<span class="text-sm font-semibold">
 							Travel Mode{employee ? ` - ${employee.name}` : ''}
 						</span>
-						<span class="text-xs text-white/90 mb-1">
+						<span class="mb-1 text-xs text-white/90">
 							Click anywhere on the map to travel to that location
 						</span>
 						{#if routeResult}
@@ -812,10 +814,7 @@
 						{/if}
 					</div>
 				</div>
-				<button
-					class="btn btn-sm btn-ghost"
-					on:click={() => travelModeActions.exitTravelMode()}
-				>
+				<button class="btn btn-ghost btn-sm" on:click={() => travelModeActions.exitTravelMode()}>
 					Cancel
 				</button>
 			</div>

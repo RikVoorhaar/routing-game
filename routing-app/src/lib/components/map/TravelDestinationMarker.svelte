@@ -20,9 +20,7 @@
 		const state = $travelModeState;
 
 		// Check if employee already has an active travel job
-		const employeeData = $fullEmployeeData.find(
-			(fed) => fed.employee.id === state.employeeId
-		);
+		const employeeData = $fullEmployeeData.find((fed) => fed.employee.id === state.employeeId);
 		const hasActiveTravelJob =
 			employeeData?.travelJob?.startTime || state.activeTravelJobId !== null;
 
@@ -76,71 +74,71 @@
 
 					if (goButton) {
 						goButton.onclick = async () => {
-									// Call travel start API
-									const currentState = get(travelModeState);
-									if (!currentState.routeResult || !currentState.employeeId) {
-										return;
-									}
-
-									// Check if travel job already exists (prevent double-click)
-									const currentEmployeeData = $fullEmployeeData.find(
-										(fed) => fed.employee.id === currentState.employeeId
-									);
-									if (currentEmployeeData?.travelJob?.startTime) {
-										destinationMarker.closePopup();
-										return;
-									}
-
-									const { currentGameState, gameDataAPI } = await import('$lib/stores/gameData');
-									const gameState = get(currentGameState);
-									if (!gameState) {
-										return;
-									}
-
-									try {
-										const employee = await gameDataAPI.refreshEmployee(currentState.employeeId);
-										let employeeLocation: Coordinate;
-										if (typeof employee.location === 'string') {
-											employeeLocation = JSON.parse(employee.location);
-										} else {
-											employeeLocation = employee.location as Coordinate;
-										}
-
-										const response = await fetch('/api/travel/start', {
-											method: 'POST',
-											headers: { 'Content-Type': 'application/json' },
-											body: JSON.stringify({
-												employeeId: currentState.employeeId,
-												gameStateId: gameState.id,
-												destinationCoordinate: currentState.destinationCoordinate,
-												routePath: currentState.routeResult.path,
-												durationSeconds: currentState.routeResult.travelTimeSeconds
-											})
-										});
-
-										if (response.ok) {
-											const { travelJob } = await response.json();
-											travelModeActions.startTravel(travelJob.id);
-											destinationMarker.closePopup();
-											// Update gameData store immediately with travel job
-											const { gameDataActions } = await import('$lib/stores/gameData');
-											gameDataActions.setEmployeeTravelJob(currentState.employeeId, travelJob);
-											// Refresh employee data to ensure everything is in sync
-											await gameDataAPI.loadAllEmployeeData();
-											// Exit travel mode and remove marker after travel starts
-											travelModeActions.exitTravelMode();
-										} else {
-											const errorData = await response.json();
-											const { addError } = await import('$lib/stores/errors');
-											addError(errorData.message || 'Failed to start travel', 'error');
-										}
-									} catch (error) {
-										console.error('Error starting travel:', error);
-										const { addError } = await import('$lib/stores/errors');
-										addError('Failed to start travel', 'error');
-									}
-								};
+							// Call travel start API
+							const currentState = get(travelModeState);
+							if (!currentState.routeResult || !currentState.employeeId) {
+								return;
 							}
+
+							// Check if travel job already exists (prevent double-click)
+							const currentEmployeeData = $fullEmployeeData.find(
+								(fed) => fed.employee.id === currentState.employeeId
+							);
+							if (currentEmployeeData?.travelJob?.startTime) {
+								destinationMarker.closePopup();
+								return;
+							}
+
+							const { currentGameState, gameDataAPI } = await import('$lib/stores/gameData');
+							const gameState = get(currentGameState);
+							if (!gameState) {
+								return;
+							}
+
+							try {
+								const employee = await gameDataAPI.refreshEmployee(currentState.employeeId);
+								let employeeLocation: Coordinate;
+								if (typeof employee.location === 'string') {
+									employeeLocation = JSON.parse(employee.location);
+								} else {
+									employeeLocation = employee.location as Coordinate;
+								}
+
+								const response = await fetch('/api/travel/start', {
+									method: 'POST',
+									headers: { 'Content-Type': 'application/json' },
+									body: JSON.stringify({
+										employeeId: currentState.employeeId,
+										gameStateId: gameState.id,
+										destinationCoordinate: currentState.destinationCoordinate,
+										routePath: currentState.routeResult.path,
+										durationSeconds: currentState.routeResult.travelTimeSeconds
+									})
+								});
+
+								if (response.ok) {
+									const { travelJob } = await response.json();
+									travelModeActions.startTravel(travelJob.id);
+									destinationMarker.closePopup();
+									// Update gameData store immediately with travel job
+									const { gameDataActions } = await import('$lib/stores/gameData');
+									gameDataActions.setEmployeeTravelJob(currentState.employeeId, travelJob);
+									// Refresh employee data to ensure everything is in sync
+									await gameDataAPI.loadAllEmployeeData();
+									// Exit travel mode and remove marker after travel starts
+									travelModeActions.exitTravelMode();
+								} else {
+									const errorData = await response.json();
+									const { addError } = await import('$lib/stores/errors');
+									addError(errorData.message || 'Failed to start travel', 'error');
+								}
+							} catch (error) {
+								console.error('Error starting travel:', error);
+								const { addError } = await import('$lib/stores/errors');
+								addError('Failed to start travel', 'error');
+							}
+						};
+					}
 
 					if (cancelButton) {
 						cancelButton.onclick = () => {
@@ -154,7 +152,7 @@
 				destinationMarker.on('popupopen', () => {
 					setTimeout(setupButtonHandlers, 10);
 				});
-				
+
 				// Immediately open the popup when marker is created
 				// Use setTimeout to ensure popup is fully initialized before opening
 				setTimeout(() => {
