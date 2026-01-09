@@ -34,7 +34,8 @@ Left to do:
 - [x] Migrate DB to add regions table and region field
 - [x] Display regions on map
 - [ ] Add XP tracker for regions
-- [ ] Way to travel to islands, right now there is no way to get to e.g. Iceland or the UK or Sicily.
+- [ ] Way to travel to islands, right now there is no way to get to e.g. Iceland or the UK or Sicily. (this can be done with ferry routes probably, this is WIP)
+- [ ] More addresses -- not just nodes also ways, and include all buildings. 
 
 
 **regions plan** (done)

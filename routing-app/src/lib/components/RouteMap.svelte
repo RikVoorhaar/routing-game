@@ -781,6 +781,47 @@
 <div class="map-container">
 	<div bind:this={mapElement} class="map-element"></div>
 
+	<!-- Travel Mode Indicator Bar -->
+	{#if $isInTravelMode && $travelModeState.employeeId}
+		{@const employee = $fullEmployeeData.find((fed) => fed.employee.id === $travelModeState.employeeId)?.employee}
+		{@const routeResult = $travelModeState.routeResult}
+		<div class="travel-mode-indicator">
+			<div class="flex items-center justify-between gap-4 px-4 py-2">
+				<div class="flex items-center gap-3">
+					<span class="text-lg">🚗</span>
+					<div class="flex flex-col">
+						<span class="text-sm font-semibold">
+							Travel Mode{employee ? ` - ${employee.name}` : ''}
+						</span>
+						<span class="text-xs text-white/90 mb-1">
+							Click anywhere on the map to travel to that location
+						</span>
+						{#if routeResult}
+							<span class="text-xs text-white/80">
+								{routeResult.totalDistanceMeters > 0
+									? `${(routeResult.totalDistanceMeters / 1000).toFixed(1)} km`
+									: ''}
+								{#if routeResult.travelTimeSeconds > 0}
+									• {Math.round(routeResult.travelTimeSeconds)}s
+								{/if}
+							</span>
+						{:else if $travelModeState.routingStatus === 'loading'}
+							<span class="text-xs text-white/80">Calculating route...</span>
+						{:else if $travelModeState.routingStatus === 'error'}
+							<span class="text-xs text-red-200">Route calculation failed</span>
+						{/if}
+					</div>
+				</div>
+				<button
+					class="btn btn-sm btn-ghost"
+					on:click={() => travelModeActions.exitTravelMode()}
+				>
+					Cancel
+				</button>
+			</div>
+		</div>
+	{/if}
+
 	<!-- Render markers and routes -->
 	{#if leafletMap && L}
 		<MarkerRenderer
@@ -841,5 +882,17 @@
 		width: 100%;
 		height: 100%;
 		min-height: 400px;
+	}
+
+	.travel-mode-indicator {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		z-index: 1000;
+		background: linear-gradient(to bottom, rgba(16, 185, 129, 0.95), rgba(16, 185, 129, 0.9));
+		border-bottom: 2px solid rgba(16, 185, 129, 1);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+		color: white;
 	}
 </style>
