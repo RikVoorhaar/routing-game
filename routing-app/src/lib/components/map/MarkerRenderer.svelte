@@ -459,70 +459,73 @@
 					title: `${employee.name}${isAnimated ? ` (${Math.round(progress)}% complete, ETA: ${eta})` : ' (idle)'}`
 				}).addTo(map);
 
-				// Create and bind employee popup
-				const hasActiveJob = !!activeJobsByEmployee[employee.id];
-				const popupContent = createEmployeePopupHTML(employee, hasActiveJob);
-				const popup = L.popup({
-					maxWidth: 250,
-					className: 'employee-tooltip-popup'
-				}).setContent(popupContent);
+				// Only create popup for idle employees (not active/traveling)
+				if (!hasActiveJob && !hasTravelJob) {
+					// Create and bind employee popup
+					const hasActiveJobForPopup = !!activeJobsByEmployee[employee.id];
+					const popupContent = createEmployeePopupHTML(employee, hasActiveJobForPopup);
+					const popup = L.popup({
+						maxWidth: 250,
+						className: 'employee-tooltip-popup'
+					}).setContent(popupContent);
 
-				marker.bindPopup(popup);
+					marker.bindPopup(popup);
 
-				// Set up popup event handlers
-				marker.on('popupopen', () => {
-					selectEmployee(employee.id);
-					// Exit travel mode when employee marker is clicked
-					travelModeActions.exitTravelMode();
+					// Set up popup event handlers
+					marker.on('popupopen', () => {
+						selectEmployee(employee.id);
+						// Exit travel mode when employee marker is clicked
+						travelModeActions.exitTravelMode();
 
-					// Add button event handlers after popup opens
-					setTimeout(() => {
-						const gotoPanelButton = document.getElementById(
-							EMPLOYEE_POPUP_GOTO_PANEL_BUTTON_ID(employee.id)
-						);
-						const searchJobsButton = document.getElementById(
-							EMPLOYEE_POPUP_SEARCH_JOBS_BUTTON_ID(employee.id)
-						);
-						const travelButton = document.getElementById(
-							EMPLOYEE_POPUP_TRAVEL_BUTTON_ID(employee.id)
-						);
+						// Add button event handlers after popup opens
+						setTimeout(() => {
+							const gotoPanelButton = document.getElementById(
+								EMPLOYEE_POPUP_GOTO_PANEL_BUTTON_ID(employee.id)
+							);
+							const searchJobsButton = document.getElementById(
+								EMPLOYEE_POPUP_SEARCH_JOBS_BUTTON_ID(employee.id)
+							);
+							const travelButton = document.getElementById(
+								EMPLOYEE_POPUP_TRAVEL_BUTTON_ID(employee.id)
+							);
 
-						if (gotoPanelButton) {
-							gotoPanelButton.onclick = () => {
-								switchToTab('employees');
-								marker.closePopup();
-							};
-						}
-
-						if (searchJobsButton) {
-							searchJobsButton.onclick = async () => {
-								const gameState = get(currentGameState);
-								if (!gameState) return;
-
-								try {
-									await jobSearchActions.searchJobsForEmployee(employee.id, gameState.id);
-									addError(`Found jobs for ${employee.name}!`, 'info', true, 2000);
+							if (gotoPanelButton) {
+								gotoPanelButton.onclick = () => {
+									switchToTab('employees');
 									marker.closePopup();
-								} catch (error) {
-									console.error('Error searching jobs:', error);
-									addError('Failed to search jobs', 'error');
-								}
-							};
-						}
+								};
+							}
 
-						if (travelButton) {
-							travelButton.onclick = () => {
-								const hasActiveJob = !!activeJobsByEmployee[employee.id];
-								if (hasActiveJob) {
-									addError('Employee must be idle to travel', 'error');
-									return;
-								}
-								travelModeActions.enterTravelMode(employee.id);
-								marker.closePopup();
-							};
-						}
-					}, 10);
-				});
+							if (searchJobsButton) {
+								searchJobsButton.onclick = async () => {
+									const gameState = get(currentGameState);
+									if (!gameState) return;
+
+									try {
+										await jobSearchActions.searchJobsForEmployee(employee.id, gameState.id);
+										addError(`Found jobs for ${employee.name}!`, 'info', true, 2000);
+										marker.closePopup();
+									} catch (error) {
+										console.error('Error searching jobs:', error);
+										addError('Failed to search jobs', 'error');
+									}
+								};
+							}
+
+							if (travelButton) {
+								travelButton.onclick = () => {
+									const hasActiveJob = !!activeJobsByEmployee[employee.id];
+									if (hasActiveJob) {
+										addError('Employee must be idle to travel', 'error');
+										return;
+									}
+									travelModeActions.enterTravelMode(employee.id);
+									marker.closePopup();
+								};
+							}
+						}, 10);
+					});
+				}
 
 				// Keep click handler for backwards compatibility
 				marker.on('click', () => {

@@ -1,18 +1,38 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { employees, activeJobs, travelJobs, gameStates, jobs, addresses } from '$lib/server/db/schema';
+import {
+	employees,
+	activeJobs,
+	travelJobs,
+	gameStates,
+	jobs,
+	addresses
+} from '$lib/server/db/schema';
 import { eq, inArray, and, isNotNull } from 'drizzle-orm';
 import { serverLog } from '$lib/server/logging/serverLogger';
-import { getRoute as getActiveRoute, deleteRoute as deleteActiveRoute } from '$lib/server/routeCache/activeRouteCache';
-import { getRoute as getTravelRoute, deleteRoute as deleteTravelRoute } from '$lib/server/routeCache/travelRouteCache';
+import {
+	getRoute as getActiveRoute,
+	deleteRoute as deleteActiveRoute
+} from '$lib/server/routeCache/activeRouteCache';
+import {
+	getRoute as getTravelRoute,
+	deleteRoute as deleteTravelRoute
+} from '$lib/server/routeCache/travelRouteCache';
 import { computeActiveRouteForActiveJob } from '$lib/server/routes/activeRouteCompute';
 import { getShortestPath } from '$lib/routes/routing';
 import { applyMaxSpeed } from '$lib/routes/route-utils';
 import { getEmployeeMaxSpeed } from '$lib/employeeUtils';
 import { config } from '$lib/server/config';
 import { gzipSync, gunzipSync } from 'zlib';
-import type { RoutingResult, Coordinate, ActiveJob, TravelJob, Employee, GameState } from '$lib/server/db/schema';
+import type {
+	RoutingResult,
+	Coordinate,
+	ActiveJob,
+	TravelJob,
+	Employee,
+	GameState
+} from '$lib/server/db/schema';
 import { interpolateLocationAtTime } from '$lib/routes/routing-client';
 
 /**
@@ -23,7 +43,10 @@ async function computeRouteForActiveJob(
 	employee: Employee,
 	gameState: GameState
 ): Promise<Buffer> {
-	serverLog.api.info({ activeJobId: activeJob.id }, 'Route not found in cache, computing on-demand');
+	serverLog.api.info(
+		{ activeJobId: activeJob.id },
+		'Route not found in cache, computing on-demand'
+	);
 
 	// Fetch job and employee data needed for route computation
 	const job = await db.query.jobs.findFirst({
@@ -88,11 +111,11 @@ async function getRouteDataForActiveJob(
 /**
  * Compute route data for a travel job if not found in cache
  */
-async function computeRouteForTravelJob(
-	travelJob: TravelJob,
-	employee: Employee
-): Promise<Buffer> {
-	serverLog.api.info({ travelJobId: travelJob.id }, 'Route not found in cache, computing on-demand');
+async function computeRouteForTravelJob(travelJob: TravelJob, employee: Employee): Promise<Buffer> {
+	serverLog.api.info(
+		{ travelJobId: travelJob.id },
+		'Route not found in cache, computing on-demand'
+	);
 
 	// Compute the route using getShortestPath
 	const routeResult = await getShortestPath(
@@ -221,7 +244,10 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 				routeData = await getRouteDataForActiveJob(activeJob, employee, gameState);
 			} catch (err) {
 				const errorMessage = err instanceof Error ? err.message : String(err);
-				serverLog.api.error({ employeeId, activeJobId: routeId, error: errorMessage }, 'Failed to get route data');
+				serverLog.api.error(
+					{ employeeId, activeJobId: routeId, error: errorMessage },
+					'Failed to get route data'
+				);
 				return error(500, `Failed to get route data: ${errorMessage}`);
 			}
 
@@ -277,7 +303,10 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 				routeData = await getRouteDataForTravelJob(travelJob, employee);
 			} catch (err) {
 				const errorMessage = err instanceof Error ? err.message : String(err);
-				serverLog.api.error({ employeeId, travelJobId: routeId, error: errorMessage }, 'Failed to get route data');
+				serverLog.api.error(
+					{ employeeId, travelJobId: routeId, error: errorMessage },
+					'Failed to get route data'
+				);
 				return error(500, `Failed to get route data: ${errorMessage}`);
 			}
 
