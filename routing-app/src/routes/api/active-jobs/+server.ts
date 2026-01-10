@@ -1,8 +1,15 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { gameStates, employees, activeJobs, jobs, addresses } from '$lib/server/db/schema';
-import { eq, and, ne } from 'drizzle-orm';
+import {
+	gameStates,
+	employees,
+	activeJobs,
+	jobs,
+	addresses,
+	travelJobs
+} from '$lib/server/db/schema';
+import { eq, and, ne, isNotNull } from 'drizzle-orm';
 import { computeActiveJob } from '$lib/jobs/activeJobComputation';
 import { extendRouteTTL } from '$lib/server/routeCache/activeRouteCache';
 
@@ -179,6 +186,19 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 
 		if (!employee) {
 			return error(404, 'Employee not found');
+		}
+
+		// Check if employee has an active travel job
+		const activeTravelJob = await db.query.travelJobs.findFirst({
+			where: and(
+				eq(travelJobs.employeeId, employeeId),
+				eq(travelJobs.gameStateId, gameStateId),
+				isNotNull(travelJobs.startTime)
+			)
+		});
+
+		if (activeTravelJob) {
+			return error(400, 'Employee is currently traveling and cannot accept jobs');
 		}
 
 		const startTime = new Date();

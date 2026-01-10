@@ -3,14 +3,14 @@ BUGS:
 - [ ] The notification bubbles appear behind the map.
 - [ ] The route end icon should be consistent between the preview and the active route. (home icon vs. finish icon.)
 - [ ] When accepting a job, it still displays the route in orange from another employee to the job's start location.
-- [ ] When opening character selection screen it shows 'create your first character' when existing characters haven't been loaded yet. INstead there should be a loading screen of sorts. 
-- [ ] When no upgrades are available, there is an undefined glyph.
+- [x] When opening character selection screen it shows 'create your first character' when existing characters haven't been loaded yet. INstead there should be a loading screen of sorts. 
+- [x] When no upgrades are available, there is an undefined glyph.
 
 ENHANCEMENTS:
 - [ ] Make job-progress smooth (use css animations, not per second updates)
 - [ ] Allow a 'cancel job' button that just stops the job, doesn't award money and leaves the employee wherever they happen to be. 
 - [ ] When showing a preview of a route, the colors should be different for the route to the start, and the end marker. 
-- [ ] The distance shown in the job detail card uses the wrong unit (km) instead of meters, and isn't properly formatted (big distances should switch to km). 
+- [c] The distance shown in the job detail card uses the wrong unit (km) instead of meters, and isn't properly formatted (big distances should switch to km). 
 - [ ] Moving employee markers should be a simple pin, not teh whole box with eta and progress (that belongs in a different list). Perhaps just a simple circular progress bar, and inside there is an ETA number. 
 - [ ] When receiving money, notification should appear in appropriate place (e.g. floating on top of the interface, animated and fading up)
 - [ ] When clicking on an employee it is highlighted, and highlighted employees are stored in a store. 

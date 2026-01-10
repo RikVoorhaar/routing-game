@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { employees, activeJobs, addresses } from '$lib/server/db/schema';
+import { employees, activeJobs, travelJobs, addresses } from '$lib/server/db/schema';
 import type { FullEmployeeData } from '$lib/server/db/schema';
 import { eq, and, isNotNull, inArray, asc } from 'drizzle-orm';
 import { processCompletedJobs } from '$lib/jobs/jobCompletion';
@@ -46,15 +46,22 @@ export const GET: RequestHandler = async ({ params }) => {
 			.from(activeJobs)
 			.where(and(eq(activeJobs.gameStateId, gameStateId), isNotNull(activeJobs.startTime)));
 
-		// If there are no active jobs, return early with empty data
-		if (activeJobsData.length === 0) {
+		// Get all travel jobs for this game state
+		const travelJobsData = await db
+			.select()
+			.from(travelJobs)
+			.where(and(eq(travelJobs.gameStateId, gameStateId), isNotNull(travelJobs.startTime)));
+
+		// If there are no active jobs or travel jobs, return early with empty data
+		if (activeJobsData.length === 0 && travelJobsData.length === 0) {
 			const fullEmployeeData: FullEmployeeData[] = allEmployees.map((employee) => ({
 				employee,
 				activeJob: null,
 				employeeStartLocation: null,
 				jobPickupAddress: null,
 				jobDeliverAddress: null,
-				activeRoute: null
+				activeRoute: null,
+				travelJob: null
 			}));
 
 			return json({
@@ -85,6 +92,7 @@ export const GET: RequestHandler = async ({ params }) => {
 		// Create FullEmployeeData array
 		const fullEmployeeData: FullEmployeeData[] = allEmployees.map((employee) => {
 			const activeJob = activeJobsData.find((job) => job.employeeId === employee.id) || null;
+			const travelJob = travelJobsData.find((job) => job.employeeId === employee.id) || null;
 
 			if (!activeJob) {
 				return {
@@ -93,7 +101,8 @@ export const GET: RequestHandler = async ({ params }) => {
 					employeeStartLocation: null,
 					jobPickupAddress: null,
 					jobDeliverAddress: null,
-					activeRoute: null
+					activeRoute: null,
+					travelJob
 				};
 			}
 
@@ -103,7 +112,8 @@ export const GET: RequestHandler = async ({ params }) => {
 				employeeStartLocation: activeJob.employeeStartLocation,
 				jobPickupAddress: addressMap.get(activeJob.jobPickupAddress) || null,
 				jobDeliverAddress: addressMap.get(activeJob.jobDeliverAddress) || null,
-				activeRoute: null // Routes are now fetched on-demand via /api/active-routes/[activeJobId]
+				activeRoute: null, // Routes are now fetched on-demand via /api/active-routes/[activeJobId]
+				travelJob
 			};
 		});
 

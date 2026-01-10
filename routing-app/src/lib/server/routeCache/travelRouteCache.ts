@@ -1,10 +1,10 @@
 import { redisClient } from '../redis';
 import { serverLog } from '../logging/serverLogger';
 
-const KEY_PREFIX = 'activeRoute:';
+const KEY_PREFIX = 'travelRoute:';
 
-function getKey(activeJobId: string): string {
-	return `${KEY_PREFIX}${activeJobId}`;
+function getKey(travelJobId: string): string {
+	return `${KEY_PREFIX}${travelJobId}`;
 }
 
 /**
@@ -12,17 +12,17 @@ function getKey(activeJobId: string): string {
  *
  * Parameters
  * -----------
- * activeJobId: string
- *     The active job ID
+ * travelJobId: string
+ *     The travel job ID
  *
  * Returns
  * --------
  * Promise<Buffer | null>
  *     The gzipped route data, or null if not found
  */
-export async function getRoute(activeJobId: string): Promise<Buffer | null> {
+export async function getRoute(travelJobId: string): Promise<Buffer | null> {
 	try {
-		const key = getKey(activeJobId);
+		const key = getKey(travelJobId);
 		const data = await redisClient.get(key);
 		if (!data) {
 			return null;
@@ -37,11 +37,11 @@ export async function getRoute(activeJobId: string): Promise<Buffer | null> {
 	} catch (err) {
 		serverLog.api.error(
 			{
-				activeJobId,
+				travelJobId,
 				error: err instanceof Error ? err.message : String(err),
 				stack: err instanceof Error ? err.stack : undefined
 			},
-			'Error getting route from Redis'
+			'Error getting travel route from Redis'
 		);
 		// Return null on error (cache miss) - don't throw, allow route computation to proceed
 		return null;
@@ -53,8 +53,8 @@ export async function getRoute(activeJobId: string): Promise<Buffer | null> {
  *
  * Parameters
  * -----------
- * activeJobId: string
- *     The active job ID
+ * travelJobId: string
+ *     The travel job ID
  * gzippedData: Buffer
  *     The gzipped route data to store
  * ttlSeconds: number
@@ -65,23 +65,23 @@ export async function getRoute(activeJobId: string): Promise<Buffer | null> {
  * Promise<void>
  */
 export async function setRoute(
-	activeJobId: string,
+	travelJobId: string,
 	gzippedData: Buffer,
 	ttlSeconds: number
 ): Promise<void> {
 	try {
-		const key = getKey(activeJobId);
+		const key = getKey(travelJobId);
 		// Convert Buffer to binary string for Redis (preserves binary data)
 		await redisClient.setEx(key, ttlSeconds, gzippedData.toString('binary'));
 	} catch (err) {
 		serverLog.api.error(
 			{
-				activeJobId,
+				travelJobId,
 				ttlSeconds,
 				error: err instanceof Error ? err.message : String(err),
 				stack: err instanceof Error ? err.stack : undefined
 			},
-			'Error setting route in Redis'
+			'Error setting travel route in Redis'
 		);
 		// Don't throw - allow the application to continue even if Redis fails
 		// The route will just be recomputed on next request
@@ -93,8 +93,8 @@ export async function setRoute(
  *
  * Parameters
  * -----------
- * activeJobId: string
- *     The active job ID
+ * travelJobId: string
+ *     The travel job ID
  * ttlSeconds: number
  *     New time to live in seconds
  *
@@ -103,20 +103,20 @@ export async function setRoute(
  * Promise<boolean>
  *     True if TTL was extended, false if key doesn't exist
  */
-export async function extendRouteTTL(activeJobId: string, ttlSeconds: number): Promise<boolean> {
+export async function extendRouteTTL(travelJobId: string, ttlSeconds: number): Promise<boolean> {
 	try {
-		const key = getKey(activeJobId);
+		const key = getKey(travelJobId);
 		const result = await redisClient.expire(key, ttlSeconds);
 		return result;
 	} catch (err) {
 		serverLog.api.error(
 			{
-				activeJobId,
+				travelJobId,
 				ttlSeconds,
 				error: err instanceof Error ? err.message : String(err),
 				stack: err instanceof Error ? err.stack : undefined
 			},
-			'Error extending route TTL in Redis'
+			'Error extending travel route TTL in Redis'
 		);
 		// Return false on error (key doesn't exist or Redis error)
 		return false;
@@ -128,25 +128,25 @@ export async function extendRouteTTL(activeJobId: string, ttlSeconds: number): P
  *
  * Parameters
  * -----------
- * activeJobId: string
- *     The active job ID
+ * travelJobId: string
+ *     The travel job ID
  *
  * Returns
  * --------
  * Promise<void>
  */
-export async function deleteRoute(activeJobId: string): Promise<void> {
+export async function deleteRoute(travelJobId: string): Promise<void> {
 	try {
-		const key = getKey(activeJobId);
+		const key = getKey(travelJobId);
 		await redisClient.del(key);
 	} catch (err) {
 		serverLog.api.error(
 			{
-				activeJobId,
+				travelJobId,
 				error: err instanceof Error ? err.message : String(err),
 				stack: err instanceof Error ? err.stack : undefined
 			},
-			'Error deleting active route from Redis'
+			'Error deleting travel route from Redis'
 		);
 		// Don't throw - allow the application to continue even if Redis fails
 	}

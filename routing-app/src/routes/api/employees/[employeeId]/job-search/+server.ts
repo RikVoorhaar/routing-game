@@ -1,7 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { employees, activeJobs, gameStates, jobs } from '$lib/server/db/schema';
+import { employees, activeJobs, gameStates, jobs, travelJobs } from '$lib/server/db/schema';
 import { eq, and, isNull, isNotNull, inArray } from 'drizzle-orm';
 import { getClosestJobsForEmployeeByTier } from '$lib/jobs/queryJobs';
 import { getVehicleTierByLevel } from '$lib/vehicleUtils';
@@ -85,6 +85,19 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 		if (startedActiveJob) {
 			return error(409, 'Employee already has an active job in progress');
+		}
+
+		// Check if employee has an active travel job
+		const activeTravelJob = await db.query.travelJobs.findFirst({
+			where: and(
+				eq(travelJobs.employeeId, employeeId),
+				eq(travelJobs.gameStateId, gameStateId),
+				isNotNull(travelJobs.startTime)
+			)
+		});
+
+		if (activeTravelJob) {
+			return error(409, 'Employee is currently traveling and cannot search for jobs');
 		}
 
 		// Get jobsPerTier from upgrade effects (default: 2)

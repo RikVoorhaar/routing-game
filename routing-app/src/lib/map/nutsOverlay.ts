@@ -190,7 +190,10 @@ export function setNutsInteractivity(options: {
 			featureLayer.options.bubblingMouseEvents = false;
 			if (featureLayer._tooltip) {
 				featureLayer._tooltip.options.permanent = true;
-				featureLayer._tooltip.hide();
+				// Close tooltip if it's open using Leaflet's API
+				if (typeof featureLayer.closeTooltip === 'function') {
+					featureLayer.closeTooltip();
+				}
 			}
 			// Reset to default style when disabling
 			featureLayer.setStyle(defaultStyle);

@@ -85,6 +85,13 @@
 			"when": 1767560049360,
 			"tag": "0011_migrate_job_location_to_geometry_3857",
 			"breakpoints": true
+		},
+		{
+			"idx": 12,
+			"version": "7",
+			"when": 1767907434497,
+			"tag": "0012_powerful_peter_quill",
+			"breakpoints": true
 		}
 	]
 }

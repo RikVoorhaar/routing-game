@@ -49,6 +49,33 @@ export const jobSearchActions = {
 	 */
 	clearAll() {
 		searchResultsByEmployeeId.set({});
+	},
+
+	/**
+	 * Search jobs for an employee (API call)
+	 */
+	async searchJobsForEmployee(employeeId: string, gameStateId: string): Promise<void> {
+		const response = await fetch(`/api/employees/${employeeId}/job-search`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				gameStateId
+			})
+		});
+
+		if (!response.ok) {
+			const errorData = await response.json();
+			if (response.status === 409) {
+				throw new Error(errorData.message || 'Employee already has an active job');
+			} else {
+				throw new Error(errorData.message || 'Failed to search jobs');
+			}
+		}
+
+		const result = await response.json();
+
+		// Update search results store
+		this.setSearchResults(employeeId, result.results);
 	}
 };
 

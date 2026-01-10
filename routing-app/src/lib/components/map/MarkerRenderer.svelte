@@ -1,14 +1,34 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import { get } from 'svelte/store';
 	import { interpolateLocationAtTime } from '$lib/routes/routing-client';
-	import { formatTimeRemaining, toRomanNumeral } from '$lib/formatting';
-	import { getCategoryIcon } from '$lib/jobs/jobCategories';
-	import { getTierColor } from '$lib/stores/mapDisplay';
-	import { selectEmployee } from '$lib/stores/selectedEmployee';
-	import { selectedEmployee } from '$lib/stores/selectedEmployee';
-	import { selectedJob, selectJob } from '$lib/stores/selectedJob';
+	import { formatTimeCompact } from '$lib/formatting';
+	import { selectEmployee, selectedEmployee } from '$lib/stores/selectedEmployee';
+	import { switchToTab } from '$lib/stores/activeTab';
+	import { selectedJob, selectJob, setSelectedActiveJobData } from '$lib/stores/selectedJob';
+	import { getSearchResultsForEmployee, jobSearchActions } from '$lib/stores/jobSearch';
+	import {
+		currentGameState,
+		gameDataActions,
+		gameDataAPI,
+		fullEmployeeData
+	} from '$lib/stores/gameData';
+	import { getRoute } from '$lib/stores/routeCache';
+	import { addError } from '$lib/stores/errors';
+	import { computeJobXp, computeJobReward } from '$lib/jobs/jobUtils';
+	import { config } from '$lib/stores/config';
 	import { DEFAULT_EMPLOYEE_LOCATION } from '$lib/employeeUtils';
 	import { log } from '$lib/logger';
+	import {
+		createEmployeePopupHTML,
+		EMPLOYEE_POPUP_GOTO_PANEL_BUTTON_ID,
+		EMPLOYEE_POPUP_SEARCH_JOBS_BUTTON_ID,
+		EMPLOYEE_POPUP_TRAVEL_BUTTON_ID
+	} from './popups/employeePopup';
+	import { createJobPopupHTML, JOB_POPUP_ACCEPT_BUTTON_ID } from './popups/jobPopup';
+	import { createEmployeeMarkerHTML } from './markers/employeeMarker';
+	import { createJobMarkerHTML } from './markers/jobMarker';
+	import { travelModeActions } from '$lib/stores/travelMode';
 	import type {
 		Employee,
 		ActiveJob,
@@ -27,6 +47,7 @@
 
 	let employeeMarkers: Record<string, any> = {};
 	let searchResultJobMarkers: any[] = []; // Track search result job markers
+	let jobPopupAcceptHandlers: Map<string, () => Promise<void>> = new Map(); // Store accept handlers by job ID
 
 	// Expose search result job rendering method
 	export function renderSearchResultJobs(jobs: Job[]) {
@@ -83,9 +104,14 @@
 			if (!marker) return;
 
 			const activeJob = activeJobsByEmployee[employee.id];
-			if (activeJob && activeJob.startTime) {
-				// Calculate elapsed time since job started
-				const startTime = new Date(activeJob.startTime).getTime();
+			const travelJob = $fullEmployeeData.find((fed) => fed.employee.id === employee.id)?.travelJob;
+			const hasActiveJob = activeJob && activeJob.startTime;
+			const hasTravelJob = travelJob && travelJob.startTime;
+
+			if (hasActiveJob || hasTravelJob) {
+				// Use active job if available, otherwise use travel job
+				const currentJob = hasActiveJob ? activeJob : travelJob;
+				const startTime = new Date(currentJob!.startTime!).getTime();
 				const currentTime = Date.now();
 				const elapsedSeconds = (currentTime - startTime) / 1000;
 
@@ -98,17 +124,18 @@
 						marker.setLatLng([interpolatedPosition.lat, interpolatedPosition.lon]);
 
 						// Update progress and ETA for marker title
-						const progress = Math.min((elapsedSeconds / activeJob.durationSeconds) * 100, 100);
-						const remainingSeconds = Math.max(0, activeJob.durationSeconds - elapsedSeconds);
-						const eta = formatTimeRemaining(remainingSeconds);
+						const durationSeconds = currentJob!.durationSeconds || 0;
+						const progress = Math.min((elapsedSeconds / durationSeconds) * 100, 100);
+						const remainingSeconds = Math.max(0, durationSeconds - elapsedSeconds);
+						const eta = formatTimeCompact(remainingSeconds);
 
 						// Update marker icon with new progress
 						const isSelected = employee.id === $selectedEmployee;
 						const markerIcon = L.divIcon({
 							html: createEmployeeMarkerHTML(employee.name, true, progress, eta, isSelected),
 							className: 'custom-employee-marker',
-							iconSize: [140, 80],
-							iconAnchor: [70, 40]
+							iconSize: [36, 36],
+							iconAnchor: [18, 18]
 						});
 						marker.setIcon(markerIcon);
 						marker.options.title = `${employee.name} (${Math.round(progress)}% complete, ETA: ${eta})`;
@@ -119,8 +146,8 @@
 				// Check if marker currently shows active state (has animated styling)
 				const currentIcon = marker.options.icon;
 				if (currentIcon && currentIcon.options && currentIcon.options.iconSize) {
-					// If icon size is 80 (animated), recreate with idle state
-					if (currentIcon.options.iconSize[1] === 80) {
+					// If icon size is 36 (animated), recreate with idle state
+					if (currentIcon.options.iconSize[1] === 36) {
 						const position = getEmployeePosition(employee);
 						marker.setLatLng([position.lat, position.lon]);
 
@@ -128,8 +155,8 @@
 						const markerIcon = L.divIcon({
 							html: createEmployeeMarkerHTML(employee.name, false, 0, null, isSelected),
 							className: 'custom-employee-marker',
-							iconSize: [140, 50],
-							iconAnchor: [70, 25]
+							iconSize: [24, 24],
+							iconAnchor: [12, 12]
 						});
 						marker.setIcon(markerIcon);
 						marker.options.title = `${employee.name} (idle)`;
@@ -137,6 +164,57 @@
 				}
 			}
 		});
+	}
+
+	// Accept job handler
+	async function handleAcceptJob(job: Job, activeJob: ActiveJob | null) {
+		const employee = $selectedEmployee;
+		const gameState = $currentGameState;
+
+		if (!activeJob || !gameState || !employee) {
+			console.error('Missing required data for job acceptance');
+			return;
+		}
+
+		try {
+			const response = await fetch('/api/active-jobs', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					activeJobId: activeJob.id,
+					gameStateId: gameState.id,
+					employeeId: employee
+				})
+			});
+
+			if (response.ok) {
+				const result = await response.json();
+				addError('Job accepted successfully!', 'info');
+
+				// Clear all search results for this employee
+				if (employee) {
+					jobSearchActions.clearSearchResults(employee);
+				}
+
+				// Update the global store
+				if (employee && result.activeJob) {
+					gameDataActions.setEmployeeActiveJob(employee, result.activeJob);
+				}
+
+				// Refresh employee data
+				try {
+					await gameDataAPI.loadAllEmployeeData();
+				} catch (error) {
+					console.error('Error refreshing employee data:', error);
+				}
+			} else {
+				const errorData = await response.json();
+				addError(errorData.message || 'Failed to accept job', 'error');
+			}
+		} catch (error) {
+			console.error('Error accepting job:', error);
+			addError('Failed to accept job', 'error');
+		}
 	}
 
 	function createJobMarker(job: Job) {
@@ -158,8 +236,9 @@
 			const jobTier = (job as any).job_tier ?? job.jobTier ?? 1;
 			const jobCategory = (job as any).job_category ?? job.jobCategory ?? 1;
 
+			const isSelected = $selectedJob?.id === job.id;
 			const markerIcon = L.divIcon({
-				html: createJobMarkerHTML(job, jobTier, jobCategory),
+				html: createJobMarkerHTML(job, jobTier, jobCategory, isSelected),
 				className: 'custom-job-marker',
 				iconSize: [30, 30],
 				iconAnchor: [15, 15]
@@ -170,9 +249,128 @@
 				title: `Job ${job.id} - Tier ${jobTier}`
 			}).addTo(map);
 
-			// Add click handler
+			// Find active job for this job from search results
+			let activeJob: ActiveJob | null = null;
+			const employee = $selectedEmployee;
+			if (employee) {
+				const searchResultsStore = getSearchResultsForEmployee(employee);
+				const searchResults = get(searchResultsStore);
+				const result = searchResults?.find((r: any) => r.job.id === job.id);
+				activeJob = result?.activeJob || null;
+			}
+
+			// Create popup with initial HTML
+			const configValue = $config;
+			const gameState = $currentGameState;
+			const popupContent = createJobPopupHTML(
+				job,
+				jobTier,
+				jobCategory,
+				activeJob,
+				configValue!,
+				gameState!
+			);
+			console.log(
+				'[MarkerRenderer] Creating popup for job',
+				job.id,
+				'with content:',
+				popupContent.substring(0, 100)
+			);
+			const popup = L.popup({
+				maxWidth: 300,
+				className: 'job-tooltip-popup'
+			}).setContent(popupContent);
+
+			marker.bindPopup(popup);
+
+			// Also add a direct click handler to ensure popup opens
 			marker.on('click', () => {
+				console.log('[MarkerRenderer] Job marker clicked:', job.id);
+				marker.openPopup();
+			});
+
+			// When popup opens, load route and set up accept button handler
+			marker.on('popupopen', async () => {
 				selectJob(job);
+
+				// Load route if we have an active job
+				if (activeJob && activeJob.id && $currentGameState && employee) {
+					try {
+						const routeData = await getRoute(activeJob.id);
+
+						if (routeData) {
+							// Fetch updated active job to get computed duration
+							try {
+								const updatedActiveJobResponse = await fetch(
+									`/api/active-jobs?jobId=${job.id}&gameStateId=${$currentGameState.id}`
+								);
+								if (updatedActiveJobResponse.ok) {
+									const activeJobsList = await updatedActiveJobResponse.json();
+									const updatedActiveJob = activeJobsList.find((aj: any) => aj.id === activeJob.id);
+
+									if (updatedActiveJob) {
+										// Update popup with duration
+										const updatedContent = createJobPopupHTML(
+											job,
+											jobTier,
+											jobCategory,
+											updatedActiveJob,
+											configValue!,
+											gameState!
+										);
+										popup.setContent(updatedContent);
+
+										// Set up event listener for Accept button
+										setTimeout(() => {
+											const acceptButton = document.getElementById(
+												JOB_POPUP_ACCEPT_BUTTON_ID(job.id)
+											);
+											if (acceptButton) {
+												acceptButton.onclick = () => {
+													handleAcceptJob(job, updatedActiveJob);
+													marker.closePopup();
+												};
+											}
+										}, 10);
+
+										// Update selected job data
+										setSelectedActiveJobData({
+											activeJob: updatedActiveJob,
+											employeeStartLocation: updatedActiveJob.employeeStartLocation,
+											jobPickupAddress: null,
+											jobDeliverAddress: null,
+											activeRoute: routeData
+										});
+									}
+								}
+							} catch (fetchError) {
+								console.warn('Failed to fetch updated active job:', fetchError);
+							}
+						}
+					} catch (error) {
+						console.error('Error loading job route:', error);
+					}
+				} else {
+					// Set up event listener for Accept button even if no route loaded yet
+					setTimeout(() => {
+						const acceptButton = document.getElementById(JOB_POPUP_ACCEPT_BUTTON_ID(job.id));
+						if (acceptButton && activeJob) {
+							acceptButton.onclick = () => {
+								handleAcceptJob(job, activeJob);
+								marker.closePopup();
+							};
+						}
+					}, 10);
+				}
+			});
+
+			// Clear selection when popup closes
+			marker.on('popupclose', () => {
+				// Only clear if this job is still selected
+				const currentSelected = $selectedJob;
+				if (currentSelected && currentSelected.id === job.id) {
+					selectJob(null);
+				}
 			});
 
 			return marker;
@@ -180,50 +378,6 @@
 			console.warn('Failed to create marker for job:', job.id, error);
 			return null;
 		}
-	}
-
-	function createJobMarkerHTML(job: Job, jobTier: number, jobCategory: number): string {
-		const tierColor = getTierColor(jobTier);
-		const categoryIcon = getCategoryIcon(jobCategory);
-		const tierRoman = toRomanNumeral(jobTier);
-		const isSelected = $selectedJob?.id === job.id;
-
-		return `
-            <div class="job-marker ${isSelected ? 'selected' : ''}" 
-                 style="
-                     background: ${tierColor}; 
-                     border: 2px solid ${isSelected ? '#ffffff' : 'rgba(0,0,0,0.3)'};
-                     border-radius: 50%;
-                     width: 26px;
-                     height: 26px;
-                     display: flex;
-                     align-items: center;
-                     justify-content: center;
-                     font-size: 12px;
-                     font-weight: bold;
-                     color: white;
-                     text-shadow: 0 1px 2px rgba(0,0,0,0.7);
-                     cursor: pointer;
-                     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                     ${isSelected ? 'transform: scale(1.2); box-shadow: 0 0 0 3px rgba(255,255,255,0.8);' : ''}
-                 ">
-                ${categoryIcon}
-                <div style="
-                    position: absolute;
-                    bottom: -8px;
-                    right: -8px;
-                    background: rgba(0,0,0,0.8);
-                    color: white;
-                    border-radius: 8px;
-                    padding: 1px 4px;
-                    font-size: 8px;
-                    font-weight: bold;
-                    line-height: 1;
-                    min-width: 12px;
-                    text-align: center;
-                ">${tierRoman}</div>
-            </div>
-        `;
 	}
 
 	function updateEmployeeMarkers() {
@@ -238,6 +392,7 @@
 		// Add markers for each employee
 		employees.forEach((employee) => {
 			const activeJob = activeJobsByEmployee[employee.id];
+			const travelJob = $fullEmployeeData.find((fed) => fed.employee.id === employee.id)?.travelJob;
 
 			let position: Coordinate;
 			let isAnimated = false;
@@ -245,19 +400,24 @@
 			let progress = 0;
 			let eta: string | null = null;
 
-			if (activeJob && activeJob.startTime) {
-				// Employee is on an active job - calculate animated position
-				// Calculate elapsed time since job started
-				const startTime = new Date(activeJob.startTime).getTime();
+			// Check for active job or travel job
+			const hasActiveJob = activeJob && activeJob.startTime;
+			const hasTravelJob = travelJob && travelJob.startTime;
+
+			if (hasActiveJob || hasTravelJob) {
+				// Employee is on an active job or travel - calculate animated position
+				const currentJob = hasActiveJob ? activeJob : travelJob;
+				const startTime = new Date(currentJob!.startTime!).getTime();
 				const currentTime = Date.now();
 				const elapsedSeconds = (currentTime - startTime) / 1000;
 
-				// Calculate progress percentage based on job duration
-				progress = Math.min((elapsedSeconds / activeJob.durationSeconds) * 100, 100);
+				// Calculate progress percentage based on job/travel duration
+				const durationSeconds = currentJob!.durationSeconds || 0;
+				progress = Math.min((elapsedSeconds / durationSeconds) * 100, 100);
 
 				// Calculate ETA
-				const remainingSeconds = Math.max(0, activeJob.durationSeconds - elapsedSeconds);
-				eta = formatTimeRemaining(remainingSeconds);
+				const remainingSeconds = Math.max(0, durationSeconds - elapsedSeconds);
+				eta = formatTimeCompact(remainingSeconds);
 
 				// Try to interpolate position along route if route data is available
 				const routePath = routesByEmployee[employee.id];
@@ -289,8 +449,8 @@
 					employee.id === $selectedEmployee
 				),
 				className: 'custom-employee-marker',
-				iconSize: [140, isAnimated ? 80 : 50],
-				iconAnchor: [70, isAnimated ? 40 : 25]
+				iconSize: isAnimated ? [36, 36] : [24, 24],
+				iconAnchor: isAnimated ? [18, 18] : [12, 12]
 			});
 
 			try {
@@ -299,9 +459,79 @@
 					title: `${employee.name}${isAnimated ? ` (${Math.round(progress)}% complete, ETA: ${eta})` : ' (idle)'}`
 				}).addTo(map);
 
-				// Add click handler to marker
+				// Only create popup for idle employees (not active/traveling)
+				if (!hasActiveJob && !hasTravelJob) {
+					// Create and bind employee popup
+					const hasActiveJobForPopup = !!activeJobsByEmployee[employee.id];
+					const popupContent = createEmployeePopupHTML(employee, hasActiveJobForPopup);
+					const popup = L.popup({
+						maxWidth: 250,
+						className: 'employee-tooltip-popup'
+					}).setContent(popupContent);
+
+					marker.bindPopup(popup);
+
+					// Set up popup event handlers
+					marker.on('popupopen', () => {
+						selectEmployee(employee.id);
+						// Exit travel mode when employee marker is clicked
+						travelModeActions.exitTravelMode();
+
+						// Add button event handlers after popup opens
+						setTimeout(() => {
+							const gotoPanelButton = document.getElementById(
+								EMPLOYEE_POPUP_GOTO_PANEL_BUTTON_ID(employee.id)
+							);
+							const searchJobsButton = document.getElementById(
+								EMPLOYEE_POPUP_SEARCH_JOBS_BUTTON_ID(employee.id)
+							);
+							const travelButton = document.getElementById(
+								EMPLOYEE_POPUP_TRAVEL_BUTTON_ID(employee.id)
+							);
+
+							if (gotoPanelButton) {
+								gotoPanelButton.onclick = () => {
+									switchToTab('employees');
+									marker.closePopup();
+								};
+							}
+
+							if (searchJobsButton) {
+								searchJobsButton.onclick = async () => {
+									const gameState = get(currentGameState);
+									if (!gameState) return;
+
+									try {
+										await jobSearchActions.searchJobsForEmployee(employee.id, gameState.id);
+										addError(`Found jobs for ${employee.name}!`, 'info', true, 2000);
+										marker.closePopup();
+									} catch (error) {
+										console.error('Error searching jobs:', error);
+										addError('Failed to search jobs', 'error');
+									}
+								};
+							}
+
+							if (travelButton) {
+								travelButton.onclick = () => {
+									const hasActiveJob = !!activeJobsByEmployee[employee.id];
+									if (hasActiveJob) {
+										addError('Employee must be idle to travel', 'error');
+										return;
+									}
+									travelModeActions.enterTravelMode(employee.id);
+									marker.closePopup();
+								};
+							}
+						}, 10);
+					});
+				}
+
+				// Keep click handler for backwards compatibility
 				marker.on('click', () => {
 					selectEmployee(employee.id);
+					// Exit travel mode when employee marker is clicked
+					travelModeActions.exitTravelMode();
 				});
 
 				employeeMarkers[employee.id] = marker;
@@ -320,62 +550,6 @@
 			).addTo(map);
 
 			employeeMarkers['default'] = defaultMarker;
-		}
-	}
-
-	function createEmployeeMarkerHTML(
-		name: string,
-		isAnimated: boolean,
-		progress: number,
-		eta: string | null,
-		isSelected: boolean
-	): string {
-		const baseStyle = `
-            background: ${isSelected ? '#3b82f6' : isAnimated ? '#10b981' : '#6b7280'};
-            color: white;
-            padding: ${isAnimated ? '8px 12px' : '6px 10px'};
-            border-radius: 20px;
-            font-weight: bold;
-            text-align: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            border: 2px solid white;
-            font-size: ${isAnimated ? '11px' : '12px'};
-            min-width: ${isAnimated ? '120px' : '80px'};
-            cursor: pointer;
-            ${isSelected ? 'transform: scale(1.1); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);' : ''}
-        `;
-
-		if (isAnimated) {
-			return `
-                <div style="${baseStyle}">
-                    <div style="font-size: 13px; margin-bottom: 2px;">${name}</div>
-                    <div style="font-size: 9px; opacity: 0.9;">
-                        ${Math.round(progress)}% • ETA: ${eta}
-                    </div>
-                    <div style="
-                        background: rgba(255,255,255,0.3);
-                        height: 3px;
-                        border-radius: 2px;
-                        margin-top: 3px;
-                        overflow: hidden;
-                    ">
-                        <div style="
-                            background: white;
-                            height: 100%;
-                            width: ${progress}%;
-                            border-radius: 2px;
-                            transition: width 0.3s ease;
-                        "></div>
-                    </div>
-                </div>
-            `;
-		} else {
-			return `
-                <div style="${baseStyle}">
-                    ${name}
-                    <div style="font-size: 9px; opacity: 0.8; margin-top: 1px;">idle</div>
-                </div>
-            `;
 		}
 	}
 

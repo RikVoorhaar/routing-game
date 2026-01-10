@@ -34,7 +34,9 @@ Left to do:
 - [x] Migrate DB to add regions table and region field
 - [x] Display regions on map
 - [ ] Add XP tracker for regions
-- [ ] Way to travel to islands, right now there is no way to get to e.g. Iceland or the UK or Sicily.
+- [ ] Way to travel to islands, right now there is no way to get to e.g. Iceland or the UK or Sicily. (this can be done with ferry routes probably, this is WIP)
+- [ ] More addresses -- not just nodes also ways, and include all buildings. 
+- [ ] logic for verifying game state should be re-usable, now it is included in most server endpoints. 
 
 
 **regions plan** (done)
@@ -58,6 +60,12 @@ Left to do:
 - When clicking on a job, it does load the route, but it doesn't update the duration
 - Job search still takes very long, need to look at the outputs.
 
+**new ui**
+- create a new employees tab, where you can select employees, see their job status, upgrades, etc. Fairly compact, but still have the same information you have now. There should also be a 'go to map' button that takes you to the map tab centered on the employee. 
+- the left column will be removed. 
+- Job's have a tooltip popup when you click on them showing the essential stats (distance, duration, value, xp gained, category, tier) with an 'accept' button. 
+- The markers showing an employee should just be a small pin icon with a progress bar and an ETA. No name. Just a round progress bar with an ETA number inside. The text should be compact, so e.g 2h30m10s -> 2h. or 30m10s -> 30m, or 10s -> 10s.
+
 
 **Route computation optimization DONE**
 - Currently, route modifications (concatenation of employee-to-pickup + pickup-to-delivery routes, and application of speed multipliers) happen on the app server after fetching routes from the routing server
@@ -68,38 +76,6 @@ Left to do:
   - The routing server already has all the necessary data and can do this more efficiently
   - Implementation: Add a new endpoint like `/api/v1/complete_job_route` that takes start location, pickup location, delivery location, maxSpeed, and speedMultiplier, and returns the final modified route
 
-**Job search query optimization (not prioritized for now)**
-- Current performance: tier queries take ~156ms (4 parallel PostGIS queries using ST_DistanceSphere)
-- Problem: PostGIS distance calculations are expensive, even with spatial indexes
-- Proposed solution: Use Euclidean distance on lat/lon columns instead of PostGIS great circle distance
-  - Filter and order using simple math: `(lat1-lat2)² + (lon1-lon2)²` 
-  - Use B-tree indexes on `jobs.lat` and `jobs.lon` columns (already exist)
-  - Much faster: simple arithmetic vs PostGIS function calls
-  - Accuracy: Good enough for filtering/ordering nearby jobs (Euclidean is fine for small distances)
-  - Expected improvement: tier queries from ~156ms → ~10-30ms (5-15x faster)
-  - Note: On deployed version, DB operations take ~40ms due to network latency, so this optimization will be even more impactful
-- Implementation approach:
-  1. Add indexes on `jobs.lat` and `jobs.lon` if not already present (check schema)
-  2. Replace `ST_DistanceSphere` query with Euclidean distance calculation
-  3. Use bounding box filter first: `WHERE lat BETWEEN ... AND lon BETWEEN ...` (uses indexes)
-  4. Order by Euclidean distance squared (avoid sqrt for performance): `ORDER BY (lat - empLat)² + (lon - empLon)²`
-  5. Test and benchmark against current PostGIS approach
-  6. Consider hybrid: Euclidean for filtering, PostGIS for final ordering (if accuracy needed)
-
-**Coordinate system standardization (future optimization)**
-- Current state: `job.location` is now `geometry(Point,3857)` (Web Mercator meters), but `address.lat`/`address.lon` and `employee.location` are still stored as degrees (EPSG:4326)
-- This requires `ST_Transform` when creating jobs and querying: `ST_Transform(ST_SetSRID(ST_MakePoint(lon, lat), 4326), 3857)`
-- Advantages of migrating addresses and employee locations to 3857:
-  - **Eliminate transform overhead**: No `ST_Transform` needed when creating jobs from addresses
-  - **Consistent coordinate system**: Everything in 3857 simplifies queries and reduces errors
-  - **Better spatial indexing**: Can use GiST indexes directly on address geometry columns (like jobs)
-  - **Faster distance calculations**: Web Mercator uses meters, making distance filters (`ST_DWithin`) more intuitive
-  - **Simpler code**: No need to remember which coordinate system each field uses
-- Implementation would require:
-  1. Migrate `address.location` from text/EWKT to `geometry(Point,3857)`
-  2. Update `address.lat`/`address.lon` columns to store 3857 meters (or remove if redundant with geometry)
-  3. Migrate `employee.location` JSONB field from lat/lon degrees (4326) to x/y meters (3857)
-  4. Update address extraction scripts (`extract_addresses.py`, etc.) to transform coordinates during insertion
-  5. Update all code that reads/writes address coordinates to use 3857
-  6. Update all code that reads/writes employee locations to use 3857
-  7. Remove `ST_Transform` calls in job generation and query functions
+**Job search query optimization DONE**
+- Previoius performance: tier queries take ~156ms (4 parallel PostGIS queries using ST_DistanceSphere)
+- Used a more appropriate index (3857) and KNN operator. Now it's ~1.5ms per query.

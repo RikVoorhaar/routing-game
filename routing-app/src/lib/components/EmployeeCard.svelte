@@ -2,9 +2,11 @@
 	import { createEventDispatcher } from 'svelte';
 	import { onDestroy } from 'svelte';
 	import { selectedEmployee, selectEmployee } from '$lib/stores/selectedEmployee';
+	import { switchToTab } from '$lib/stores/activeTab';
 	import type {
 		Employee,
 		ActiveJob,
+		TravelJob,
 		Address,
 		UpgradeState,
 		GameState
@@ -13,7 +15,7 @@
 	import { selectedRoute, clearSelection } from '$lib/stores/selectedRoute';
 	import { formatMoney, formatAddress, formatTimeFromMs } from '$lib/formatting';
 	import { currentGameState, gameDataActions, gameDataAPI } from '$lib/stores/gameData';
-	import { jobSearchActions } from '$lib/stores/jobSearch';
+	import { jobSearchActions, getSearchResultsForEmployee } from '$lib/stores/jobSearch';
 	import { clearSelectedJob } from '$lib/stores/selectedJob';
 	import { getLevelFromXp, getXpForLevel, getXpToNextLevel } from '$lib/xp/xpUtils';
 	import {
@@ -26,6 +28,7 @@
 	export let employee: Employee;
 	export let availableRoutes: any[] = [];
 	export let activeJob: ActiveJob | null = null;
+	export let travelJob: TravelJob | null = null;
 	export let gameStateId: string;
 
 	const dispatch = createEventDispatcher<{
@@ -44,6 +47,7 @@
 	let isPurchasingUpgrade = false;
 	let hoveredUpgradeButton = false;
 	let isSearchingJobs = false;
+	let isCanceling = false;
 
 	// Cleanup timeout and interval on component destroy
 	onDestroy(() => {
@@ -61,6 +65,7 @@
 
 	// Job progress calculation - explicitly track activeJob changes for reactivity
 	let jobProgress: ReturnType<typeof calculateJobProgress> = null;
+	let travelProgress: ReturnType<typeof calculateTravelProgress> = null;
 
 	$: {
 		// Force reactivity by explicitly referencing activeJob and its properties
@@ -71,19 +76,30 @@
 		jobProgress = activeJob ? calculateJobProgress(activeJob) : null;
 	}
 
-	// Set up interval to update progress every second when job is active
-	$: if (activeJob && activeJob.startTime) {
+	$: {
+		// Track travel job changes for reactivity
+		const travelJobId = travelJob?.id;
+		const travelJobStartTime = travelJob?.startTime;
+
+		travelProgress = travelJob ? calculateTravelProgress(travelJob) : null;
+	}
+
+	// Set up interval to update progress smoothly
+	// Update progress bar every 100ms for smooth animation
+	// ETA text will update smoothly too, but formatTimeFromMs rounds to seconds anyway
+	$: if ((activeJob && activeJob.startTime) || (travelJob && travelJob.startTime)) {
 		// Clear any existing interval
 		if (progressUpdateInterval) {
 			clearInterval(progressUpdateInterval);
 		}
 		progressUpdateInterval = setInterval(() => {
-			// Recalculate progress using the current activeJob prop
-			// This will update the ETA every second for smooth animation
+			// Recalculate progress using the current props
+			// This will update both progress bar and ETA smoothly
 			jobProgress = activeJob ? calculateJobProgress(activeJob) : null;
-		}, 1000);
+			travelProgress = travelJob ? calculateTravelProgress(travelJob) : null;
+		}, 100); // Update every 100ms for smooth progress bar animation
 	} else {
-		// Clear interval when job is not active
+		// Clear interval when neither job nor travel is active
 		if (progressUpdateInterval) {
 			clearInterval(progressUpdateInterval);
 			progressUpdateInterval = null;
@@ -174,6 +190,26 @@
 			remainingTimeMs,
 			isComplete,
 			currentPhase: 'on_job' as const // ActiveJob doesn't have currentPhase, default to 'on_job'
+		};
+	}
+
+	function calculateTravelProgress(travelJob: TravelJob) {
+		if (!travelJob.startTime) {
+			return null;
+		}
+
+		const startTime = new Date(travelJob.startTime).getTime();
+		const currentTime = Date.now();
+		const totalDurationMs = (travelJob.durationSeconds || 0) * 1000;
+		const elapsed = currentTime - startTime;
+		const progress = Math.min(100, (elapsed / totalDurationMs) * 100);
+		const remainingTimeMs = Math.max(0, totalDurationMs - elapsed);
+		const isComplete = progress >= 100;
+
+		return {
+			progress,
+			remainingTimeMs,
+			isComplete
 		};
 	}
 
@@ -310,6 +346,15 @@
 		}
 	}
 
+	function handleGoToMap(e: MouseEvent) {
+		e.stopPropagation(); // Prevent card click
+		// Select this employee
+		selectEmployee(employee.id);
+		// Switch to map tab
+		switchToTab('map');
+		// The map will center on the employee automatically via the selectedEmployee store
+	}
+
 	async function handleVehicleUpgrade(e: MouseEvent) {
 		e.stopPropagation(); // Prevent card click
 		if (!nextVehicleLevel || !$currentGameState || isPurchasingUpgrade || !canAffordUpgrade) return;
@@ -358,6 +403,15 @@
 			return;
 		}
 
+		// Check if employee is currently traveling
+		if (travelJob?.startTime) {
+			addError('Employee is currently traveling and cannot search for jobs', 'error');
+			return;
+		}
+
+		// Select this employee first
+		selectEmployee(employee.id);
+
 		isSearchingJobs = true;
 		try {
 			const response = await fetch(`/api/employees/${employee.id}/job-search`, {
@@ -396,6 +450,34 @@
 			addError(errorMessage, 'error');
 		} finally {
 			isSearchingJobs = false;
+		}
+	}
+
+	async function handleCancel(e: MouseEvent) {
+		e.stopPropagation(); // Prevent card click
+		if (!canCancel || isCanceling) return;
+
+		isCanceling = true;
+		try {
+			const response = await fetch(`/api/employees/${employee.id}/cancel`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' }
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.message || 'Failed to cancel job/travel');
+			}
+
+			// Refresh employee data
+			await gameDataAPI.loadAllEmployeeData();
+
+			addError('Job/travel canceled successfully', 'info');
+		} catch (err) {
+			const errorMessage = err instanceof Error ? err.message : 'Failed to cancel job/travel';
+			addError(errorMessage, 'error');
+		} finally {
+			isCanceling = false;
 		}
 	}
 
@@ -453,11 +535,30 @@
 
 	// Get next vehicle stats for hover preview (reuse nextVehicleConfig)
 	$: nextVehicle = nextVehicleConfig;
+
+	// Check for search results for this employee (subscribe to the derived store)
+	$: employeeSearchResultsStore = getSearchResultsForEmployee(employee.id);
+	$: hasSearchResults = $employeeSearchResultsStore && $employeeSearchResultsStore.length > 0;
+	$: jobCount = $employeeSearchResultsStore?.length || 0;
+
+	// Computed values for progress bar
+	$: progressValue =
+		activeJob && jobProgress
+			? jobProgress.progress
+			: travelJob && travelProgress
+				? travelProgress.progress
+				: 0;
+	$: isActive = (activeJob && jobProgress) || (travelJob && travelProgress);
+
+	// Check if cancel button should be shown
+	$: canCancel =
+		((activeJob?.startTime && !jobProgress?.isComplete) ||
+			(travelJob?.startTime && !travelProgress?.isComplete)) &&
+		!isCanceling;
 </script>
 
 <div
 	class={cardClass}
-	class:h-24={true}
 	on:click={handleClick}
 	on:keydown={(e) => {
 		if (e.key === 'Enter' || e.key === ' ') {
@@ -467,17 +568,20 @@
 	role="button"
 	tabindex="0"
 >
-	<div class="grid h-full grid-cols-2 gap-3 p-3">
+	<div class="grid grid-cols-2 gap-3 p-3">
 		<!-- Left Column: Name, Progress Bar, ETA -->
 		<div class="flex min-w-0 flex-col">
 			<h3 class="mb-1 truncate text-left text-sm font-semibold">{employee.name}</h3>
 			<div class="mb-1">
-				<progress
-					class="progress progress-primary h-2 w-full"
-					class:opacity-50={!activeJob || !jobProgress}
-					value={activeJob && jobProgress ? jobProgress.progress : 0}
-					max="100"
-				></progress>
+				<div
+					class="h-2 w-full overflow-hidden rounded-full bg-base-300"
+					class:opacity-50={!isActive}
+				>
+					<div
+						class="h-full bg-primary transition-all duration-100 ease-linear"
+						style="width: {progressValue}%;"
+					></div>
+				</div>
 			</div>
 			<div class="text-left text-xs font-semibold text-base-content/80">
 				{#if activeJob && jobProgress && !jobProgress.isComplete}
@@ -487,6 +591,8 @@
 							• {formatMoney(activeJob.reward)} • {activeJob.xp} XP
 						</span>
 					{/if}
+				{:else if travelJob && travelProgress && !travelProgress.isComplete}
+					Traveling: {formatTimeFromMs(travelProgress.remainingTimeMs)}
 				{:else}
 					Idle
 				{/if}
@@ -601,21 +707,75 @@
 				{/if}
 			</div>
 
-			<!-- Search Jobs Button (only show when selected and idle) -->
-			{#if isSelected && !activeJob?.startTime}
-				<button
-					class="btn btn-primary btn-xs w-full"
-					disabled={isSearchingJobs}
-					on:click|stopPropagation={handleSearchJobs}
-				>
-					{#if isSearchingJobs}
-						<span class="loading loading-spinner loading-xs"></span>
-						Searching...
+			<!-- Action Buttons Row -->
+			<div class="flex w-full justify-end gap-1">
+				<!-- Cancel Button (show when employee is active) -->
+				{#if canCancel}
+					<button
+						class="btn btn-error btn-xs w-24"
+						disabled={isCanceling}
+						on:click|stopPropagation={handleCancel}
+						title="Cancel current job/travel"
+					>
+						{#if isCanceling}
+							<span class="loading loading-spinner loading-xs"></span>
+						{:else}
+							✕ Cancel
+						{/if}
+					</button>
+				{/if}
+
+				<!-- Search Jobs Button (always show when idle) -->
+				{#if !activeJob?.startTime && !travelJob?.startTime}
+					{#if hasSearchResults}
+						<button
+							class="btn btn-disabled btn-xs w-24 cursor-default !text-white"
+							disabled
+							on:click|stopPropagation={() => {}}
+						>
+							{jobCount} job{jobCount !== 1 ? 's' : ''}
+						</button>
 					{:else}
-						🔍 Search Jobs
+						<button
+							class="btn btn-primary btn-xs w-24"
+							disabled={isSearchingJobs}
+							on:click|stopPropagation={handleSearchJobs}
+						>
+							{#if isSearchingJobs}
+								<div class="flex items-center gap-1">
+									<span class="loading loading-spinner loading-xs"></span>
+									<span>Searching...</span>
+								</div>
+							{:else}
+								🔍 Search
+							{/if}
+						</button>
 					{/if}
+				{/if}
+
+				<!-- Go to Map Button (always visible) -->
+				<button
+					class="btn btn-outline btn-xs w-24"
+					on:click|stopPropagation={handleGoToMap}
+					title="View on map"
+				>
+					<svg
+						class="h-3 w-3"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+						/>
+					</svg>
+					Map
 				</button>
-			{/if}
+			</div>
 		</div>
 	</div>
 </div>
