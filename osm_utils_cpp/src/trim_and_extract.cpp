@@ -14,6 +14,7 @@
 #include <osmium/memory/buffer.hpp>
 
 #include <ankerl/unordered_dense.h>
+#include <nlohmann/json.hpp>
 #include <iostream>
 #include <fstream>
 #include <filesystem>
@@ -188,43 +189,27 @@ bool has_address_or_building_tags(const osmium::TagList& tags) {
     return has_address_tags(tags) || has_building_tag(tags);
 }
 
-// Escape JSON string
-std::string json_escape(const std::string& str) {
-    std::ostringstream o;
-    for (size_t i = 0; i < str.length(); ++i) {
-        switch (str[i]) {
-            case '"': o << "\\\""; break;
-            case '\\': o << "\\\\"; break;
-            case '\b': o << "\\b"; break;
-            case '\f': o << "\\f"; break;
-            case '\n': o << "\\n"; break;
-            case '\r': o << "\\r"; break;
-            case '\t': o << "\\t"; break;
-            default:
-                if ('\x00' <= str[i] && str[i] <= '\x1f') {
-                    o << "\\u" << std::hex << std::setw(4) << std::setfill('0') << (int)str[i];
-                } else {
-                    o << str[i];
-                }
-        }
+// Serialize tags to JSON object using nlohmann/json
+std::string tags_to_json(const osmium::TagList& tags) {
+    nlohmann::json j;
+    for (const auto& tag : tags) {
+        j[tag.key()] = tag.value();
     }
-    return o.str();
+    return j.dump();
 }
 
-// Serialize tags to JSON object
-std::string tags_to_json(const osmium::TagList& tags) {
-    std::ostringstream json;
-    json << "{";
-    bool first = true;
-    for (const auto& tag : tags) {
-        if (!first) {
-            json << ",";
+// Escape CSV field - double quotes inside quoted fields
+std::string csv_escape(const std::string& str) {
+    std::string result;
+    result.reserve(str.size() + 10); // Reserve some extra space
+    for (char c : str) {
+        if (c == '"') {
+            result += "\"\""; // Double the quote
+        } else {
+            result += c;
         }
-        first = false;
-        json << "\"" << json_escape(tag.key()) << "\":\"" << json_escape(tag.value()) << "\"";
     }
-    json << "}";
-    return json.str();
+    return result;
 }
 
 // Compute centroid from a list of locations
@@ -443,8 +428,8 @@ private:
                        << (addr.is_addr ? "1" : "0") << ","
                        << std::fixed << std::setprecision(7) << addr.lat << ","
                        << addr.lon << ","
-                       << "\"" << addr.city << "\","
-                       << "\"" << addr.tags_json << "\"\n";
+                       << "\"" << csv_escape(addr.city) << "\","
+                       << "\"" << csv_escape(addr.tags_json) << "\"\n";
         }
     }
     
