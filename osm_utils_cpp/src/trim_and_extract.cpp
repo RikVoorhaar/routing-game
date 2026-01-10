@@ -167,6 +167,8 @@ struct Address {
     bool is_building;
     bool is_addr;
     bool is_relation;
+    bool is_node;
+    bool is_way;
     double lat;
     double lon;
     std::string city;
@@ -236,7 +238,8 @@ osmium::Location compute_centroid(const std::vector<osmium::Location>& locations
         return osmium::Location();
     }
     
-    return osmium::Location(sum_lat / valid_count, sum_lon / valid_count);
+    // osmium::Location constructor takes (lon, lat), not (lat, lon)
+    return osmium::Location(sum_lon / valid_count, sum_lat / valid_count);
 }
 
 // Extract address/building data from a node
@@ -246,6 +249,8 @@ Address extract_address_data(const osmium::Node& node) {
     addr.is_addr = has_address_tags(node.tags());
     addr.is_building = has_building_tag(node.tags());
     addr.is_relation = false;
+    addr.is_node = true;
+    addr.is_way = false;
     addr.lat = node.location().lat();
     addr.lon = node.location().lon();
     addr.city = "";
@@ -268,6 +273,8 @@ Address extract_address_data_from_way(const osmium::Way& way,
     addr.is_addr = has_address_tags(way.tags());
     addr.is_building = has_building_tag(way.tags());
     addr.is_relation = false;
+    addr.is_node = false;
+    addr.is_way = true;
     addr.city = "";
     
     const char* city_value = way.tags().get_value_by_key("addr:city");
@@ -298,6 +305,8 @@ Address extract_address_data_from_relation(const osmium::Relation& relation,
     addr.is_addr = has_address_tags(relation.tags());
     addr.is_building = has_building_tag(relation.tags());
     addr.is_relation = true;
+    addr.is_node = false;
+    addr.is_way = false;
     addr.city = "";
     
     const char* city_value = relation.tags().get_value_by_key("addr:city");
@@ -327,6 +336,8 @@ void write_address_csv(std::ofstream* csv_file, const Address& addr) {
                   << (addr.is_building ? "1" : "0") << ","
                   << (addr.is_addr ? "1" : "0") << ","
                   << (addr.is_relation ? "1" : "0") << ","
+                  << (addr.is_node ? "1" : "0") << ","
+                  << (addr.is_way ? "1" : "0") << ","
                   << std::fixed << std::setprecision(7) << addr.lat << ","
                   << addr.lon << ","
                   << "\"" << csv_escape(addr.city) << "\","
@@ -755,7 +766,8 @@ public:
                 }
                 
                 if (total_nodes > 0) {
-                    osmium::Location weighted_centroid(sum_lat / total_nodes, sum_lon / total_nodes);
+                    // osmium::Location constructor takes (lon, lat), not (lat, lon)
+                    osmium::Location weighted_centroid(sum_lon / total_nodes, sum_lat / total_nodes);
                     std::vector<osmium::Location> outer_ring_locations;
                     outer_ring_locations.push_back(weighted_centroid);
                     
@@ -950,7 +962,7 @@ int main(int argc, char* argv[]) {
         }
         
         // Write CSV header
-        csv_file << "id,is_building,is_addr,is_relation,lat,lon,city,tags\n";
+        csv_file << "id,is_building,is_addr,is_relation,is_node,is_way,lat,lon,city,tags\n";
     }
     
     std::cout << "Processing ways and extracting addresses/buildings (two-pass approach)...\n";
