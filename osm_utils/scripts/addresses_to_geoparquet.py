@@ -23,13 +23,31 @@ def csv_to_geoparquet_by_region(
     target_crs: str = "EPSG:3857",
     batch_size: int = 100000,
     geojson_path: Optional[str | Path] = None,
+    max_rows: Optional[int] = None,
 ) -> dict[str, Path]:
     """
     Convert addresses/buildings CSV to GeoParquet files, one per NUTS2 region.
-    
+
     Processes in batches to minimize memory usage and creates separate parquet files
     for each NUTS2 region.
-    
+
+    Parameters
+    ----------
+    csv_path : str | Path
+        Path to the CSV file containing addresses/buildings
+    output_dir : Optional[str | Path], default None
+        Directory to save parquet files. If None, uses csv_path.parent/addresses_by_region
+    crs : str, default "EPSG:4326"
+        Coordinate reference system of input coordinates
+    target_crs : str, default "EPSG:3857"
+        Target CRS for output GeoParquet files
+    batch_size : int, default 100000
+        Number of rows to process in each batch
+    geojson_path : Optional[str | Path], default None
+        Path to NUTS2 boundaries GeoJSON file. If None, uses default path
+    max_rows : Optional[int], default None
+        Maximum number of rows to process. If None, processes all rows
+
     Returns
     -------
     dict[str, Path]
@@ -72,22 +90,32 @@ def csv_to_geoparquet_by_region(
     total_processed = 0
     
     for chunk_num, df_chunk in enumerate(chunk_iter):
+        # Check if we've reached max_rows limit before processing this chunk
+        if max_rows is not None and total_processed >= max_rows:
+            break
+
+        # Calculate how many rows we can process from this chunk
+        remaining_rows = max_rows - total_processed if max_rows is not None else len(df_chunk)
+        if remaining_rows < len(df_chunk):
+            # Only process part of this chunk
+            df_chunk = df_chunk.head(remaining_rows)
+
         total_processed += len(df_chunk)
-        
+
         # Validate required columns
         required_cols = ["id", "is_building", "is_addr", "lat", "lon"]
         missing_cols = [col for col in required_cols if col not in df_chunk.columns]
         if missing_cols:
             raise ValueError(f"Missing required columns: {missing_cols}")
-        
+
         # Create Point geometries
         geometry = [Point(lon, lat) for lon, lat in zip(df_chunk["lon"], df_chunk["lat"])]
         gdf_chunk = gpd.GeoDataFrame(df_chunk, geometry=geometry, crs=crs)
-        
+
         # Reproject to target CRS
         if target_crs != crs:
             gdf_chunk = gdf_chunk.to_crs(target_crs)
-        
+
         # Spatial join to find NUTS2 region for each point
         gdf_with_regions = gpd.sjoin(
             gdf_chunk,
@@ -95,37 +123,42 @@ def csv_to_geoparquet_by_region(
             how="left",
             predicate="within",
         )
-        
+
         # Remove the index_right column
         if "index_right" in gdf_with_regions.columns:
             gdf_with_regions = gdf_with_regions.drop(columns=["index_right"])
-        
+
         # Rename NUTS ID column to nuts_region_code
         if id_col in gdf_with_regions.columns:
             gdf_with_regions = gdf_with_regions.rename(columns={id_col: "nuts_region_code"})
-        
+
         # Group by region and accumulate
         for nuts_code, group in gdf_with_regions.groupby("nuts_region_code", dropna=False):
             if pd.isna(nuts_code):
                 continue  # Skip addresses without a region
-            
+
             nuts_code_str = str(nuts_code)
-            
+
             # Initialize region file if needed
             if nuts_code_str not in region_files:
                 region_file = output_dir / f"addresses_{nuts_code_str}.parquet"
                 region_files[nuts_code_str] = region_file
                 region_writers[nuts_code_str] = []
                 region_counts[nuts_code_str] = 0
-            
+
             # Accumulate data for this region
             region_writers[nuts_code_str].append(group)
             region_counts[nuts_code_str] += len(group)
-        
+
         # Write batches when they get large
         if (chunk_num + 1) % 10 == 0:
             _flush_region_batches(region_writers, region_files, target_crs)
             print(f"  Processed {total_processed:,} rows, found {len(region_files)} regions")
+
+        # Check if we've reached max_rows limit after processing this chunk
+        if max_rows is not None and total_processed >= max_rows:
+            print(f"  Reached max_rows limit ({max_rows:,}) - stopping processing")
+            break
     
     # Flush remaining batches
     _flush_region_batches(region_writers, region_files, target_crs)

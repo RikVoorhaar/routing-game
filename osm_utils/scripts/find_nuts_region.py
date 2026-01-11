@@ -9,7 +9,6 @@ from __future__ import annotations
 import csv
 import gzip
 import os
-from collections import Counter
 from pathlib import Path
 from typing import IO
 
@@ -100,7 +99,6 @@ def main(
     processed = 0
     skipped = 0
     found_regions = 0
-    region_counts: Counter[str] = Counter()  # Track counts per region
 
     # Open gzip file in binary mode to track position
     with gzip.open(addresses_gz, "rb") as input_gz, gzip.open(output_path, "wt", encoding="utf-8", newline="") as output_f:
@@ -190,11 +188,8 @@ def main(
                 if region is None:
                     row.append("")
                 else:
-                    region_id = region.nuts_id
-                    row.append(region_id)
+                    row.append(region.nuts_id)
                     found_regions += 1
-                    # Count addresses per region
-                    region_counts[region_id] += 1
 
                 writer.writerow(row)
                 processed += 1
@@ -203,18 +198,6 @@ def main(
     click.echo(f"  - Found regions: {found_regions}")
     click.echo(f"  - Skipped (invalid coords): {skipped}")
     click.echo(f"  - Output written to: {output_path}")
-
-    # Write region counts to separate CSV file
-    if region_counts:
-        counts_output_path = output_path.parent / f"{output_path.stem.replace('.csv', '')}_region_counts.csv"
-        with open(counts_output_path, "w", encoding="utf-8", newline="") as counts_f:
-            counts_writer = csv.writer(counts_f)
-            counts_writer.writerow(["nuts_region_code", "address_count"])
-            # Sort by count descending, then by region code
-            for region_id, count in sorted(region_counts.items(), key=lambda x: (-x[1], x[0])):
-                counts_writer.writerow([region_id, count])
-        click.echo(f"  - Region counts written to: {counts_output_path}")
-        click.echo(f"    Found {len(region_counts)} unique regions")
 
 
 if __name__ == "__main__":

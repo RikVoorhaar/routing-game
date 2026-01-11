@@ -249,7 +249,9 @@ async function generateJobsWithProgress(options: CliOptions) {
 		const CONCURRENCY = concurrency;
 
 		console.log(`${COLORS.bright}${COLORS.blue}🎯 Job Generation Configuration${COLORS.reset}`);
-		console.log(`  Total Addresses: ${COLORS.cyan}${actualTotal.toLocaleString()}${COLORS.reset}`);
+		console.log(
+			`  Total Addresses: ${COLORS.cyan}${actualTotal.toLocaleString()}${COLORS.reset}`
+		);
 		console.log(
 			`  Mode: ${COLORS.yellow}${clearExisting ? 'Regenerate All' : 'Skip Existing'}${COLORS.reset}`
 		);
@@ -307,14 +309,14 @@ async function generateJobsWithProgress(options: CliOptions) {
 				return await db.select().from(addresses).where(inArray(addresses.id, batchIds));
 			});
 
-			if (batchIds.length !== addressesList.length) {
-				// Some addresses might have been deleted between ID fetch and row fetch
-				// This is rare but handle gracefully - we'll just process what we found
+			if (addressIds.length !== addressesList.length) {
+				// Some addresses might have been deleted or jobs created between ID fetch and row fetch
+				// This is rare but handle gracefully
 				const foundIds = new Set(addressesList.map((a) => a.id));
 				const missingIds = batchIds.filter((id) => !foundIds.has(id));
 				if (missingIds.length > 0) {
 					console.log(
-						`${COLORS.yellow}⚠️  ${missingIds.length} addresses from batch not found (may have been deleted)${COLORS.reset}`
+						`${COLORS.yellow}⚠️  ${missingIds.length} addresses from batch not found (may have been processed concurrently)${COLORS.reset}`
 					);
 				}
 			}
