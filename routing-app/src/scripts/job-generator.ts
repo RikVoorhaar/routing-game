@@ -249,9 +249,7 @@ async function generateJobsWithProgress(options: CliOptions) {
 		const CONCURRENCY = concurrency;
 
 		console.log(`${COLORS.bright}${COLORS.blue}🎯 Job Generation Configuration${COLORS.reset}`);
-		console.log(
-			`  Total Addresses: ${COLORS.cyan}${actualTotal.toLocaleString()}${COLORS.reset}`
-		);
+		console.log(`  Total Addresses: ${COLORS.cyan}${actualTotal.toLocaleString()}${COLORS.reset}`);
 		console.log(
 			`  Mode: ${COLORS.yellow}${clearExisting ? 'Regenerate All' : 'Skip Existing'}${COLORS.reset}`
 		);
