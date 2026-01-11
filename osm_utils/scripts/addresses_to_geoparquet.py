@@ -393,17 +393,16 @@ def query_by_multiple_nuts2(
 # Convert addresses CSV to GeoParquet files (one per NUTS2 region)
 # Files will be saved to osm_files/addresses_by_region/
 osm_files_folder = Path(__file__).parent.parent.parent / "osm_files"
-csv_path = osm_files_folder / "netherlands-latest.addresses.csv.gz"
+csv_path = osm_files_folder / "europe-latest.addresses_20260110_222142.csv.gz"
 region_files = csv_to_geoparquet_by_region(csv_path, output_dir=osm_files_folder)
 
 # %%
 # Load addresses for a specific NUTS2 region (Utrecht, NL35)
 # This only loads that region's data, keeping memory usage low
 # utrecht_addresses = load_addresses_by_nuts2("NL35")
-nuts_codes = [k for k in region_files.keys() if k.startswith("NL")]
+nuts_codes = [k for k in region_files.keys()]
 
 # %%
-import json
 from tqdm import tqdm
 from collections import Counter
 region_counters = {}
@@ -418,3 +417,90 @@ for region_code in tqdm(nuts_codes):
     region_counters[region_code] = region_counter
 
 # %%
+combined_counter = Counter()
+for region_counter in region_counters.values():
+    combined_counter.update(region_counter)
+
+for key, count in combined_counter.most_common():
+    print(f"{key}: {count}")
+
+# %%
+"""
+Interesting tags to look deeper in
+amenity
+shop
+name
+operator
+office
+cuisine
+tourism
+healthcare
+leasure
+sport
+clothes
+club
+craft
+religion
+fuel: ... 
+school
+military
+brewery
+
+It's probably also interesting to find coverage, so find which
+tag occurs at least 10x for each region. 
+
+
+I think what we have to do is make a table where each row is a tag value, and each column is a region. We can just encode that easily as a dictionary first. 
+We hvave to exclude addr: tags, because they are too often unique. I think perhaps we should do the     opposite: for amenity, shop, building, we should consider also storing the values, but for all other tags we just store the tag key. 
+"""
+
+# %%
+from collections import defaultdict
+
+# Dictionary: tag_name -> defaultdict(region_code -> count)
+tag_counts_by_region: dict[str, defaultdict[str, int]] = defaultdict(lambda: defaultdict(int))
+
+# Tags where we include the value (key=value format)
+tags_with_values = {"building", "amenity", "shop"}
+
+# Process all NL regions
+for region_code in tqdm(nuts_codes, desc="Processing regions"):
+    region_addresses = load_addresses_by_nuts2(region_code)
+    
+    for row in tqdm(region_addresses.itertuples(index=False), 
+                    desc=f"Processing {region_code}",
+                    leave=False,
+                    total=len(region_addresses)):
+        if row.tags is None:
+            continue
+        
+        try:
+            row_tags = json.loads(row.tags)
+        except json.JSONDecodeError:
+            continue
+        
+        for tag_key, tag_value in row_tags.items():
+            # Skip addr: tags as they're too unique
+            if tag_key.startswith("addr:"):
+                continue
+            
+            # For building, amenity, shop: use "key=value" format
+            if tag_key in tags_with_values:
+                tag_identifier = f"{tag_key}={tag_value}"
+            else:
+                # For other tags: just use the key
+                tag_identifier = tag_key
+            
+            # Increment count for this tag in this region
+            tag_counts_by_region[tag_identifier][region_code] += 1
+
+# %%
+# Display summary statistics
+print(f"\nFound {len(tag_counts_by_region)} unique tags across {len(nuts_codes)} regions")
+print("\nTop tags by total count across all regions:")
+tag_totals = {
+    tag: sum(region_counts.values()) 
+    for tag, region_counts in tag_counts_by_region.items()
+}
+for tag, total in sorted(tag_totals.items(), key=lambda x: x[1], reverse=True)[:20]:
+    print(f"  {tag}: {total:,}")
