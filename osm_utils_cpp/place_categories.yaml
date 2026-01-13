@@ -1,0 +1,85 @@
+categories:
+  - name: residential
+    max_per_region: 100
+    tags:
+      - landuse=residential
+      - building=residential
+      - building=house
+      - building=apartments
+      - building=detached
+      - building=semidetached_house
+      - building=terrace
+      - building=houseboat
+  - name: office
+    max_per_region: 100
+    tags:
+      - office=*
+      - office=company
+  - name: shop
+    max_per_region: 100
+    tags:
+      - shop=supermarket
+      - shop=clothes
+      - shop=car
+      - shop=butcher
+      - shop=florist
+      - shop=jewelry
+      - shop=hardware
+      - shop=furniture
+  - name: restaurant
+    max_per_region: 100
+    tags:
+      - amenity=restaurant
+      - amenity=cafe
+      - amenity=fast_food
+  - name: port
+    max_per_region: 100
+    tags:
+      - industrial=port
+      - landuse=port
+      - landuse=harbour
+      - harbour=yes
+      - leisure=marina
+  - name: farm
+    max_per_region: 100
+    tags:
+      - landuse=farmland
+      - landuse=farmyard
+      - place=farm
+      - building=farm
+  - name: power_plant
+    max_per_region: 100
+    tags:
+      - power=generator
+  - name: factory
+    max_per_region: 100
+    tags:
+      - man_made=works
+  - name: railway_terminal
+    max_per_region: 100
+    tags:
+      - railway=yard
+  - name: station
+    max_per_region: 100
+    tags:
+      - railway=station
+  - name: airport
+    max_per_region: 100
+    tags:
+      - aeroway=aerodrome
+  - name: warehouse
+    max_per_region: 100
+    tags:
+      - building=warehouse
+  - name: mine
+    max_per_region: 100
+    tags:
+      - landuse=quarry
+  - name: gas_station
+    max_per_region: 100
+    tags:
+      - amenity=fuel
+  - name: construction
+    max_per_region: 100
+    tags:
+      - landuse=construction

@@ -6,6 +6,9 @@ RUN apt-get update && apt-get install -y \
     cmake \
     zlib1g-dev \
     libosmium-dev \
+    libgeos++-dev \
+    libgeos-dev \
+    libyaml-cpp-dev \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
@@ -19,13 +22,13 @@ WORKDIR /app
 # Copy osm_utils_cpp directory
 COPY . /app/osm_utils_cpp
 
-# Build trim_and_extract
+# Build trim_and_extract and extract_categorized_places
 WORKDIR /app/osm_utils_cpp
 RUN rm -rf build && \
     mkdir -p build && \
     cd build && \
     cmake .. && \
-    make -j$(nproc) trim_and_extract
+    make -j$(nproc) trim_and_extract extract_categorized_places
 
 # Set working directory to build directory for easy execution
 WORKDIR /app/osm_utils_cpp/build
