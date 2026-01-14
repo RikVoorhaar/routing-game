@@ -5,7 +5,6 @@
 #include <osmium/io/pbf_input.hpp>
 #include <osmium/io/reader.hpp>
 #include <osmium/visitor.hpp>
-#include <osmium/handler/node_locations_for_ways.hpp>
 #include <osmium/index/map/sparse_file_array.hpp>
 #include <osmium/osm/node.hpp>
 #include <osmium/osm/way.hpp>
@@ -345,16 +344,6 @@ public:
             return;
         }
         
-        int category_idx = category_matcher_->match_category(node.tags());
-        if (category_idx < 0) {
-            if (processed_nodes_ % 10000 == 0) {
-                update_progress();
-            }
-            return;
-        }
-        
-        matched_nodes_++;
-        
         // Lookup region
         std::string region_code = nuts_index_->lookup_wgs84(node.location().lat(), node.location().lon());
         if (region_code.empty()) {
@@ -367,7 +356,8 @@ public:
         // Compute Web Mercator coordinates
         auto mercator = PlaceExtraction::wgs84_to_web_mercator(node.location().lat(), node.location().lon());
         
-        // Store in disk index
+        // Store ALL nodes in disk index (not just categorized ones)
+        // This allows ways to reference any node, not just categorized nodes
         NodeData node_data;
         node_data.location_wgs84 = node.location();
         node_data.x_mercator = mercator.first;
@@ -375,13 +365,26 @@ public:
         node_index_.set(static_cast<osmium::unsigned_object_id_type>(node.id()), node_data);
         node_regions_[static_cast<osmium::unsigned_object_id_type>(node.id())] = region_code;
         
+        // Check if this node matches a category
+        int category_idx = category_matcher_->match_category(node.tags());
+        if (category_idx < 0) {
+            // Node doesn't match any category, but we've stored it for way lookups
+            if (processed_nodes_ % 10000 == 0) {
+                update_progress();
+            }
+            return;
+        }
+        
+        // This node matches a category, add it to reservoir sampling
+        matched_nodes_++;
+        
         // Get or create region index
         size_t region_idx = get_or_create_region_index(region_code);
         
         // Serialize tags
         std::string tags_json = PlaceExtraction::tags_to_json(node.tags());
         
-        // Apply reservoir sampling
+        // Apply reservoir sampling (only for categorized nodes)
         PlaceQueueData queue_data;
         queue_data.id = node.id();
         queue_data.tags_json = std::move(tags_json);
@@ -397,17 +400,8 @@ public:
     void way(const osmium::Way& way) {
         processed_ways_++;
         
-        int category_idx = category_matcher_->match_category(way.tags());
-        if (category_idx < 0) {
-            if (processed_ways_ % 1000 == 0) {
-                update_progress();
-            }
-            return;
-        }
-        
-        matched_ways_++;
-        
         // Load node locations from disk index
+        // All nodes are stored in node_index_, so we can look them up here
         std::vector<osmium::Location> node_locations;
         for (const auto& node_ref : way.nodes()) {
             try {
@@ -442,12 +436,14 @@ public:
         // Determine region (use centroid's region)
         std::string region_code = nuts_index_->lookup_wgs84(centroid.lat(), centroid.lon());
         if (region_code.empty()) {
-            // Fallback: use majority region from nodes
+            // Fallback: use majority region from node locations (lookup each node's region)
             ankerl::unordered_dense::map<std::string, int> region_counts;
-            for (const auto& node_ref : way.nodes()) {
-                auto it = node_regions_.find(static_cast<osmium::unsigned_object_id_type>(node_ref.ref()));
-                if (it != node_regions_.end() && !it->second.empty()) {
-                    region_counts[it->second]++;
+            for (const auto& loc : node_locations) {
+                if (loc.valid()) {
+                    std::string node_region = nuts_index_->lookup_wgs84(loc.lat(), loc.lon());
+                    if (!node_region.empty()) {
+                        region_counts[node_region]++;
+                    }
                 }
             }
             
@@ -465,7 +461,8 @@ public:
             return;
         }
         
-        // Store in disk index
+        // Store ALL ways in disk index (not just categorized ones)
+        // This allows relations to reference any way, not just categorized ways
         WayData way_data;
         way_data.centroid_wgs84 = centroid;
         way_data.x_mercator = mercator.first;
@@ -473,13 +470,26 @@ public:
         way_index_.set(static_cast<osmium::unsigned_object_id_type>(way.id()), way_data);
         way_regions_[static_cast<osmium::unsigned_object_id_type>(way.id())] = region_code;
         
+        // Check if this way matches a category
+        int category_idx = category_matcher_->match_category(way.tags());
+        if (category_idx < 0) {
+            // Way doesn't match any category, but we've stored it for relation lookups
+            if (processed_ways_ % 1000 == 0) {
+                update_progress();
+            }
+            return;
+        }
+        
+        // This way matches a category, add it to reservoir sampling
+        matched_ways_++;
+        
         // Get or create region index
         size_t region_idx = get_or_create_region_index(region_code);
         
         // Serialize tags
         std::string tags_json = PlaceExtraction::tags_to_json(way.tags());
         
-        // Apply reservoir sampling
+        // Apply reservoir sampling (only for categorized ways)
         PlaceQueueData queue_data;
         queue_data.id = way.id();
         queue_data.tags_json = std::move(tags_json);
@@ -760,6 +770,7 @@ int main(int argc, char* argv[]) {
     
     try {
         // Single pass processing
+        // All nodes are stored in node_index_ as they're processed, so ways can look them up directly
         osmium::io::Reader reader(input_file);
         SinglePassHandler handler(category_matcher.get(), nuts_index.get(), file_size);
         osmium::apply(reader, handler);

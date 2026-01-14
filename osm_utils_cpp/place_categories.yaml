@@ -36,17 +36,10 @@ categories:
     max_per_region: 100
     tags:
       - industrial=port
-      - landuse=port
-      - landuse=harbour
-      - harbour=yes
-      - leisure=marina
   - name: farm
     max_per_region: 100
     tags:
       - landuse=farmland
-      - landuse=farmyard
-      - place=farm
-      - building=farm
   - name: power_plant
     max_per_region: 100
     tags:
