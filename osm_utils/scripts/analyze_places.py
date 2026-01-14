@@ -199,3 +199,6 @@ fig.update_layout(
 )
 
 fig.show()
+
+# %%
+df.groupby('category').is_node.mean()

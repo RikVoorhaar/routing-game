@@ -34,4 +34,4 @@ RUN rm -rf build && \
 WORKDIR /app/osm_utils_cpp/build
 
 # Default command
-CMD ["./trim_and_extract"]
+CMD ["./extract_categorized_places"]
