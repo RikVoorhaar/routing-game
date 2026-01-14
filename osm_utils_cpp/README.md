@@ -240,3 +240,84 @@ docker build -t osm_utils_cpp . 2>&1 | tee build.log
 # Or view build progress in real-time with detailed output
 docker build -t osm_utils_cpp . --progress=plain
 ```
+
+## Profiling
+
+To profile the application and identify performance bottlenecks, use `perf` for sampling profiling.
+
+### Building with Debug Symbols
+
+Build the Docker image with debug symbols enabled:
+
+```bash
+cd osm_utils_cpp
+docker build --build-arg DEBUG=1 -t osm_utils_cpp .
+```
+
+This will compile with `-g -O0` flags, providing debug symbols for better profiling data while disabling optimizations.
+
+### Running perf Profiling
+
+**Option 1: Profile inside container (recommended)**
+
+```bash
+# Run container with perf capabilities
+docker run --cap-add SYS_ADMIN --cap-add SYS_PTRACE \
+  --name extract_places_profile \
+  -v "$(pwd)/osm_files:/data" \
+  -w /app/osm_utils_cpp/build \
+  osm_utils_cpp \
+  perf record -g --call-graph dwarf \
+    ./extract_categorized_places /data/europe-latest.osm.pbf \
+      --config /app/osm_utils_cpp/place_categories.yaml \
+      --regions-geojson /data/regions/combined_01m.geojson \
+      --output /data/europe-latest.places.csv.gz
+
+# Copy perf.data out of container
+docker cp extract_places_profile:/app/osm_utils_cpp/build/perf.data ./perf.data
+
+# View report (requires perf on host or inside container)
+docker exec extract_places_profile perf report -g --stdio > perf_report.txt
+```
+
+**Option 2: Profile from host**
+
+```bash
+# Start container in background
+docker run -d --cap-add SYS_ADMIN --cap-add SYS_PTRACE \
+  --name extract_places_profile \
+  -v "$(pwd)/osm_files:/data" \
+  -w /app/osm_utils_cpp/build \
+  osm_utils_cpp \
+  ./extract_categorized_places /data/europe-latest.osm.pbf \
+    --config /app/osm_utils_cpp/place_categories.yaml \
+    --regions-geojson /data/regions/combined_01m.geojson \
+    --output /data/europe-latest.places.csv.gz
+
+# Get container PID
+CONTAINER_PID=$(docker inspect -f '{{.State.Pid}}' extract_places_profile)
+
+# Profile from host (requires perf installed on host)
+sudo perf record -g -p $CONTAINER_PID --call-graph dwarf
+
+# View report
+sudo perf report -g --stdio
+```
+
+### Analyzing perf Data
+
+```bash
+# Interactive TUI report
+perf report
+
+# Generate text report
+perf report --stdio > perf_report.txt
+
+# Show top functions
+perf report --stdio | head -50
+
+# Show annotated source (if available)
+perf annotate
+```
+
+**Note:** The `--cap-add SYS_ADMIN --cap-add SYS_PTRACE` flags are required for perf to work inside Docker containers. Alternatively, you can use `--privileged` flag, but it's less secure.

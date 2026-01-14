@@ -6,7 +6,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Add compile options
-add_compile_options(-Wall -Wextra)
+# Check for DEBUG environment variable for profiling support
+if(ENV{DEBUG})
+    message(STATUS "Building with debug symbols (DEBUG=1)")
+    add_compile_options(-Wall -Wextra -g -O0)
+else()
+    add_compile_options(-Wall -Wextra -O3)
+endif()
 
 # Find zlib
 find_package(ZLIB REQUIRED)

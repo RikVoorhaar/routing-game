@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     libgeos-dev \
     libyaml-cpp-dev \
     wget \
+    linux-perf \
     && rm -rf /var/lib/apt/lists/*
 
 # Download nlohmann/json (header-only library)
@@ -23,6 +24,10 @@ WORKDIR /app
 COPY . /app/osm_utils_cpp
 
 # Build trim_and_extract and extract_categorized_places
+# DEBUG build argument can be set to build with debug symbols for profiling
+# Usage: docker build --build-arg DEBUG=1 -t osm_utils_cpp .
+ARG DEBUG
+ENV DEBUG=${DEBUG}
 WORKDIR /app/osm_utils_cpp
 RUN rm -rf build && \
     mkdir -p build && \
