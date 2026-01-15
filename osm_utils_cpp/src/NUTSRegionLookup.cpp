@@ -9,6 +9,7 @@
 #include <geos/geom/LinearRing.h>
 #include <geos/geom/CoordinateSequenceFactory.h>
 #include <geos/geom/CoordinateSequence.h>
+#include <geos/geom/prep/PreparedGeometryFactory.h>
 #include <geos/index/strtree/STRtree.h>
 #include <memory>
 #include <stdexcept>
@@ -180,6 +181,11 @@ void NUTSIndex::build_index() {
     for (size_t i = 0; i < regions_.size(); ++i) {
         auto env = regions_[i].geometry->getEnvelopeInternal();
         spatial_index_->insert(env, reinterpret_cast<void*>(i));
+        
+        // Create PreparedGeometry for each region
+        regions_[i].prepared_geom = geos::geom::prep::PreparedGeometryFactory::prepare(
+            regions_[i].geometry.get()
+        );
     }
 }
 
@@ -211,7 +217,7 @@ std::string NUTSIndex::lookup_web_mercator(double x, double y) {
         size_t idx = reinterpret_cast<size_t>(candidate);
         if (idx < regions_.size()) {
             auto region_contains_start = std::chrono::high_resolution_clock::now();
-            bool contains_result = regions_[idx].geometry->contains(point);
+            bool contains_result = regions_[idx].prepared_geom->contains(point);
             auto region_contains_end = std::chrono::high_resolution_clock::now();
             auto region_contains_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(region_contains_end - region_contains_start);
             
