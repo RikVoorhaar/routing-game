@@ -277,6 +277,9 @@ private:
             time_oss << seconds_spent << "s";
         }
         
+        // Get current memory usage
+        MemoryStats mem_stats = MemoryStats::get_current();
+        
         std::ostringstream progress_oss;
         progress_oss << "Processing: Nodes " << processed_nodes_ 
                      << " (" << matched_nodes_ << " matched)"
@@ -284,6 +287,7 @@ private:
                      << " (" << matched_ways_ << " matched)"
                      << " | Relations " << processed_relations_
                      << " (" << matched_relations_ << " matched)"
+                     << " | RAM: " << mem_stats.format()
                      << " | " << time_oss.str();
         
         std::string progress_str = progress_oss.str();
