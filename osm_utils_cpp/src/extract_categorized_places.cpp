@@ -128,8 +128,8 @@ struct PlaceQueueData {
 
 // Memory reporting helper (Linux-specific)
 struct MemoryStats {
-    uint64_t rss_kb = 0;
-    uint64_t peak_rss_kb = 0;
+    uint64_t rss_kb = 0;      // Resident Set Size (physical memory)
+    uint64_t peak_rss_kb = 0; // Peak RSS
     
     static MemoryStats get_current() {
         MemoryStats stats;
@@ -600,7 +600,7 @@ public:
         update_progress();
         std::cout << "\n";
         MemoryStats mem = MemoryStats::get_current();
-        std::cout << "Memory: RSS=" << mem.format() << "\n";
+        std::cout << "Final memory: RSS=" << mem.format() << "\n";
     }
     
     // Getters for CSV writing

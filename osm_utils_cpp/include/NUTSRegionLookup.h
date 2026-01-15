@@ -4,6 +4,7 @@
 #include <string>
 #include <memory>
 #include <geos/geom/Geometry.h>
+#include <geos/geom/Point.h>
 #include <geos/geom/prep/PreparedGeometry.h>
 #include <geos/index/strtree/STRtree.h>
 

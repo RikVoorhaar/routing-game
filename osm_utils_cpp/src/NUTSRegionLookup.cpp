@@ -11,6 +11,7 @@
 #include <geos/geom/CoordinateSequence.h>
 #include <geos/geom/prep/PreparedGeometryFactory.h>
 #include <geos/index/strtree/STRtree.h>
+#include <geos/geom/Envelope.h>
 #include <memory>
 #include <stdexcept>
 #include <sstream>
@@ -193,21 +194,35 @@ std::string NUTSIndex::lookup_web_mercator(double x, double y) {
         return "";
     }
     
-    static geos::geom::GeometryFactory::Ptr factory = geos::geom::GeometryFactory::create();
-    auto point = factory->createPoint(geos::geom::Coordinate(x, y));
+    // Create envelope directly from coordinates
+    geos::geom::Envelope env(x, x, y, y);
     
     std::vector<void*> candidates;
-    auto env = point->getEnvelopeInternal();
-    spatial_index_->query(env, candidates);
+    spatial_index_->query(&env, candidates);
     
+    if (candidates.empty()) {
+        return "";
+    }
+    
+    // Use default factory instance (thread-safe singleton) to avoid creating new factories
+    static const geos::geom::GeometryFactory* factory = geos::geom::GeometryFactory::getDefaultInstance();
+    
+    // Create Point for contains() check
+    // getDefaultInstance() returns raw pointer, so we need to manage cleanup manually
+    std::unique_ptr<geos::geom::Point> point(factory->createPoint(geos::geom::Coordinate(x, y)));
+    
+    // Perform contains() checks
     for (void* candidate : candidates) {
         size_t idx = reinterpret_cast<size_t>(candidate);
         if (idx < regions_.size()) {
-            if (regions_[idx].prepared_geom->contains(point)) {
+            if (regions_[idx].prepared_geom->contains(point.get())) {
+                // Point will be destroyed when unique_ptr goes out of scope
                 return regions_[idx].nuts_id;
             }
         }
     }
+    
+    // Point is automatically destroyed here via unique_ptr destructor
     
     return "";
 }
