@@ -112,6 +112,7 @@ struct RelationData {
 struct PlaceQueueData {
     osmium::object_id_type id;
     std::string tags_json;
+    std::string region_code;  // Store region code to avoid memory-backed maps
     
     bool operator==(const PlaceQueueData& other) const {
         return id == other.id && tags_json == other.tags_json;
@@ -177,11 +178,6 @@ private:
     osmium::index::map::SparseFileArray<osmium::unsigned_object_id_type, NodeData> node_index_;
     osmium::index::map::SparseFileArray<osmium::unsigned_object_id_type, WayData> way_index_;
     osmium::index::map::SparseFileArray<osmium::unsigned_object_id_type, RelationData> relation_index_;
-    
-    // Separate maps for region codes (id -> region_code)
-    ankerl::unordered_dense::map<osmium::unsigned_object_id_type, std::string> node_regions_;
-    ankerl::unordered_dense::map<osmium::unsigned_object_id_type, std::string> way_regions_;
-    ankerl::unordered_dense::map<osmium::unsigned_object_id_type, std::string> relation_regions_;
     
     // Reservoir sampling: 2D queue structure [category_idx][region_idx]
     using QueueType = std::priority_queue<std::pair<double, PlaceQueueData>, 
@@ -367,7 +363,6 @@ public:
         node_data.x_mercator = mercator.first;
         node_data.y_mercator = mercator.second;
         node_index_.set(static_cast<osmium::unsigned_object_id_type>(node.id()), node_data);
-        node_regions_[static_cast<osmium::unsigned_object_id_type>(node.id())] = region_code;
         
         // Check if this node matches a category
         int category_idx = category_matcher_->match_category(node.tags());
@@ -389,9 +384,11 @@ public:
         std::string tags_json = PlaceExtraction::tags_to_json(node.tags());
         
         // Apply reservoir sampling (only for categorized nodes)
+        // Store region_code in PlaceQueueData to avoid memory-backed maps
         PlaceQueueData queue_data;
         queue_data.id = node.id();
         queue_data.tags_json = std::move(tags_json);
+        queue_data.region_code = region_code;
         
         const auto& category = category_matcher_->get_category(category_idx);
         apply_reservoir_sampling(node_queues_[category_idx][region_idx], queue_data, category.max_per_region);
@@ -439,24 +436,6 @@ public:
         
         // Determine region (use centroid's region)
         std::string region_code = nuts_index_->lookup_wgs84(centroid.lat(), centroid.lon());
-        if (region_code.empty()) {
-            // Fallback: use majority region from node locations (lookup each node's region)
-            ankerl::unordered_dense::map<std::string, int> region_counts;
-            for (const auto& loc : node_locations) {
-                if (loc.valid()) {
-                    std::string node_region = nuts_index_->lookup_wgs84(loc.lat(), loc.lon());
-                    if (!node_region.empty()) {
-                        region_counts[node_region]++;
-                    }
-                }
-            }
-            
-            if (!region_counts.empty()) {
-                auto max_it = std::max_element(region_counts.begin(), region_counts.end(),
-                    [](const auto& a, const auto& b) { return a.second < b.second; });
-                region_code = max_it->first;
-            }
-        }
         
         if (region_code.empty()) {
             if (processed_ways_ % 1000 == 0) {
@@ -472,7 +451,6 @@ public:
         way_data.x_mercator = mercator.first;
         way_data.y_mercator = mercator.second;
         way_index_.set(static_cast<osmium::unsigned_object_id_type>(way.id()), way_data);
-        way_regions_[static_cast<osmium::unsigned_object_id_type>(way.id())] = region_code;
         
         // Check if this way matches a category
         int category_idx = category_matcher_->match_category(way.tags());
@@ -494,9 +472,11 @@ public:
         std::string tags_json = PlaceExtraction::tags_to_json(way.tags());
         
         // Apply reservoir sampling (only for categorized ways)
+        // Store region_code in PlaceQueueData to avoid memory-backed maps
         PlaceQueueData queue_data;
         queue_data.id = way.id();
         queue_data.tags_json = std::move(tags_json);
+        queue_data.region_code = region_code;
         
         const auto& category = category_matcher_->get_category(category_idx);
         apply_reservoir_sampling(way_queues_[category_idx][region_idx], queue_data, category.max_per_region);
@@ -580,25 +560,6 @@ public:
         
         // Determine region (use centroid's region)
         std::string region_code = nuts_index_->lookup_wgs84(centroid.lat(), centroid.lon());
-        if (region_code.empty()) {
-            // Fallback: use majority region from ways
-            ankerl::unordered_dense::map<std::string, int> region_counts;
-            for (const auto& member : relation.members()) {
-                if (member.type() == osmium::item_type::way && 
-                    std::strcmp(member.role(), "outer") == 0) {
-                    auto it = way_regions_.find(static_cast<osmium::unsigned_object_id_type>(member.ref()));
-                    if (it != way_regions_.end() && !it->second.empty()) {
-                        region_counts[it->second]++;
-                    }
-                }
-            }
-            
-            if (!region_counts.empty()) {
-                auto max_it = std::max_element(region_counts.begin(), region_counts.end(),
-                    [](const auto& a, const auto& b) { return a.second < b.second; });
-                region_code = max_it->first;
-            }
-        }
         
         if (region_code.empty()) {
             if (processed_relations_ % 1000 == 0) {
@@ -613,7 +574,6 @@ public:
         relation_data.x_mercator = mercator.first;
         relation_data.y_mercator = mercator.second;
         relation_index_.set(static_cast<osmium::unsigned_object_id_type>(relation.id()), relation_data);
-        relation_regions_[static_cast<osmium::unsigned_object_id_type>(relation.id())] = region_code;
         
         // Get or create region index
         size_t region_idx = get_or_create_region_index(region_code);
@@ -622,9 +582,11 @@ public:
         std::string tags_json = PlaceExtraction::tags_to_json(relation.tags());
         
         // Apply reservoir sampling
+        // Store region_code in PlaceQueueData to avoid memory-backed maps
         PlaceQueueData queue_data;
         queue_data.id = relation.id();
         queue_data.tags_json = std::move(tags_json);
+        queue_data.region_code = region_code;
         
         const auto& category = category_matcher_->get_category(category_idx);
         apply_reservoir_sampling(relation_queues_[category_idx][region_idx], queue_data, category.max_per_region);
@@ -650,9 +612,6 @@ public:
     osmium::index::map::SparseFileArray<osmium::unsigned_object_id_type, NodeData>& get_node_index() { return node_index_; }
     osmium::index::map::SparseFileArray<osmium::unsigned_object_id_type, WayData>& get_way_index() { return way_index_; }
     osmium::index::map::SparseFileArray<osmium::unsigned_object_id_type, RelationData>& get_relation_index() { return relation_index_; }
-    const ankerl::unordered_dense::map<osmium::unsigned_object_id_type, std::string>& get_node_regions() const { return node_regions_; }
-    const ankerl::unordered_dense::map<osmium::unsigned_object_id_type, std::string>& get_way_regions() const { return way_regions_; }
-    const ankerl::unordered_dense::map<osmium::unsigned_object_id_type, std::string>& get_relation_regions() const { return relation_regions_; }
 };
 
 // Helper to extract all items from a priority queue (destructive - empties the queue)
@@ -796,8 +755,6 @@ int main(int argc, char* argv[]) {
                 for (const auto& item : items) {
                     try {
                         NodeData node_data = handler.get_node_index().get(static_cast<osmium::unsigned_object_id_type>(item.id));
-                        auto region_it = handler.get_node_regions().find(static_cast<osmium::unsigned_object_id_type>(item.id));
-                        std::string region_code = (region_it != handler.get_node_regions().end()) ? region_it->second : "";
                         
                         csv_file << item.id << ","
                                 << "\"" << PlaceExtraction::csv_escape(category_names[cat_idx]) << "\","
@@ -805,7 +762,7 @@ int main(int argc, char* argv[]) {
                                 << node_data.location_wgs84.lon() << ","
                                 << node_data.x_mercator << ","
                                 << node_data.y_mercator << ","
-                                << "\"" << PlaceExtraction::csv_escape(region_code) << "\","
+                                << "\"" << PlaceExtraction::csv_escape(item.region_code) << "\","
                                 << "1,0,0,"
                                 << "\"" << PlaceExtraction::csv_escape(item.tags_json) << "\"\n";
                     } catch (...) {
@@ -824,8 +781,6 @@ int main(int argc, char* argv[]) {
                 for (const auto& item : items) {
                     try {
                         WayData way_data = handler.get_way_index().get(static_cast<osmium::unsigned_object_id_type>(item.id));
-                        auto region_it = handler.get_way_regions().find(static_cast<osmium::unsigned_object_id_type>(item.id));
-                        std::string region_code = (region_it != handler.get_way_regions().end()) ? region_it->second : "";
                         
                         csv_file << item.id << ","
                                 << "\"" << PlaceExtraction::csv_escape(category_names[cat_idx]) << "\","
@@ -833,7 +788,7 @@ int main(int argc, char* argv[]) {
                                 << way_data.centroid_wgs84.lon() << ","
                                 << way_data.x_mercator << ","
                                 << way_data.y_mercator << ","
-                                << "\"" << PlaceExtraction::csv_escape(region_code) << "\","
+                                << "\"" << PlaceExtraction::csv_escape(item.region_code) << "\","
                                 << "0,1,0,"
                                 << "\"" << PlaceExtraction::csv_escape(item.tags_json) << "\"\n";
                     } catch (...) {
@@ -852,8 +807,6 @@ int main(int argc, char* argv[]) {
                 for (const auto& item : items) {
                     try {
                         RelationData relation_data = handler.get_relation_index().get(static_cast<osmium::unsigned_object_id_type>(item.id));
-                        auto region_it = handler.get_relation_regions().find(static_cast<osmium::unsigned_object_id_type>(item.id));
-                        std::string region_code = (region_it != handler.get_relation_regions().end()) ? region_it->second : "";
                         
                         csv_file << item.id << ","
                                 << "\"" << PlaceExtraction::csv_escape(category_names[cat_idx]) << "\","
@@ -861,7 +814,7 @@ int main(int argc, char* argv[]) {
                                 << relation_data.centroid_wgs84.lon() << ","
                                 << relation_data.x_mercator << ","
                                 << relation_data.y_mercator << ","
-                                << "\"" << PlaceExtraction::csv_escape(region_code) << "\","
+                                << "\"" << PlaceExtraction::csv_escape(item.region_code) << "\","
                                 << "0,0,1,"
                                 << "\"" << PlaceExtraction::csv_escape(item.tags_json) << "\"\n";
                     } catch (...) {
