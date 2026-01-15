@@ -9,6 +9,7 @@
 #include <geos/geom/LinearRing.h>
 #include <geos/geom/CoordinateSequenceFactory.h>
 #include <geos/geom/CoordinateSequence.h>
+#include <geos/geom/prep/PreparedGeometryFactory.h>
 #include <geos/index/strtree/STRtree.h>
 #include <memory>
 #include <stdexcept>
@@ -179,6 +180,11 @@ void NUTSIndex::build_index() {
     for (size_t i = 0; i < regions_.size(); ++i) {
         auto env = regions_[i].geometry->getEnvelopeInternal();
         spatial_index_->insert(env, reinterpret_cast<void*>(i));
+        
+        // Create PreparedGeometry for each region
+        regions_[i].prepared_geom = geos::geom::prep::PreparedGeometryFactory::prepare(
+            regions_[i].geometry.get()
+        );
     }
 }
 
@@ -197,7 +203,7 @@ std::string NUTSIndex::lookup_web_mercator(double x, double y) {
     for (void* candidate : candidates) {
         size_t idx = reinterpret_cast<size_t>(candidate);
         if (idx < regions_.size()) {
-            if (regions_[idx].geometry->contains(point)) {
+            if (regions_[idx].prepared_geom->contains(point)) {
                 return regions_[idx].nuts_id;
             }
         }

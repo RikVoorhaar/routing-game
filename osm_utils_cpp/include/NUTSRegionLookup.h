@@ -4,6 +4,7 @@
 #include <string>
 #include <memory>
 #include <geos/geom/Geometry.h>
+#include <geos/geom/prep/PreparedGeometry.h>
 #include <geos/index/strtree/STRtree.h>
 
 namespace NUTSRegionLookup {
@@ -30,6 +31,7 @@ private:
         std::string nuts_id;
         std::string name;
         std::unique_ptr<geos::geom::Geometry> geometry;
+        std::unique_ptr<geos::geom::prep::PreparedGeometry> prepared_geom;
     };
     
     std::vector<RegionData> regions_;
