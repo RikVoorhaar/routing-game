@@ -277,33 +277,6 @@ private:
             time_oss << seconds_spent << "s";
         }
         
-        uint64_t lookup_count = nuts_index_->get_lookup_count();
-        uint64_t candidate_count = nuts_index_->get_candidate_count();
-        uint64_t query_time_ns = nuts_index_->get_query_time_ns();
-        uint64_t contains_time_ns = nuts_index_->get_contains_time_ns();
-        uint64_t total_time_ns = nuts_index_->get_total_time_ns();
-        
-        double avg_candidates = lookup_count > 0 ? static_cast<double>(candidate_count) / lookup_count : 0.0;
-        double avg_query_us = lookup_count > 0 ? static_cast<double>(query_time_ns) / lookup_count / 1000.0 : 0.0;
-        double avg_contains_us = lookup_count > 0 ? static_cast<double>(contains_time_ns) / lookup_count / 1000.0 : 0.0;
-        double avg_total_us = lookup_count > 0 ? static_cast<double>(total_time_ns) / lookup_count / 1000.0 : 0.0;
-        double query_pct = total_time_ns > 0 ? (static_cast<double>(query_time_ns) / total_time_ns * 100.0) : 0.0;
-        double contains_pct = total_time_ns > 0 ? (static_cast<double>(contains_time_ns) / total_time_ns * 100.0) : 0.0;
-        
-        // Get top slowest regions
-        auto region_times = nuts_index_->get_region_times_ns();
-        auto region_counts = nuts_index_->get_region_counts();
-        std::vector<std::pair<std::string, double>> region_avg_times;
-        for (const auto& [region_id, total_time] : region_times) {
-            auto count_it = region_counts.find(region_id);
-            if (count_it != region_counts.end() && count_it->second > 0) {
-                double avg_time_us = static_cast<double>(total_time) / count_it->second / 1000.0;
-                region_avg_times.push_back({region_id, avg_time_us});
-            }
-        }
-        std::sort(region_avg_times.begin(), region_avg_times.end(),
-            [](const auto& a, const auto& b) { return a.second > b.second; });
-        
         std::ostringstream progress_oss;
         progress_oss << "Processing: Nodes " << processed_nodes_ 
                      << " (" << matched_nodes_ << " matched)"
@@ -311,23 +284,7 @@ private:
                      << " (" << matched_ways_ << " matched)"
                      << " | Relations " << processed_relations_
                      << " (" << matched_relations_ << " matched)"
-                     << " | Lookups: " << lookup_count
-                     << " | Avg candidates: " << std::fixed << std::setprecision(1) << avg_candidates
-                     << " | Query: " << std::fixed << std::setprecision(1) << avg_query_us << "us (" << std::setprecision(0) << query_pct << "%)"
-                     << " | Contains: " << std::fixed << std::setprecision(1) << avg_contains_us << "us (" << std::setprecision(0) << contains_pct << "%)"
-                     << " | Total: " << std::fixed << std::setprecision(1) << avg_total_us << "us"
                      << " | " << time_oss.str();
-        
-        // Add top 3 slowest regions if available
-        if (!region_avg_times.empty() && region_avg_times.size() > 0) {
-            progress_oss << "\n  Top slow regions: ";
-            size_t top_n = std::min(static_cast<size_t>(3), region_avg_times.size());
-            for (size_t i = 0; i < top_n; ++i) {
-                if (i > 0) progress_oss << ", ";
-                progress_oss << region_avg_times[i].first << ":" 
-                            << std::fixed << std::setprecision(1) << region_avg_times[i].second << "us";
-            }
-        }
         
         std::string progress_str = progress_oss.str();
         

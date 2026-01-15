@@ -14,7 +14,6 @@
 #include <memory>
 #include <stdexcept>
 #include <sstream>
-#include <chrono>
 
 namespace NUTSRegionLookup {
 
@@ -194,57 +193,21 @@ std::string NUTSIndex::lookup_web_mercator(double x, double y) {
         return "";
     }
     
-    auto total_start = std::chrono::high_resolution_clock::now();
-    lookup_count_++;
-    
     static geos::geom::GeometryFactory::Ptr factory = geos::geom::GeometryFactory::create();
     auto point = factory->createPoint(geos::geom::Coordinate(x, y));
     
-    // Time the spatial index query
-    auto query_start = std::chrono::high_resolution_clock::now();
     std::vector<void*> candidates;
     auto env = point->getEnvelopeInternal();
     spatial_index_->query(env, candidates);
-    auto query_end = std::chrono::high_resolution_clock::now();
-    auto query_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(query_end - query_start);
-    query_time_ns_ += query_duration.count();
     
-    candidate_count_ += candidates.size();
-    
-    // Time the contains() calls per region
-    auto contains_start = std::chrono::high_resolution_clock::now();
     for (void* candidate : candidates) {
         size_t idx = reinterpret_cast<size_t>(candidate);
         if (idx < regions_.size()) {
-            auto region_contains_start = std::chrono::high_resolution_clock::now();
-            bool contains_result = regions_[idx].prepared_geom->contains(point);
-            auto region_contains_end = std::chrono::high_resolution_clock::now();
-            auto region_contains_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(region_contains_end - region_contains_start);
-            
-            const std::string& region_id = regions_[idx].nuts_id;
-            region_times_ns_[region_id] += region_contains_duration.count();
-            region_counts_[region_id]++;
-            
-            if (contains_result) {
-                auto contains_end = std::chrono::high_resolution_clock::now();
-                auto contains_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(contains_end - contains_start);
-                contains_time_ns_ += contains_duration.count();
-                
-                auto total_end = std::chrono::high_resolution_clock::now();
-                auto total_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(total_end - total_start);
-                total_time_ns_ += total_duration.count();
-                
-                return region_id;
+            if (regions_[idx].prepared_geom->contains(point)) {
+                return regions_[idx].nuts_id;
             }
         }
     }
-    auto contains_end = std::chrono::high_resolution_clock::now();
-    auto contains_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(contains_end - contains_start);
-    contains_time_ns_ += contains_duration.count();
-    
-    auto total_end = std::chrono::high_resolution_clock::now();
-    auto total_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(total_end - total_start);
-    total_time_ns_ += total_duration.count();
     
     return "";
 }
