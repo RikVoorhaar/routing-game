@@ -357,7 +357,9 @@ public:
         auto mercator = PlaceExtraction::wgs84_to_web_mercator(node.location().lat(), node.location().lon());
         
         // Store ALL nodes in disk index (not just categorized ones)
-        // This allows ways to reference any node, not just categorized nodes
+        // This is critical: ways need to reference any node (not just categorized ones) to compute
+        // their centroid. If we only stored categorized nodes, ways with non-categorized member
+        // nodes would have incomplete centroid calculations, leading to incorrect results.
         NodeData node_data;
         node_data.location_wgs84 = node.location();
         node_data.x_mercator = mercator.first;
@@ -445,7 +447,9 @@ public:
         }
         
         // Store ALL ways in disk index (not just categorized ones)
-        // This allows relations to reference any way, not just categorized ways
+        // This is critical: relations may reference any way (not just categorized ones) to compute
+        // their centroid. If we only stored categorized ways, relations with non-categorized
+        // member ways would have incomplete centroid calculations, leading to incorrect results.
         WayData way_data;
         way_data.centroid_wgs84 = centroid;
         way_data.x_mercator = mercator.first;

@@ -171,6 +171,10 @@ Processing times vary by file size:
 - Progress updates every 5 seconds
 - Memory usage: ~150-200 MB
 
+### Memory Usage for Large Files
+
+For very large OSM files (e.g., Europe with ~450M ways), RAM usage can reach ~34-42 GB during way processing. This is likely due to Linux OS page cache aggressively caching the sequentially-written `way_index_` memory-mapped file (`SparseFileArray`). Sequential writes to memory-mapped files trigger aggressive page caching, while sparse writes (as used for nodes) don't exhibit the same behavior. This is safe behavior - page cache is evictable and the OS will automatically evict cached pages if memory pressure occurs. The high RAM usage observed is because the system has plenty of RAM available (48GB+); on systems with less RAM, the OS would evict pages more aggressively and RAM usage would be lower. The process completes successfully regardless.
+
 ## Viewing Logs
 
 When running containers with names, you can easily view their output:
