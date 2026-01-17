@@ -18,7 +18,7 @@ export async function loadNutsGeoJson(): Promise<FeatureCollection> {
 
 	try {
 		// Use combined file that includes UK regions from 2021
-		const response = await fetch('/regions/NUTS_RG_60M_2024_3857.geojson');
+		const response = await fetch('/regions/combined_01m.geojson');
 		if (!response.ok) {
 			throw new Error(`Failed to fetch NUTS GeoJSON: ${response.statusText}`);
 		}
