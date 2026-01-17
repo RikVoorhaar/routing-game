@@ -9,7 +9,8 @@ import {
 	jsonb,
 	index,
 	serial,
-	varchar
+	varchar,
+	bigint
 } from 'drizzle-orm/pg-core';
 import { sql, type InferSelectModel } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
@@ -273,6 +274,32 @@ export const jobs = pgTable(
 	]
 );
 
+// Places table - stores geographic places with PostGIS geometry
+export const places = pgTable(
+	'places',
+	{
+		id: bigint('id', { mode: 'number' }).notNull().primaryKey(),
+		category: text('category').notNull(),
+		lat: doublePrecision('lat').notNull(),
+		lon: doublePrecision('lon').notNull(),
+		xMercator: doublePrecision('x_mercator').notNull(),
+		yMercator: doublePrecision('y_mercator').notNull(),
+		region: varchar('region')
+			.notNull()
+			.references(() => regions.code, { onDelete: 'restrict' }),
+		tileX: integer('tile_x').notNull(),
+		tileY: integer('tile_y').notNull(),
+		// PostGIS geometry columns for efficient spatial queries
+		location4326: text('location_4326').notNull(), // POINT geometry in EPSG:4326 as text (handled by PostGIS)
+		location3857: text('location_3857').notNull() // POINT geometry in EPSG:3857 as text (handled by PostGIS)
+	},
+	(table) => [
+		// Composite index on tile coordinates for efficient tile queries
+		index('places_tile_idx').on(table.tileX, table.tileY)
+		// Note: Spatial GiST indexes on location columns are created in the migration file
+	]
+);
+
 // Accounts table - OAuth providers info
 export const accounts = pgTable(
 	'account',
@@ -384,3 +411,4 @@ export type Address = InferSelectModel<typeof addresses>;
 export type ActiveJob = InferSelectModel<typeof activeJobs>;
 export type TravelJob = InferSelectModel<typeof travelJobs>;
 export type Region = InferSelectModel<typeof regions>;
+export type Place = InferSelectModel<typeof places>;

@@ -13,7 +13,7 @@ from pathlib import Path
 # %%
 # Configure paths - change these to analyze different files
 root_dir = Path(__file__).parent.parent.parent
-csv_path = root_dir / "osm_files" / "netherlands-latest.places.csv.gz"
+csv_path = root_dir / "osm_files" / "europe-latest.places.csv.gz"
 geojson_path = root_dir / "osm_files" / "regions" / "combined_01m.geojson"
 
 # %%
@@ -22,11 +22,12 @@ print(f"Loading places from: {csv_path}")
 df = pd.read_csv(csv_path, compression="gzip" if csv_path.suffix == ".gz" else None)
 
 # Filter to Netherlands regions only
-df = df[df.region.str.startswith("NL")]
+# df = df[df.region.str.startswith("NL")]
 
 print(f"Total rows: {len(df):,}")
 print(f"Categories: {df['category'].nunique()}")
 print(f"Regions: {df['region'].nunique()}")
+print(df.head())
 
 # %%
 # Load NUTS region boundaries

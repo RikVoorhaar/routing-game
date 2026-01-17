@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from sqlalchemy import create_engine, Column, String, Numeric, DateTime, func, Index, text, ForeignKey
+from sqlalchemy import create_engine, Column, String, Numeric, DateTime, func, Index, text, ForeignKey, BigInteger, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.dialects.postgresql import TEXT
@@ -54,6 +54,32 @@ class Address(Base):
     
     def __repr__(self):
         return f"<Address(id='{self.id}', street='{self.street}', city='{self.city}')>"
+
+
+class Place(Base):
+    """Place model with PostGIS geometry support."""
+    __tablename__ = 'places'
+    
+    id = Column(BigInteger, primary_key=True)
+    category = Column(String, nullable=False)
+    lat = Column(Numeric, nullable=False)
+    lon = Column(Numeric, nullable=False)
+    x_mercator = Column(Numeric, nullable=False)
+    y_mercator = Column(Numeric, nullable=False)
+    region = Column(String, ForeignKey('region.code', ondelete='RESTRICT'), nullable=False)
+    tile_x = Column(Integer, nullable=False)
+    tile_y = Column(Integer, nullable=False)
+    # PostGIS geometry columns stored as text - actual geometry handling in SQL
+    location_4326 = Column(TEXT, nullable=False)  # POINT geometry in EPSG:4326
+    location_3857 = Column(TEXT, nullable=False)  # POINT geometry in EPSG:3857
+    
+    # Define indexes
+    __table_args__ = (
+        Index('places_tile_idx', 'tile_x', 'tile_y'),
+    )
+    
+    def __repr__(self):
+        return f"<Place(id={self.id}, category='{self.category}', region='{self.region}')>"
 
 
 def get_database_url():
@@ -128,4 +154,31 @@ def create_spatial_index():
             CREATE INDEX IF NOT EXISTS addresses_location_gist_idx 
             ON address USING GIST (ST_GeomFromText(location))
         """))
-    print("Created spatial index on location column") 
+    print("Created spatial index on location column")
+
+
+def truncate_places_table():
+    """Remove all rows from the places table."""
+    engine = create_db_engine()
+    
+    # Check count before truncate
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT COUNT(*) FROM places"))
+        count_before = int(result.scalar() or 0)
+    
+    # Truncate the table
+    with engine.begin() as conn:
+        conn.execute(text("TRUNCATE TABLE places"))
+    
+    # Verify truncate worked
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT COUNT(*) FROM places"))
+        count_after = int(result.scalar() or 0)
+    
+    if count_before > 0:
+        print(f"Truncated places table (removed {count_before:,} places)")
+    else:
+        print("Truncated places table (table was already empty)")
+    
+    if count_after != 0:
+        raise RuntimeError(f"TRUNCATE failed - table still has {count_after:,} rows!") 
