@@ -8,11 +8,13 @@
 #include <osmium/index/map/sparse_file_array.hpp>
 #include <osmium/osm/node.hpp>
 #include <osmium/osm/way.hpp>
+#include <osmium/osm/relation.hpp>
 #include <osmium/osm/location.hpp>
 #include <osmium/builder/osm_object_builder.hpp>
 #include <osmium/memory/buffer.hpp>
 
 #include <ankerl/unordered_dense.h>
+#include <nlohmann/json.hpp>
 #include <iostream>
 #include <fstream>
 #include <filesystem>
@@ -27,6 +29,7 @@
 #include <algorithm>
 #include <ctime>
 #include <cmath>
+#include <memory>
 #include <unistd.h>
 #include <sys/ioctl.h>
 
@@ -158,18 +161,21 @@ struct MemoryStats {
     }
 };
 
-// Address data structure
+// Address/Building data structure
 struct Address {
     std::string id;
+    bool is_building;
+    bool is_addr;
+    bool is_relation;
+    bool is_node;
+    bool is_way;
     double lat;
     double lon;
-    std::string street;
-    std::string house_number;
-    std::string postcode;
     std::string city;
+    std::string tags_json;
 };
 
-// Helper functions for address extraction (shared between handlers)
+// Helper functions for address/building extraction (shared between handlers)
 bool has_address_tags(const osmium::TagList& tags) {
     for (const auto& tag : tags) {
         if (std::strncmp(tag.key(), "addr:", 5) == 0) {
@@ -179,44 +185,178 @@ bool has_address_tags(const osmium::TagList& tags) {
     return false;
 }
 
+bool has_building_tag(const osmium::TagList& tags) {
+    return tags.get_value_by_key("building") != nullptr;
+}
+
+bool has_address_or_building_tags(const osmium::TagList& tags) {
+    return has_address_tags(tags) || has_building_tag(tags);
+}
+
+// Serialize tags to JSON object using nlohmann/json
+std::string tags_to_json(const osmium::TagList& tags) {
+    nlohmann::json j;
+    for (const auto& tag : tags) {
+        j[tag.key()] = tag.value();
+    }
+    return j.dump();
+}
+
+// Escape CSV field - double quotes inside quoted fields
+std::string csv_escape(const std::string& str) {
+    std::string result;
+    result.reserve(str.size() + 10); // Reserve some extra space
+    for (char c : str) {
+        if (c == '"') {
+            result += "\"\""; // Double the quote
+        } else {
+            result += c;
+        }
+    }
+    return result;
+}
+
+// Compute centroid from a list of locations
+osmium::Location compute_centroid(const std::vector<osmium::Location>& locations) {
+    if (locations.empty()) {
+        return osmium::Location();
+    }
+    
+    double sum_lat = 0.0;
+    double sum_lon = 0.0;
+    size_t valid_count = 0;
+    
+    for (const auto& loc : locations) {
+        if (loc.valid()) {
+            sum_lat += loc.lat();
+            sum_lon += loc.lon();
+            valid_count++;
+        }
+    }
+    
+    if (valid_count == 0) {
+        return osmium::Location();
+    }
+    
+    // osmium::Location constructor takes (lon, lat), not (lat, lon)
+    return osmium::Location(sum_lon / valid_count, sum_lat / valid_count);
+}
+
+// Extract address/building data from a node
 Address extract_address_data(const osmium::Node& node) {
     Address addr;
     addr.id = std::to_string(node.id());
+    addr.is_addr = has_address_tags(node.tags());
+    addr.is_building = has_building_tag(node.tags());
+    addr.is_relation = false;
+    addr.is_node = true;
+    addr.is_way = false;
     addr.lat = node.location().lat();
     addr.lon = node.location().lon();
-    addr.street = "";
-    addr.house_number = "";
-    addr.postcode = "";
     addr.city = "";
     
-    for (const auto& tag : node.tags()) {
-        const char* key = tag.key();
-        const char* value = tag.value();
-        
-        if (std::strcmp(key, "addr:street") == 0) {
-            addr.street = value;
-        } else if (std::strcmp(key, "addr:housenumber") == 0) {
-            addr.house_number = value;
-        } else if (std::strcmp(key, "addr:postcode") == 0) {
-            addr.postcode = value;
-        } else if (std::strcmp(key, "addr:city") == 0) {
-            addr.city = value;
-        }
+    const char* city_value = node.tags().get_value_by_key("addr:city");
+    if (city_value) {
+        addr.city = city_value;
     }
+    
+    addr.tags_json = tags_to_json(node.tags());
     
     return addr;
 }
 
-// Pass 1: Collect node IDs from routable ways and extract addresses
+// Extract address/building data from a way (requires node locations)
+Address extract_address_data_from_way(const osmium::Way& way, 
+                                       const std::vector<osmium::Location>& node_locations) {
+    Address addr;
+    addr.id = std::to_string(way.id());
+    addr.is_addr = has_address_tags(way.tags());
+    addr.is_building = has_building_tag(way.tags());
+    addr.is_relation = false;
+    addr.is_node = false;
+    addr.is_way = true;
+    addr.city = "";
+    
+    const char* city_value = way.tags().get_value_by_key("addr:city");
+    if (city_value) {
+        addr.city = city_value;
+    }
+    
+    // Compute centroid from node locations
+    osmium::Location centroid = compute_centroid(node_locations);
+    if (centroid.valid()) {
+        addr.lat = centroid.lat();
+        addr.lon = centroid.lon();
+    } else {
+        addr.lat = 0.0;
+        addr.lon = 0.0;
+    }
+    
+    addr.tags_json = tags_to_json(way.tags());
+    
+    return addr;
+}
+
+// Extract address/building data from a relation (requires node locations from outer ring)
+Address extract_address_data_from_relation(const osmium::Relation& relation,
+                                           const std::vector<osmium::Location>& outer_ring_locations) {
+    Address addr;
+    addr.id = std::to_string(relation.id());
+    addr.is_addr = has_address_tags(relation.tags());
+    addr.is_building = has_building_tag(relation.tags());
+    addr.is_relation = true;
+    addr.is_node = false;
+    addr.is_way = false;
+    addr.city = "";
+    
+    const char* city_value = relation.tags().get_value_by_key("addr:city");
+    if (city_value) {
+        addr.city = city_value;
+    }
+    
+    // Compute centroid from outer ring locations
+    osmium::Location centroid = compute_centroid(outer_ring_locations);
+    if (centroid.valid()) {
+        addr.lat = centroid.lat();
+        addr.lon = centroid.lon();
+    } else {
+        addr.lat = 0.0;
+        addr.lon = 0.0;
+    }
+    
+    addr.tags_json = tags_to_json(relation.tags());
+    
+    return addr;
+}
+
+// Shared helper function to write address CSV
+void write_address_csv(std::ofstream* csv_file, const Address& addr) {
+    if (csv_file && csv_file->is_open()) {
+        *csv_file << addr.id << ","
+                  << (addr.is_building ? "1" : "0") << ","
+                  << (addr.is_addr ? "1" : "0") << ","
+                  << (addr.is_relation ? "1" : "0") << ","
+                  << (addr.is_node ? "1" : "0") << ","
+                  << (addr.is_way ? "1" : "0") << ","
+                  << std::fixed << std::setprecision(7) << addr.lat << ","
+                  << addr.lon << ","
+                  << "\"" << csv_escape(addr.city) << "\","
+                  << "\"" << csv_escape(addr.tags_json) << "\"\n";
+    }
+}
+
+// Pass 1: Collect node IDs from routable ways and extract addresses/buildings
 class Pass1Handler : public osmium::handler::Handler {
 private:
-    std::ofstream& m_csv_file;
+    std::ofstream* m_csv_file;
     ankerl::unordered_dense::set<osmium::object_id_type> m_nodes_needed;
-    bool m_simplify = false;
+    ankerl::unordered_dense::set<osmium::object_id_type> m_relation_way_ids;
     bool m_routable_only = false;
+    bool m_extract_addresses = true;
     
     uint64_t m_processed_nodes = 0;
     uint64_t m_processed_ways = 0;
+    uint64_t m_processed_relations = 0;
     uint64_t m_addresses_found = 0;
     
     // Progress tracking
@@ -286,7 +426,7 @@ private:
         std::ostringstream progress_oss;
         progress_oss << "Pass 1/2: Nodes " << m_processed_nodes
                      << " | Ways " << m_processed_ways
-                     << " | " << (m_simplify ? "Kept " : "Needed ") << m_nodes_needed.size() << " nodes"
+                     << " | Needed " << m_nodes_needed.size() << " nodes"
                      << " | Addr " << m_addresses_found
                      << " | " << std::fixed << std::setprecision(0) << nodes_per_sec << " nodes/s"
                      << " | " << time_oss.str();
@@ -310,21 +450,11 @@ private:
         }
     }
     
-    void write_address_csv(const Address& addr) {
-        m_csv_file << addr.id << ","
-                   << std::fixed << std::setprecision(7) << addr.lat << ","
-                   << addr.lon << ","
-                   << "\"" << addr.street << "\","
-                   << "\"" << addr.house_number << "\","
-                   << "\"" << addr.postcode << "\","
-                   << "\"" << addr.city << "\"\n";
-    }
-    
 public:
-    Pass1Handler(std::ofstream& csv_file, uint64_t file_size, bool simplify, bool routable_only)
+    Pass1Handler(std::ofstream* csv_file, uint64_t file_size, bool routable_only, bool extract_addresses = true)
         : m_csv_file(csv_file)
-        , m_simplify(simplify)
         , m_routable_only(routable_only)
+        , m_extract_addresses(extract_addresses)
         , m_file_size(file_size)
         , m_start_time(std::chrono::steady_clock::now())
         , m_last_progress_time(m_start_time) {
@@ -333,11 +463,11 @@ public:
     void node(const osmium::Node& node) {
         m_processed_nodes++;
         
-        // Extract addresses if present and location is valid
-        if (has_address_tags(node.tags()) && node.location().valid()) {
+        // Extract addresses/buildings if present and location is valid
+        if (m_extract_addresses && has_address_or_building_tags(node.tags()) && node.location().valid()) {
             Address addr = extract_address_data(node);
             if (addr.lat != 0.0 || addr.lon != 0.0) {
-                write_address_csv(addr);
+                write_address_csv(m_csv_file, addr);
                 m_addresses_found++;
             }
         }
@@ -360,16 +490,8 @@ public:
             should_include = is_ferry_or_highway(way.tags());
         }
         if (should_include) {
-            if (!m_simplify) {
-                for (const auto& node_ref : way.nodes()) {
-                    m_nodes_needed.insert(static_cast<osmium::object_id_type>(node_ref.ref()));
-                }
-            } else {
-                const auto& nodes = way.nodes();
-                if (nodes.size() >= 2) {
-                    m_nodes_needed.insert(static_cast<osmium::object_id_type>(nodes.front().ref()));
-                    m_nodes_needed.insert(static_cast<osmium::object_id_type>(nodes.back().ref()));
-                }
+            for (const auto& node_ref : way.nodes()) {
+                m_nodes_needed.insert(static_cast<osmium::object_id_type>(node_ref.ref()));
             }
         }
         
@@ -378,10 +500,30 @@ public:
         }
     }
     
+    void relation(const osmium::Relation& relation) {
+        m_processed_relations++;
+        
+        // Collect way IDs from relations with address/building tags for Pass2 processing
+        if (m_extract_addresses && has_address_or_building_tags(relation.tags())) {
+            for (const auto& member : relation.members()) {
+                if (member.type() == osmium::item_type::way && 
+                    std::strcmp(member.role(), "outer") == 0) {
+                    m_relation_way_ids.insert(static_cast<osmium::object_id_type>(member.ref()));
+                }
+            }
+        }
+        
+        if (m_processed_relations % 1000 == 0) {
+            update_progress();
+        }
+    }
+    
     // Getters
     const ankerl::unordered_dense::set<osmium::object_id_type>& nodes_needed() const { return m_nodes_needed; }
+    const ankerl::unordered_dense::set<osmium::object_id_type>& relation_way_ids() const { return m_relation_way_ids; }
     uint64_t processed_nodes() const { return m_processed_nodes; }
     uint64_t processed_ways() const { return m_processed_ways; }
+    uint64_t processed_relations() const { return m_processed_relations; }
     uint64_t addresses_found() const { return m_addresses_found; }
     std::chrono::steady_clock::time_point start_time() const { return m_start_time; }
     
@@ -394,18 +536,26 @@ public:
     }
 };
 
-// Pass 2: Write nodes (if in set) and routable ways
+// Pass 2: Write nodes (if in set) and routable ways, extract addresses from ways/relations
 class Pass2Handler : public osmium::handler::Handler {
 private:
     const ankerl::unordered_dense::set<osmium::object_id_type>& m_nodes_needed;
-    osmium::io::Writer& m_writer;
-    bool m_simplify = false;
+    const ankerl::unordered_dense::set<osmium::object_id_type>& m_relation_way_ids;
+    osmium::io::Writer* m_writer;
+    std::ofstream* m_csv_file;
     bool m_routable_only = false;
+    bool m_extract_addresses = false;
     
     uint64_t m_processed_nodes = 0;
     uint64_t m_processed_ways = 0;
+    uint64_t m_processed_relations = 0;
     uint64_t m_written_ways = 0;
     uint64_t m_written_nodes = 0;
+    uint64_t m_addresses_found = 0;
+    
+    // Disk-based storage for way centroids and node counts (only for relation ways)
+    osmium::index::map::SparseFileArray<osmium::unsigned_object_id_type, osmium::Location> m_way_centroids;
+    osmium::index::map::SparseFileArray<osmium::unsigned_object_id_type, uint32_t> m_way_node_counts;
     
     // Progress tracking
     uint64_t m_file_size = 0;
@@ -442,8 +592,11 @@ private:
         std::ostringstream progress_oss;
         progress_oss << "Pass 2/2: Nodes " << m_processed_nodes
                      << " | Ways " << m_processed_ways
-                     << " | Wrote " << m_written_ways << "w/" << m_written_nodes << "n"
-                     << " | " << std::fixed << std::setprecision(0) << nodes_per_sec << " nodes/s"
+                     << " | Wrote " << m_written_ways << "w/" << m_written_nodes << "n";
+        if (m_extract_addresses) {
+            progress_oss << " | Addr " << m_addresses_found;
+        }
+        progress_oss << " | " << std::fixed << std::setprecision(0) << nodes_per_sec << " nodes/s"
                      << " | " << time_oss.str();
         
         std::string progress_str = progress_oss.str();
@@ -466,11 +619,19 @@ private:
     }
     
 public:
-    Pass2Handler(const ankerl::unordered_dense::set<osmium::object_id_type>& nodes_needed, osmium::io::Writer& writer, uint64_t file_size, bool simplify, bool routable_only)
+    Pass2Handler(const ankerl::unordered_dense::set<osmium::object_id_type>& nodes_needed,
+                 const ankerl::unordered_dense::set<osmium::object_id_type>& relation_way_ids,
+                 osmium::io::Writer* writer,
+                 std::ofstream* csv_file,
+                 uint64_t file_size,
+                 bool routable_only,
+                 bool extract_addresses)
         : m_nodes_needed(nodes_needed)
+        , m_relation_way_ids(relation_way_ids)
         , m_writer(writer)
-        , m_simplify(simplify)
+        , m_csv_file(csv_file)
         , m_routable_only(routable_only)
+        , m_extract_addresses(extract_addresses)
         , m_file_size(file_size)
         , m_start_time(std::chrono::steady_clock::now())
         , m_last_progress_time(m_start_time) {
@@ -494,7 +655,9 @@ public:
                     // No tags - minimal node like Python implementation
                 }
                 osmium::Node& minimal_node = static_cast<osmium::Node&>(buffer.get<osmium::memory::Item>(0));
-                m_writer(minimal_node);
+                if (m_writer) {
+                    (*m_writer)(minimal_node);
+                }
                 m_written_nodes++;
             }
         }
@@ -507,90 +670,51 @@ public:
     void way(const osmium::Way& way) {
         m_processed_ways++;
         
+        // Extract addresses/buildings from ways
+        if (m_extract_addresses && has_address_or_building_tags(way.tags())) {
+            // Collect node locations for centroid computation
+            std::vector<osmium::Location> node_locations;
+            for (const auto& node_ref : way.nodes()) {
+                if (node_ref.location().valid()) {
+                    node_locations.push_back(node_ref.location());
+                }
+            }
+            
+            if (!node_locations.empty()) {
+                Address addr = extract_address_data_from_way(way, node_locations);
+                if (addr.lat != 0.0 || addr.lon != 0.0) {
+                    write_address_csv(m_csv_file, addr);
+                    m_addresses_found++;
+                }
+            }
+        }
+        
+        // Store way centroid + node count if this way is referenced by a relation
+        osmium::object_id_type way_id = static_cast<osmium::object_id_type>(way.id());
+        if (m_extract_addresses && m_relation_way_ids.find(way_id) != m_relation_way_ids.end()) {
+            std::vector<osmium::Location> node_locations;
+            for (const auto& node_ref : way.nodes()) {
+                if (node_ref.location().valid()) {
+                    node_locations.push_back(node_ref.location());
+                }
+            }
+            
+            if (!node_locations.empty()) {
+                osmium::Location centroid = compute_centroid(node_locations);
+                if (centroid.valid()) {
+                    m_way_centroids.set(static_cast<osmium::unsigned_object_id_type>(way.id()), centroid);
+                    m_way_node_counts.set(static_cast<osmium::unsigned_object_id_type>(way.id()), static_cast<uint32_t>(node_locations.size()));
+                }
+            }
+        }
+        
         // Write ways: by default include routable ways + ferry/highway, or only routable if flag is set
         bool should_include = RoutableWays::is_routable_way(way.tags());
         if (!m_routable_only && !should_include) {
             should_include = is_ferry_or_highway(way.tags());
         }
-        if (should_include) {
-            if (!m_simplify) {
-                m_writer(way);
-                m_written_ways++;
-                return;
-            }
-
-            const auto& nodes = way.nodes();
-            if (nodes.size() < 2) {
-                return;
-            }
-
-            // Rewrite node list to only kept nodes (endpoints always included).
-            std::vector<osmium::object_id_type> simplified_refs;
-            simplified_refs.reserve(16);
-
-            const osmium::object_id_type first = static_cast<osmium::object_id_type>(nodes.front().ref());
-            const osmium::object_id_type last = static_cast<osmium::object_id_type>(nodes.back().ref());
-
-            simplified_refs.push_back(first);
-            if (nodes.size() > 2) {
-                for (auto it = std::next(nodes.begin()); it != std::prev(nodes.end()); ++it) {
-                    const osmium::object_id_type ref = static_cast<osmium::object_id_type>(it->ref());
-                    if (m_nodes_needed.find(ref) != m_nodes_needed.end() && ref != simplified_refs.back()) {
-                        simplified_refs.push_back(ref);
-                    }
-                }
-            }
-            if (last != simplified_refs.back()) {
-                simplified_refs.push_back(last);
-            }
-            if (simplified_refs.size() < 2) {
-                return;
-            }
-
-            // Compute true polyline length across all original nodes (requires NodeLocationsForWays).
-            double total_m = 0.0;
-            for (auto it = nodes.begin(); std::next(it) != nodes.end(); ++it) {
-                const auto& a = it->location();
-                const auto& b = std::next(it)->location();
-                if (a.valid() && b.valid()) {
-                    total_m += haversine_m(a, b);
-                }
-            }
-            const auto length_m = static_cast<unsigned long long>(std::llround(total_m));
-
-            osmium::memory::Buffer buffer(1024, osmium::memory::Buffer::auto_grow::yes);
-            {
-                osmium::builder::WayBuilder way_builder(buffer);
-                way_builder.set_id(way.id());
-
-                {
-                    osmium::builder::WayNodeListBuilder wnl_builder(buffer, &way_builder);
-                    for (const auto ref : simplified_refs) {
-                        wnl_builder.add_node_ref(ref);
-                    }
-                }
-
-                {
-                    osmium::builder::TagListBuilder tag_builder(buffer, &way_builder);
-                    for (const auto& tag : way.tags()) {
-                        tag_builder.add_tag(tag.key(), tag.value());
-                    }
-                    tag_builder.add_tag("length_m", std::to_string(length_m));
-                    tag_builder.add_tag("orig_nodes", std::to_string(nodes.size()));
-                    tag_builder.add_tag("kept_nodes", std::to_string(simplified_refs.size()));
-
-                    if (const auto speed_kmh = parse_maxspeed_kmh(way.tags())) {
-                        if (*speed_kmh > 0.0) {
-                            const double duration_s = (static_cast<double>(length_m) / 1000.0) / (*speed_kmh) * 3600.0;
-                            const auto dur = static_cast<unsigned long long>(std::llround(duration_s));
-                            tag_builder.add_tag("duration_s", std::to_string(dur));
-                        }
-                    }
-                }
-            }
-
-            osmium::Way& out_way = static_cast<osmium::Way&>(buffer.get<osmium::memory::Item>(0));
-            m_writer(out_way);
+        if (should_include && m_writer) {
+            (*m_writer)(way);
             m_written_ways++;
         }
         
@@ -599,11 +723,75 @@ public:
         }
     }
     
+    void relation(const osmium::Relation& relation) {
+        m_processed_relations++;
+        
+        // Extract addresses/buildings from relations
+        if (m_extract_addresses && has_address_or_building_tags(relation.tags())) {
+            // Collect way centroids and node counts for outer ring ways
+            std::vector<osmium::Location> way_centroids;
+            std::vector<uint32_t> way_node_counts;
+            
+            for (const auto& member : relation.members()) {
+                if (member.type() == osmium::item_type::way && 
+                    std::strcmp(member.role(), "outer") == 0) {
+                    osmium::unsigned_object_id_type way_id = static_cast<osmium::unsigned_object_id_type>(member.ref());
+                    
+                    try {
+                        osmium::Location centroid = m_way_centroids.get(way_id);
+                        uint32_t node_count = m_way_node_counts.get(way_id);
+                        
+                        if (centroid.valid() && node_count > 0) {
+                            way_centroids.push_back(centroid);
+                            way_node_counts.push_back(node_count);
+                        }
+                    } catch (...) {
+                        // Way centroid not found, skip this way
+                    }
+                }
+            }
+            
+            if (!way_centroids.empty()) {
+                // Compute weighted centroid: sum(centroid * node_count) / sum(node_count)
+                double sum_lat = 0.0;
+                double sum_lon = 0.0;
+                uint64_t total_nodes = 0;
+                
+                for (size_t i = 0; i < way_centroids.size(); ++i) {
+                    if (way_centroids[i].valid()) {
+                        sum_lat += way_centroids[i].lat() * way_node_counts[i];
+                        sum_lon += way_centroids[i].lon() * way_node_counts[i];
+                        total_nodes += way_node_counts[i];
+                    }
+                }
+                
+                if (total_nodes > 0) {
+                    // osmium::Location constructor takes (lon, lat), not (lat, lon)
+                    osmium::Location weighted_centroid(sum_lon / total_nodes, sum_lat / total_nodes);
+                    std::vector<osmium::Location> outer_ring_locations;
+                    outer_ring_locations.push_back(weighted_centroid);
+                    
+                    Address addr = extract_address_data_from_relation(relation, outer_ring_locations);
+                    if (addr.lat != 0.0 || addr.lon != 0.0) {
+                        write_address_csv(m_csv_file, addr);
+                        m_addresses_found++;
+                    }
+                }
+            }
+        }
+        
+        if (m_processed_relations % 1000 == 0) {
+            update_progress();
+        }
+    }
+    
     // Getters
     uint64_t processed_nodes() const { return m_processed_nodes; }
     uint64_t processed_ways() const { return m_processed_ways; }
+    uint64_t processed_relations() const { return m_processed_relations; }
     uint64_t written_ways() const { return m_written_ways; }
     uint64_t written_nodes() const { return m_written_nodes; }
+    uint64_t addresses_found() const { return m_addresses_found; }
     std::chrono::steady_clock::time_point start_time() const { return m_start_time; }
     
     void finalize_progress() {
@@ -666,15 +854,16 @@ std::string get_default_csv_name(const std::string& input_file) {
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <input_file> [--output <osm_file>] [--output-dir <dir>] [--simplify] [--routable-only]\n";
+        std::cerr << "Usage: " << argv[0] << " <input_file> [--output <osm_file>] [--output-dir <dir>] [--routable-only] [--addresses-only] [--osm-only]\n";
         return 1;
     }
     
     std::string input_file = argv[1];
     std::string output_file;
     std::string output_dir;
-    bool simplify = false;
     bool routable_only = false;
+    bool addresses_only = false;
+    bool osm_only = false;
     
     // Parse command line arguments
     for (int i = 2; i < argc; i++) {
@@ -693,12 +882,23 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Error: --output-dir requires a directory\n";
                 return 1;
             }
-        } else if (arg == "--simplify") {
-            simplify = true;
         } else if (arg == "--routable-only") {
             routable_only = true;
+        } else if (arg == "--addresses-only") {
+            addresses_only = true;
+        } else if (arg == "--osm-only") {
+            osm_only = true;
         }
     }
+    
+    // Validate mutually exclusive options
+    if (addresses_only && osm_only) {
+        std::cerr << "Error: --addresses-only and --osm-only are mutually exclusive\n";
+        return 1;
+    }
+    
+    bool extract_osm = !addresses_only;
+    bool extract_addresses = !osm_only;
     
     // Determine output paths
     if (output_file.empty()) {
@@ -731,86 +931,123 @@ int main(int argc, char* argv[]) {
     }
     
     std::cout << "Processing routable ways from: " << input_file << "\n";
-    std::cout << "Output OSM file: " << output_file << "\n";
-    std::cout << "Output addresses CSV: " << csv_output_path.string() << "\n";
-    std::cout << "Simplify ways: " << (simplify ? "yes" : "no") << "\n";
+    if (extract_osm) {
+        std::cout << "Output OSM file: " << output_file << "\n";
+    }
+    if (extract_addresses) {
+        std::cout << "Output addresses CSV: " << csv_output_path.string() << "\n";
+    }
     std::cout << "Input file size: " << std::fixed << std::setprecision(1) 
               << (file_size / (1024.0 * 1024.0)) << " MB\n";
     
     // Remove output files if they already exist
-    if (fs::exists(output_file)) {
+    if (extract_osm && fs::exists(output_file)) {
         std::cout << "Output file already exists, removing: " << output_file << "\n";
         fs::remove(output_file);
     }
-    if (fs::exists(csv_output_path)) {
+    if (extract_addresses && fs::exists(csv_output_path)) {
         std::cout << "Addresses CSV file already exists, removing: " << csv_output_path.string() << "\n";
         fs::remove(csv_output_path);
     }
     
-    // Create temporary CSV file
-    fs::path temp_csv = fs::temp_directory_path() / ("addresses_" + std::to_string(std::time(nullptr)) + ".csv");
+    // Create temporary CSV file (only if extracting addresses)
+    fs::path temp_csv;
+    std::ofstream csv_file;
+    if (extract_addresses) {
+        temp_csv = fs::temp_directory_path() / ("addresses_" + std::to_string(std::time(nullptr)) + ".csv");
+        csv_file.open(temp_csv);
+        if (!csv_file) {
+            std::cerr << "Error: Failed to open temporary CSV file\n";
+            return 1;
+        }
+        
+        // Write CSV header
+        csv_file << "id,is_building,is_addr,is_relation,is_node,is_way,lat,lon,city,tags\n";
+    }
     
-    std::cout << "Processing ways and extracting addresses (two-pass approach)...\n";
+    std::cout << "Processing ways and extracting addresses/buildings (two-pass approach)...\n";
     
     // Ensure stdout is unbuffered for proper line overwriting
     std::cout.setf(std::ios::unitbuf);
     
     try {
-        // Open CSV file for writing
-        std::ofstream csv_file(temp_csv);
-        if (!csv_file) {
-            throw std::runtime_error("Failed to open temporary CSV file");
-        }
-        
-        // Write CSV header
-        csv_file << "id,lat,lon,street,house_number,postcode,city\n";
-        
-        // ===== PASS 1: Collect node IDs and extract addresses =====
-        std::cout << "\nPass 1/2: Collecting node IDs from routable ways and extracting addresses...\n";
+        // ===== PASS 1: Collect node IDs and extract addresses/buildings =====
+        std::string pass1_desc = extract_osm ? "\nPass 1/2: Collecting node IDs from routable ways and extracting addresses/buildings...\n" 
+                                             : "\nPass 1/1: Extracting addresses/buildings...\n";
+        std::cout << pass1_desc;
         osmium::io::Reader reader1(input_file);
-        Pass1Handler pass1_handler(csv_file, file_size, simplify, routable_only);
+        Pass1Handler pass1_handler(extract_addresses ? &csv_file : nullptr, file_size, routable_only, extract_addresses);
         osmium::apply(reader1, pass1_handler);
         reader1.close();
         pass1_handler.finalize_progress();
         
-        if (simplify) {
-            std::cout << "Pass 1 complete. Found " << pass1_handler.nodes_needed().size()
-                      << " kept endpoint nodes for simplified routable ways.\n";
-        } else {
+        if (extract_osm) {
             std::cout << "Pass 1 complete. Found " << pass1_handler.nodes_needed().size()
                       << " nodes needed for routable ways.\n";
         }
         
-        // ===== PASS 2: Write nodes and ways =====
-        std::cout << "\nPass 2/2: Writing nodes and routable ways...\n";
-        osmium::io::Reader reader2(input_file);
-        osmium::io::Writer writer(output_file);
-        Pass2Handler pass2_handler(pass1_handler.nodes_needed(), writer, file_size, simplify, routable_only);
-        if (simplify) {
-            using index_type = osmium::index::map::SparseFileArray<osmium::unsigned_object_id_type, osmium::Location>;
-            index_type index;
-            osmium::handler::NodeLocationsForWays<index_type> location_handler(index);
-            location_handler.ignore_errors();
-            osmium::apply(reader2, location_handler, pass2_handler);
-        } else {
-            osmium::apply(reader2, pass2_handler);
+        if (extract_addresses) {
+            std::cout << "Pass 1 complete. Found " << pass1_handler.addresses_found()
+                      << " addresses/buildings.\n";
         }
-        reader2.close();
-        writer.close();
-        pass2_handler.finalize_progress();
         
-        // Debug: Check if we wrote all expected nodes
-        std::cout << "Debug: Expected " << pass1_handler.nodes_needed().size() 
-                  << " nodes, wrote " << pass2_handler.written_nodes() << " nodes\n";
+        // ===== PASS 2: Write nodes and ways, extract addresses from ways/relations =====
+        Pass2Handler* pass2_handler = nullptr;
+        if (extract_osm || extract_addresses) {
+            std::cout << "\nPass 2/2: Writing nodes and routable ways";
+            if (extract_addresses) {
+                std::cout << " and extracting addresses from ways/relations";
+            }
+            std::cout << "...\n";
+            osmium::io::Reader reader2(input_file);
+            osmium::io::Writer* writer = nullptr;
+            std::unique_ptr<osmium::io::Writer> writer_ptr;
+            if (extract_osm) {
+                writer_ptr = std::make_unique<osmium::io::Writer>(output_file);
+                writer = writer_ptr.get();
+            }
+            Pass2Handler handler(pass1_handler.nodes_needed(), 
+                                pass1_handler.relation_way_ids(),
+                                writer,
+                                extract_addresses ? &csv_file : nullptr,
+                                file_size,
+                                routable_only,
+                                extract_addresses);
+            pass2_handler = &handler;
+            
+            // Always use NodeLocationsForWays when extracting addresses (needed for way centroids)
+            if (extract_addresses) {
+                using index_type = osmium::index::map::SparseFileArray<osmium::unsigned_object_id_type, osmium::Location>;
+                index_type index;
+                osmium::handler::NodeLocationsForWays<index_type> location_handler(index);
+                location_handler.ignore_errors();
+                osmium::apply(reader2, location_handler, handler);
+            } else {
+                osmium::apply(reader2, handler);
+            }
+            reader2.close();
+            if (writer_ptr) {
+                writer_ptr->close();
+            }
+            handler.finalize_progress();
+            
+            if (extract_osm) {
+                // Debug: Check if we wrote all expected nodes
+                std::cout << "Debug: Expected " << pass1_handler.nodes_needed().size() 
+                          << " nodes, wrote " << handler.written_nodes() << " nodes\n";
+            }
+        }
         
-        csv_file.close();
-        
-        // Compress CSV file
-        std::cout << "\nCompressing addresses CSV...\n";
-        compress_csv(temp_csv.string(), csv_output_path.string());
-        
-        // Remove temporary CSV
-        fs::remove(temp_csv);
+        if (extract_addresses) {
+            csv_file.close();
+            
+            // Compress CSV file
+            std::cout << "\nCompressing addresses CSV...\n";
+            compress_csv(temp_csv.string(), csv_output_path.string());
+            
+            // Remove temporary CSV
+            fs::remove(temp_csv);
+        }
         
         // Calculate final statistics (total time from pass 1 start)
         auto final_time = std::chrono::steady_clock::now();
@@ -835,25 +1072,51 @@ int main(int argc, char* argv[]) {
         // Print statistics
         std::cout << "\nProcessing complete!\n";
         std::cout << "Processed: " << pass1_handler.processed_nodes() << " nodes, " 
-                  << pass1_handler.processed_ways() << " ways\n";
-        std::cout << "Written: " << pass2_handler.written_ways() << " ways, " 
-                  << pass2_handler.written_nodes() << " nodes\n";
-        std::cout << "Found: " << pass1_handler.addresses_found() << " addresses\n";
+                  << pass1_handler.processed_ways() << " ways";
+        if (pass1_handler.processed_relations() > 0) {
+            std::cout << ", " << pass1_handler.processed_relations() << " relations";
+        }
+        std::cout << "\n";
+        
+        if (extract_osm && pass2_handler) {
+            std::cout << "Written: " << pass2_handler->written_ways() << " ways, " 
+                      << pass2_handler->written_nodes() << " nodes\n";
+        }
+        
+        if (extract_addresses) {
+            uint64_t total_addresses = pass1_handler.addresses_found();
+            if (pass2_handler) {
+                total_addresses += pass2_handler->addresses_found();
+            }
+            std::cout << "Found: " << total_addresses << " addresses/buildings";
+            if (pass2_handler && pass2_handler->addresses_found() > 0) {
+                std::cout << " (Pass1: " << pass1_handler.addresses_found() 
+                          << ", Pass2: " << pass2_handler->addresses_found() << ")";
+            }
+            std::cout << "\n";
+        }
+        
         std::cout << "Speed: " << std::fixed << std::setprecision(0) << nodes_per_sec << " nodes/s\n";
         std::cout << "Time: " << time_oss.str() << "\n";
         
         // Calculate file sizes
         double input_size_mb = file_size / (1024.0 * 1024.0);
-        double output_size_mb = fs::file_size(output_file) / (1024.0 * 1024.0);
-        double csv_size_mb = fs::file_size(csv_output_path) / (1024.0 * 1024.0);
         
         std::cout << "\nFile sizes:\n";
         std::cout << "Input:  " << std::fixed << std::setprecision(1) << input_size_mb << " MB\n";
-        std::cout << "Output OSM: " << output_size_mb << " MB\n";
-        std::cout << "Output CSV: " << csv_size_mb << " MB\n";
-        if (input_size_mb > 0) {
-            std::cout << "OSM ratio: " << std::setprecision(1) 
-                      << (output_size_mb / input_size_mb * 100.0) << "%\n";
+        
+        if (extract_osm && fs::exists(output_file)) {
+            double output_size_mb = fs::file_size(output_file) / (1024.0 * 1024.0);
+            std::cout << "Output OSM: " << output_size_mb << " MB\n";
+            if (input_size_mb > 0) {
+                std::cout << "OSM ratio: " << std::setprecision(1) 
+                          << (output_size_mb / input_size_mb * 100.0) << "%\n";
+            }
+        }
+        
+        if (extract_addresses && fs::exists(csv_output_path)) {
+            double csv_size_mb = fs::file_size(csv_output_path) / (1024.0 * 1024.0);
+            std::cout << "Output CSV: " << csv_size_mb << " MB\n";
         }
         
     } catch (const std::exception& e) {
