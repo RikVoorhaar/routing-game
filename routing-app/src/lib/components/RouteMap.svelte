@@ -10,10 +10,12 @@
 	import { mapDisplaySettings, displayedRoutes, mapDisplayActions } from '$lib/stores/mapDisplay';
 	import { regionOverlayEnabled, NUTS_HOVER_MAX_ZOOM } from '$lib/stores/regionOverlay';
 	import { loadNutsGeoJson, createNutsLayer, setNutsInteractivity } from '$lib/map/nutsOverlay';
+	import { loadPlacesForTiles } from '$lib/map/placesLoader';
 	import { MapManager } from './map/MapManager';
 	import MarkerRenderer from './map/MarkerRenderer.svelte';
 	import RouteRenderer from './map/RouteRenderer.svelte';
 	import TravelDestinationMarker from './map/TravelDestinationMarker.svelte';
+	import PlacesRenderer from './map/PlacesRenderer.svelte';
 	import { allSearchResultJobs, jobSearchActions } from '$lib/stores/jobSearch';
 	import { travelModeState, travelModeActions, isInTravelMode } from '$lib/stores/travelMode';
 	import { currentGameState } from '$lib/stores/gameData';
@@ -42,6 +44,11 @@
 	// Manager instances
 	let mapManager: MapManager | null = null;
 	let markerRenderer: any = null; // Reference to MarkerRenderer component
+	let placesRenderer: any = null; // Reference to PlacesRenderer component
+
+	// Places rendering state
+	let visibleTilesForPlaces: string[] = [];
+	let currentZoom: number = 0;
 
 	// Animation state
 	let animationInterval: NodeJS.Timeout | null = null;
@@ -255,14 +262,44 @@
 		if (!browser) return;
 
 		try {
-			// Initialize map manager (no tile callback needed since tile-based loading is deprecated)
-			mapManager = new MapManager(mapElement);
+			// Initialize map manager with places loading callback
+			const handleTileChange = async () => {
+				if (!mapManager || !leafletMap) return;
+
+				const zoom = mapManager.getZoom();
+				const visibleTiles = mapManager.getVisibleTiles();
+				currentZoom = zoom;
+				visibleTilesForPlaces = visibleTiles;
+
+				log.info('[RouteMap] Tile change callback triggered', {
+					zoom,
+					visibleTileCount: visibleTiles.length
+				});
+
+				// Load places for visible tiles
+				await loadPlacesForTiles(visibleTiles, zoom, leafletMap);
+			};
+
+			mapManager = new MapManager(mapElement, handleTileChange);
 			const { map, L: leafletLib } = await mapManager.init();
 			leafletMap = map;
 			L = leafletLib;
 
 			// Initial map update
 			updateDisplayedRoutes();
+
+			// Load places for initial visible tiles if zoom >= 8
+			const initialZoom = mapManager.getZoom();
+			currentZoom = initialZoom;
+			if (initialZoom >= 8) {
+				const initialTiles = mapManager.getVisibleTiles();
+				visibleTilesForPlaces = initialTiles;
+				log.info('[RouteMap] Initial map load, loading places for visible tiles', {
+					zoom: initialZoom,
+					visibleTileCount: initialTiles.length
+				});
+				await loadPlacesForTiles(initialTiles, initialZoom, leafletMap);
+			}
 
 			// Start animation loop
 			startAnimation();
@@ -844,6 +881,16 @@
 		<RouteRenderer map={leafletMap} {L} routes={$displayedRoutes} />
 
 		<TravelDestinationMarker map={leafletMap} {L} />
+
+		<PlacesRenderer
+			bind:this={placesRenderer}
+			map={leafletMap}
+			{L}
+			visibleTiles={visibleTilesForPlaces}
+			zoom={currentZoom}
+			filterPredicate={() => true}
+			selectedPlaceId={null}
+		/>
 	{/if}
 </div>
 

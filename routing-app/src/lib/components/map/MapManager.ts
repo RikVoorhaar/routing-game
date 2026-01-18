@@ -198,6 +198,16 @@ export class MapManager {
 	}
 
 	/**
+	 * Get current zoom level
+	 */
+	getZoom(): number {
+		if (!this.map) {
+			return 0;
+		}
+		return this.map.getZoom();
+	}
+
+	/**
 	 * Compare two sets for equality
 	 */
 	private setsEqual(set1: Set<string>, set2: Set<string>): boolean {
