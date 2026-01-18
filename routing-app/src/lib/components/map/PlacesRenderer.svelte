@@ -147,7 +147,7 @@
 	 * Update markers based on visible tiles
 	 */
 	async function updateMarkersForTiles(): Promise<void> {
-		if (!map || !L || zoom < 8 || visibleTiles.length === 0) {
+		if (!map || !L || zoom < 6 || visibleTiles.length === 0) {
 			log.info('[PlacesRenderer] Skipping update - conditions not met', {
 				hasMap: !!map,
 				hasL: !!L,
@@ -228,7 +228,7 @@
 	}
 
 	// Reactive: Update markers when visible tiles, zoom, or filter changes
-	$: if (map && L && MarkerClusterGroup && visibleTiles.length > 0 && zoom >= 8) {
+	$: if (map && L && MarkerClusterGroup && visibleTiles.length > 0 && zoom >= 6) {
 		updateMarkersForTiles();
 	}
 
