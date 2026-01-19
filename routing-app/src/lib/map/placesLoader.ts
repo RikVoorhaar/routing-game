@@ -1,4 +1,5 @@
 import { getPlaces, setPlaces, type Place } from '$lib/stores/placesCache';
+import { markTileLoaded } from '$lib/stores/placesTileAvailability';
 import { log } from '$lib/logger';
 
 /**
@@ -121,10 +122,16 @@ export async function loadPlacesForTiles(
 				// Store in IndexedDB cache
 				await setPlaces(tileX, tileY, places);
 				log.info(`[PlacesLoader] Stored ${places.length} places in cache for tile ${tileKey}`);
+				
+				// Mark tile as loaded in availability store
+				markTileLoaded(tileX, tileY);
 			} else {
 				log.info(
 					`[PlacesLoader] Cache hit for tile ${tileKey}, found ${places.length} places`
 				);
+				
+				// Mark tile as loaded even if it was already cached
+				markTileLoaded(tileX, tileY);
 			}
 
 			// Log data counts

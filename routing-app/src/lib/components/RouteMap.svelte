@@ -11,6 +11,7 @@
 	import { regionOverlayEnabled, NUTS_HOVER_MAX_ZOOM } from '$lib/stores/regionOverlay';
 	import { loadNutsGeoJson, createNutsLayer, setNutsInteractivity } from '$lib/map/nutsOverlay';
 	import { loadPlacesForTiles } from '$lib/map/placesLoader';
+	import { startBackgroundPrefetching, stopBackgroundPrefetching } from '$lib/map/placesBackgroundLoader';
 	import { MapManager } from './map/MapManager';
 	import MarkerRenderer from './map/MarkerRenderer.svelte';
 	import RouteRenderer from './map/RouteRenderer.svelte';
@@ -303,6 +304,9 @@
 
 			// Start animation loop
 			startAnimation();
+
+			// Start background prefetching of places data
+			startBackgroundPrefetching();
 		} catch (error) {
 			log.error('[RouteMap] Failed to initialize map:', error);
 		}
@@ -787,6 +791,9 @@
 		if (jobLoadingTimeout) {
 			clearTimeout(jobLoadingTimeout);
 		}
+
+		// Stop background prefetching
+		stopBackgroundPrefetching();
 
 		// Cleanup NUTS overlay
 		if (zoomEndHandler && leafletMap) {
