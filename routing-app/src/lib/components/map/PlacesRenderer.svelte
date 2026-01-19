@@ -6,8 +6,10 @@
 	import type { Place } from '$lib/stores/placesCache';
 	import { log } from '$lib/logger';
 	import { placeGoods } from '$lib/stores/placeGoods';
+	import { currentGameState } from '$lib/stores/gameData';
 	import { get } from 'svelte/store';
 	import type { PlaceGoodsConfig } from '$lib/config/placeGoodsTypes';
+	import { selectPlaceGoods } from '$lib/places/placeGoodsSelection';
 
 	export let map: any;
 	export let L: any;
@@ -88,8 +90,18 @@
 		// Get current place goods config from store
 		const currentConfig = get(placeGoods) || placeGoodsConfig;
 
-		// Create popup
-		const popupContent = createPlacePopupHTML(place, currentConfig);
+		// Compute selected goods if we have game state seed and config
+		let selectedGoods: { type: 'supply' | 'demand'; good: string } | null = null;
+		const gameState = get(currentGameState);
+		if (gameState?.seed && currentConfig) {
+			const categoryGoods = currentConfig.categories.find((cat) => cat.name === place.category);
+			if (categoryGoods) {
+				selectedGoods = selectPlaceGoods(gameState.seed, place.id, categoryGoods);
+			}
+		}
+
+		// Create popup with selected goods
+		const popupContent = createPlacePopupHTML(place, currentConfig, selectedGoods);
 		const popup = L.popup({
 			maxWidth: 250,
 			className: 'place-tooltip-popup'

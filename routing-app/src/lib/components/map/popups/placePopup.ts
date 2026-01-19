@@ -10,13 +10,19 @@ import type { PlaceGoodsConfig, PlaceCategoryGoods } from '$lib/config/placeGood
  *     The place to create popup for
  * placeGoodsConfig: PlaceGoodsConfig | null
  *     The place goods configuration (optional, will show goods if provided)
+ * selectedGoods: { type: 'supply' | 'demand', good: string } | null
+ *     Selected goods for this place (optional, will highlight if provided)
  *
  * Returns
  * --------
  * string
  *     HTML string for the popup
  */
-export function createPlacePopupHTML(place: Place, placeGoodsConfig: PlaceGoodsConfig | null = null): string {
+export function createPlacePopupHTML(
+	place: Place,
+	placeGoodsConfig: PlaceGoodsConfig | null = null,
+	selectedGoods: { type: 'supply' | 'demand'; good: string } | null = null
+): string {
 	// Find category goods data
 	let categoryGoods: PlaceCategoryGoods | undefined;
 	if (placeGoodsConfig) {
@@ -24,12 +30,24 @@ export function createPlacePopupHTML(place: Place, placeGoodsConfig: PlaceGoodsC
 	}
 
 	// Format goods list HTML
-	function formatGoodsList(goods: Array<{ good: string; fraction: number }>, label: string): string {
+	function formatGoodsList(
+		goods: Array<{ good: string; fraction: number }>,
+		label: string,
+		type: 'supply' | 'demand'
+	): string {
 		if (goods.length === 0) {
 			return '';
 		}
 		const goodsList = goods
-			.map((g) => `<div style="margin-left: 12px; font-size: 10px; color: #6b7280;">${g.good}: ${(g.fraction * 100).toFixed(1)}%</div>`)
+			.map((g) => {
+				// Check if this good is selected
+				const isSelected =
+					selectedGoods !== null && selectedGoods.type === type && selectedGoods.good === g.good;
+				const style = isSelected
+					? 'margin-left: 12px; font-size: 10px; color: #6b7280; font-weight: bold;'
+					: 'margin-left: 12px; font-size: 10px; color: #6b7280;';
+				return `<div style="${style}">${g.good}: ${(g.fraction * 100).toFixed(1)}%</div>`;
+			})
 			.join('');
 		return `
 			<div style="margin-top: 8px;">
@@ -51,8 +69,8 @@ export function createPlacePopupHTML(place: Place, placeGoodsConfig: PlaceGoodsC
 						<span style="margin-left: 12px; color: #dc2626;">Demand: ${(categoryGoods.demand_fraction * 100).toFixed(1)}%</span>
 					</div>
 				</div>
-				${formatGoodsList(categoryGoods.supply, 'Supplies')}
-				${formatGoodsList(categoryGoods.demand, 'Demands')}
+				${formatGoodsList(categoryGoods.supply, 'Supplies', 'supply')}
+				${formatGoodsList(categoryGoods.demand, 'Demands', 'demand')}
 			</div>
 		`;
 	}
