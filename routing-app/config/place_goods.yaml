@@ -1,0 +1,398 @@
+categories:
+  - name: residential
+    supply_fraction: 0.05
+    demand_fraction: 0.95
+    supply:
+      - good: people
+        fraction: 1.0
+    demand:
+      - good: groceries
+        fraction: 0.25
+      - good: food (hot)
+        fraction: 0.15
+      - good: electronics
+        fraction: 0.15
+      - good: consumer goods
+        fraction: 0.20
+      - good: packages
+        fraction: 0.10
+      - good: flowers
+        fraction: 0.05
+      - good: fuel (liquid)
+        fraction: 0.05
+      - good: cars
+        fraction: 0.03
+      - good: medicine
+        fraction: 0.02
+  - name: office
+    supply_fraction: 0.15
+    demand_fraction: 0.85
+    supply:
+      - good: people
+        fraction: 1.0
+    demand:
+      - good: groceries
+        fraction: 0.15
+      - good: food (hot)
+        fraction: 0.10
+      - good: electronics
+        fraction: 0.25
+      - good: consumer goods
+        fraction: 0.15
+      - good: packages
+        fraction: 0.20
+      - good: fuel (liquid)
+        fraction: 0.10
+      - good: medicine
+        fraction: 0.05
+  - name: shop
+    supply_fraction: 0.45
+    demand_fraction: 0.55
+    supply:
+      - good: groceries
+        fraction: 0.30
+      - good: consumer goods
+        fraction: 0.25
+      - good: bulk food
+        fraction: 0.10
+      - good: packages
+        fraction: 0.15
+      - good: flowers
+        fraction: 0.10
+      - good: cars
+        fraction: 0.05
+      - good: medicine
+        fraction: 0.05
+    demand:
+      - good: groceries
+        fraction: 0.15
+      - good: consumer goods
+        fraction: 0.20
+      - good: bulk food
+        fraction: 0.25
+      - good: packages
+        fraction: 0.20
+      - good: flowers
+        fraction: 0.05
+      - good: fuel (liquid)
+        fraction: 0.10
+      - good: cars
+        fraction: 0.03
+      - good: medicine
+        fraction: 0.02
+  - name: restaurant
+    supply_fraction: 0.40
+    demand_fraction: 0.60
+    supply:
+      - good: food (hot)
+        fraction: 1.0
+    demand:
+      - good: groceries
+        fraction: 0.30
+      - good: bulk food
+        fraction: 0.40
+      - good: packages
+        fraction: 0.20
+      - good: animals
+        fraction: 0.10
+  - name: port
+    supply_fraction: 0.50
+    demand_fraction: 0.50
+    supply:
+      - good: bulk food
+        fraction: 0.125
+      - good: packages
+        fraction: 0.166
+      - good: flowers
+        fraction: 0.042
+      - good: fuel (liquid)
+        fraction: 0.083
+      - good: coal
+        fraction: 0.125
+      - good: ore
+        fraction: 0.125
+      - good: quarried stuff
+        fraction: 0.042
+      - good: construction materials
+        fraction: 0.083
+      - good: chemicals
+        fraction: 0.083
+      - good: cars
+        fraction: 0.042
+      - good: animals
+        fraction: 0.042
+      - good: medicine
+        fraction: 0.042
+    demand:
+      - good: people
+        fraction: 0.065
+      - good: groceries
+        fraction: 0.064
+      - good: electronics
+        fraction: 0.097
+      - good: consumer goods
+        fraction: 0.064
+      - good: bulk food
+        fraction: 0.097
+      - good: packages
+        fraction: 0.131
+      - good: fuel (liquid)
+        fraction: 0.097
+      - good: coal
+        fraction: 0.032
+      - good: ore
+        fraction: 0.032
+      - good: quarried stuff
+        fraction: 0.032
+      - good: construction materials
+        fraction: 0.032
+      - good: chemicals
+        fraction: 0.064
+      - good: cars
+        fraction: 0.097
+      - good: animals
+        fraction: 0.032
+      - good: medicine
+        fraction: 0.064
+  - name: farm
+    supply_fraction: 0.75
+    demand_fraction: 0.25
+    supply:
+      - good: bulk food
+        fraction: 0.40
+      - good: flowers
+        fraction: 0.30
+      - good: animals
+        fraction: 0.30
+    demand:
+      - good: people
+        fraction: 0.20
+      - good: packages
+        fraction: 0.30
+      - good: fuel (liquid)
+        fraction: 0.30
+      - good: construction materials
+        fraction: 0.20
+  - name: power_plant
+    supply_fraction: 0.90
+    demand_fraction: 0.10
+    supply:
+      - good: fuel (liquid)
+        fraction: 0.40
+      - good: coal
+        fraction: 0.60
+    demand:
+      - good: people
+        fraction: 0.30
+      - good: packages
+        fraction: 0.40
+      - good: fuel (liquid)
+        fraction: 0.20
+      - good: construction materials
+        fraction: 0.10
+  - name: factory
+    supply_fraction: 0.60
+    demand_fraction: 0.40
+    supply:
+      - good: electronics
+        fraction: 0.20
+      - good: consumer goods
+        fraction: 0.15
+      - good: fuel (liquid)
+        fraction: 0.10
+      - good: coal
+        fraction: 0.15
+      - good: ore
+        fraction: 0.15
+      - good: quarried stuff
+        fraction: 0.05
+      - good: construction materials
+        fraction: 0.10
+      - good: chemicals
+        fraction: 0.10
+    demand:
+      - good: people
+        fraction: 0.20
+      - good: packages
+        fraction: 0.40
+      - good: fuel (liquid)
+        fraction: 0.20
+      - good: ore
+        fraction: 0.10
+      - good: quarried stuff
+        fraction: 0.10
+  - name: railway_terminal
+    supply_fraction: 0.50
+    demand_fraction: 0.50
+    supply:
+      - good: bulk food
+        fraction: 0.15
+      - good: packages
+        fraction: 0.25
+      - good: coal
+        fraction: 0.20
+      - good: ore
+        fraction: 0.15
+      - good: quarried stuff
+        fraction: 0.15
+      - good: construction materials
+        fraction: 0.10
+    demand:
+      - good: people
+        fraction: 0.30
+      - good: groceries
+        fraction: 0.10
+      - good: electronics
+        fraction: 0.15
+      - good: consumer goods
+        fraction: 0.10
+      - good: bulk food
+        fraction: 0.15
+      - good: packages
+        fraction: 0.20
+  - name: station
+    supply_fraction: 0.50
+    demand_fraction: 0.50
+    supply:
+      - good: people
+        fraction: 0.40
+      - good: packages
+        fraction: 0.10
+      - good: fuel (liquid)
+        fraction: 0.20
+      - good: coal
+        fraction: 0.05
+      - good: ore
+        fraction: 0.05
+      - good: quarried stuff
+        fraction: 0.05
+      - good: construction materials
+        fraction: 0.05
+      - good: cars
+        fraction: 0.05
+      - good: medicine
+        fraction: 0.05
+    demand:
+      - good: people
+        fraction: 0.60
+      - good: groceries
+        fraction: 0.05
+      - good: electronics
+        fraction: 0.10
+      - good: consumer goods
+        fraction: 0.05
+      - good: packages
+        fraction: 0.15
+      - good: fuel (liquid)
+        fraction: 0.05
+  - name: airport
+    supply_fraction: 0.50
+    demand_fraction: 0.50
+    supply:
+      - good: people
+        fraction: 0.40
+      - good: packages
+        fraction: 0.20
+      - good: electronics
+        fraction: 0.10
+      - good: consumer goods
+        fraction: 0.05
+      - good: fuel (liquid)
+        fraction: 0.15
+      - good: cars
+        fraction: 0.05
+      - good: medicine
+        fraction: 0.05
+    demand:
+      - good: people
+        fraction: 0.60
+      - good: groceries
+        fraction: 0.05
+      - good: electronics
+        fraction: 0.15
+      - good: consumer goods
+        fraction: 0.05
+      - good: packages
+        fraction: 0.15
+  - name: warehouse
+    supply_fraction: 0.55
+    demand_fraction: 0.45
+    supply:
+      - good: groceries
+        fraction: 0.20
+      - good: consumer goods
+        fraction: 0.20
+      - good: bulk food
+        fraction: 0.15
+      - good: packages
+        fraction: 0.30
+      - good: fuel (liquid)
+        fraction: 0.05
+      - good: coal
+        fraction: 0.05
+      - good: ore
+        fraction: 0.05
+    demand:
+      - good: people
+        fraction: 0.105
+      - good: packages
+        fraction: 0.316
+      - good: fuel (liquid)
+        fraction: 0.105
+      - good: coal
+        fraction: 0.105
+      - good: ore
+        fraction: 0.105
+      - good: quarried stuff
+        fraction: 0.105
+      - good: construction materials
+        fraction: 0.159
+  - name: mine
+    supply_fraction: 0.85
+    demand_fraction: 0.15
+    supply:
+      - good: coal
+        fraction: 0.40
+      - good: ore
+        fraction: 0.40
+      - good: quarried stuff
+        fraction: 0.20
+    demand:
+      - good: people
+        fraction: 0.20
+      - good: packages
+        fraction: 0.30
+      - good: fuel (liquid)
+        fraction: 0.30
+      - good: construction materials
+        fraction: 0.20
+  - name: gas_station
+    supply_fraction: 0.80
+    demand_fraction: 0.20
+    supply:
+      - good: fuel (liquid)
+        fraction: 1.0
+    demand:
+      - good: fuel (liquid)
+        fraction: 0.50
+      - good: packages
+        fraction: 0.30
+      - good: construction materials
+        fraction: 0.20
+  - name: construction
+    supply_fraction: 0.05
+    demand_fraction: 0.95
+    supply:
+      - good: quarried stuff
+        fraction: 0.50
+      - good: construction materials
+        fraction: 0.50
+    demand:
+      - good: people
+        fraction: 0.25
+      - good: fuel (liquid)
+        fraction: 0.15
+      - good: construction materials
+        fraction: 0.30
+      - good: packages
+        fraction: 0.30

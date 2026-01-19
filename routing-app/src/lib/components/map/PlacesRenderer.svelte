@@ -5,6 +5,9 @@
 	import { createPlacePopupHTML } from './popups/placePopup';
 	import type { Place } from '$lib/stores/placesCache';
 	import { log } from '$lib/logger';
+	import { placeGoods } from '$lib/stores/placeGoods';
+	import { get } from 'svelte/store';
+	import type { PlaceGoodsConfig } from '$lib/config/placeGoodsTypes';
 
 	export let map: any;
 	export let L: any;
@@ -16,6 +19,7 @@
 	let MarkerClusterGroup: any = null;
 	let clusterGroupsByTile: Map<string, any> = new Map();
 	let defaultIcon: any = null; // Cached marker icon
+	let placeGoodsConfig: PlaceGoodsConfig | null = null;
 
 	/**
 	 * Initialize MarkerClusterGroup class
@@ -81,8 +85,11 @@
 			title: `${place.category} (${place.id})`
 		});
 
+		// Get current place goods config from store
+		const currentConfig = get(placeGoods) || placeGoodsConfig;
+
 		// Create popup
-		const popupContent = createPlacePopupHTML(place);
+		const popupContent = createPlacePopupHTML(place, currentConfig);
 		const popup = L.popup({
 			maxWidth: 250,
 			className: 'place-tooltip-popup'
@@ -222,9 +229,28 @@
 		}
 	}
 
+	// Load place goods config on component initialization
+	(async () => {
+		try {
+			await placeGoods.load();
+			placeGoodsConfig = get(placeGoods);
+			log.info('[PlacesRenderer] Place goods config loaded');
+		} catch (error) {
+			log.error('[PlacesRenderer] Failed to load place goods config:', error);
+		}
+	})();
+
 	// Reactive: Initialize MarkerClusterGroup class when map and L are available
 	$: if (map && L && !MarkerClusterGroup) {
 		initMarkerClusterClass();
+	}
+
+	// Reactive: Update place goods config when store changes
+	$: {
+		const config = get(placeGoods);
+		if (config) {
+			placeGoodsConfig = config;
+		}
 	}
 
 	// Reactive: Update markers when visible tiles, zoom, or filter changes
