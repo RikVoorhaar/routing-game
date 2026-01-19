@@ -56,6 +56,9 @@ function validateConfig(config: GameConfig): void {
 	if (config.game.startingMoney < 0) {
 		errors.push('game.startingMoney must be >= 0');
 	}
+	if (typeof config.game.seedRefreshHours !== 'number' || config.game.seedRefreshHours <= 0) {
+		errors.push('game.seedRefreshHours must be a positive number');
+	}
 
 	// Validate employees section
 	if (!config.employees?.hiring) {

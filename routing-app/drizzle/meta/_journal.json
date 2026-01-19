@@ -99,6 +99,13 @@
       "when": 1768685857819,
       "tag": "0013_vengeful_firestar",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1768858028830,
+      "tag": "0014_thin_lionheart",
+      "breakpoints": true
     }
   ]
 }

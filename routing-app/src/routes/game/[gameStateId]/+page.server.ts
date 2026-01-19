@@ -3,6 +3,8 @@ import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db';
 import { gameStates, employees, users } from '$lib/server/db/schema';
 import { eq, and, asc } from 'drizzle-orm';
+import { refreshSeedIfNeeded } from '$lib/server/gameState/seedRefresh';
+import { config } from '$lib/server/config';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const session = await locals.auth();
@@ -14,6 +16,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const { gameStateId } = params;
 
 	try {
+		// Refresh seed if needed before loading game state
+		await refreshSeedIfNeeded(gameStateId, config.game.seedRefreshHours);
+
 		// Get the game state and verify ownership
 		const [gameState] = await db
 			.select()

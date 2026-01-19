@@ -4,6 +4,8 @@ import { employees, activeJobs, travelJobs, addresses } from '$lib/server/db/sch
 import type { FullEmployeeData } from '$lib/server/db/schema';
 import { eq, and, isNotNull, inArray, asc } from 'drizzle-orm';
 import { processCompletedJobs } from '$lib/jobs/jobCompletion';
+import { refreshSeedIfNeeded } from '$lib/server/gameState/seedRefresh';
+import { config } from '$lib/server/config';
 import { log } from '$lib/logger';
 import type { RequestHandler } from './$types';
 
@@ -18,6 +20,9 @@ export const GET: RequestHandler = async ({ params }) => {
 			},
 			`Loading data for game state: ${gameStateId}`
 		);
+
+		// Refresh seed if needed before processing jobs
+		await refreshSeedIfNeeded(gameStateId, config.game.seedRefreshHours);
 
 		// First, process any completed jobs
 		const completionResult = await processCompletedJobs(gameStateId);

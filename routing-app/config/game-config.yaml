@@ -3,6 +3,7 @@
 
 game:
   startingMoney: 0
+  seedRefreshHours: 1  # Hours before seed auto-refreshes
 
 employees:
   hiring:

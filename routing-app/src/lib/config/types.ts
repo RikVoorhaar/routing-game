@@ -69,6 +69,7 @@ export interface VehicleConfig {
 export interface GameConfig {
 	game: {
 		startingMoney: number;
+		seedRefreshHours: number;
 	};
 	employees: {
 		hiring: {

@@ -153,7 +153,13 @@ export const gameStates = pgTable(
 		upgradeEffects: jsonb('upgrade_effects')
 			.$type<UpgradeEffects>()
 			.notNull()
-			.default(sql`'{}'::jsonb`)
+			.default(sql`'{}'::jsonb`),
+		seed: integer('seed')
+			.notNull()
+			.default(sql`floor(random() * 2147483647)::integer`),
+		seedGeneratedAt: timestamp('seed_generated_at', { withTimezone: true })
+			.notNull()
+			.default(sql`CURRENT_TIMESTAMP`)
 	},
 	(table) => [index('game_states_user_id_idx').on(table.userId)]
 );
