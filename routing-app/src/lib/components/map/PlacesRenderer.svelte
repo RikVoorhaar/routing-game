@@ -7,9 +7,11 @@
 	import { log } from '$lib/logger';
 	import { placeGoods } from '$lib/stores/placeGoods';
 	import { currentGameState } from '$lib/stores/gameData';
+	import { placeFilter } from '$lib/stores/placeFilter';
 	import { get } from 'svelte/store';
 	import type { PlaceGoodsConfig } from '$lib/config/placeGoodsTypes';
 	import { selectPlaceGoods } from '$lib/places/placeGoodsSelection';
+	import type { PlaceFilter } from '$lib/stores/placeFilter';
 
 	export let map: any;
 	export let L: any;
@@ -21,7 +23,9 @@
 	let MarkerClusterGroup: any = null;
 	let clusterGroupsByTile: Map<string, any> = new Map();
 	let defaultIcon: any = null; // Cached marker icon
+	let selectedIcon: any = null; // Cached selected marker icon
 	let placeGoodsConfig: PlaceGoodsConfig | null = null;
+	let selectedMarker: any = null; // Directly rendered selected marker (not in cluster)
 
 	/**
 	 * Initialize MarkerClusterGroup class
@@ -46,6 +50,19 @@
 				iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
 				iconRetinaUrl:
 					'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+				shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+				iconSize: [25, 41],
+				iconAnchor: [12, 41],
+				popupAnchor: [1, -34],
+				tooltipAnchor: [16, -28],
+				shadowSize: [41, 41]
+			});
+
+			// Create cached selected icon (red marker)
+			selectedIcon = L.icon({
+				iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+				iconRetinaUrl:
+					'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
 				shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 				iconSize: [25, 41],
 				iconAnchor: [12, 41],
@@ -82,8 +99,12 @@
 	 * Create a marker for a place
 	 */
 	function createMarker(place: Place): any {
+		// Check if this place is selected
+		const currentFilter = get(placeFilter);
+		const isSelected = currentFilter?.selectedPlaceId === place.id;
+		
 		const marker = L.marker([place.lat, place.lon], {
-			icon: defaultIcon,
+			icon: isSelected ? (selectedIcon || defaultIcon) : defaultIcon,
 			title: `${place.category} (${place.id})`
 		});
 
@@ -109,6 +130,28 @@
 
 		marker.bindPopup(popup);
 
+		// Add click handler to set/clear filter
+		marker.on('click', () => {
+			const currentFilter = get(placeFilter);
+			
+			// If filter is already set for this place, clear it (toggle behavior)
+			if (currentFilter && currentFilter.selectedPlaceId === place.id) {
+				placeFilter.set(null);
+				return;
+			}
+			
+			// If we have selected goods, set the filter
+			if (selectedGoods) {
+				const filter: PlaceFilter = {
+					selectedPlaceId: place.id,
+					selectedGood: selectedGoods.good,
+					filterType: selectedGoods.type,
+					targetType: selectedGoods.type === 'supply' ? 'demand' : 'supply'
+				};
+				placeFilter.set(filter);
+			}
+		});
+
 		return marker;
 	}
 
@@ -124,15 +167,27 @@
 		// Filter places
 		const filteredPlaces = places.filter(filterPredicate);
 
-		if (filteredPlaces.length === 0) {
+		// Separate selected place from others (selected place should not be clustered)
+		const selectedPlace = selectedPlaceId
+			? filteredPlaces.find((p) => p.id === selectedPlaceId)
+			: null;
+		const placesToCluster = selectedPlace
+			? filteredPlaces.filter((p) => p.id !== selectedPlaceId)
+			: filteredPlaces;
+
+		if (placesToCluster.length === 0 && !selectedPlace) {
 			log.debug(`[PlacesRenderer] No filtered places for tile ${tileKey}`);
 			return;
 		}
 
-		log.debug(`[PlacesRenderer] Loading ${filteredPlaces.length} markers for tile ${tileKey}`);
+		log.debug(
+			`[PlacesRenderer] Loading ${placesToCluster.length} markers for tile ${tileKey}${
+				selectedPlace ? ' (selected place excluded from cluster)' : ''
+			}`
+		);
 
-		// Create markers array
-		const markers = filteredPlaces.map((place) => createMarker(place));
+		// Create markers array (excluding selected place)
+		const markers = placesToCluster.map((place) => createMarker(place));
 
 		// Create cluster group for this tile
 		const clusterGroup = new MarkerClusterGroup(getClusterOptions());
@@ -147,6 +202,48 @@
 		clusterGroupsByTile.set(tileKey, clusterGroup);
 
 		log.debug(`[PlacesRenderer] Created cluster group for tile ${tileKey} with ${markers.length} markers`);
+
+		// If selected place is in this tile, render it directly on map (not in cluster)
+		if (selectedPlace) {
+			renderSelectedMarker(selectedPlace);
+		}
+	}
+
+	/**
+	 * Render selected marker directly on map (not in cluster)
+	 */
+	function renderSelectedMarker(place: Place): void {
+		if (!map || !L || !selectedIcon) {
+			return;
+		}
+
+		// Remove old selected marker if it exists
+		if (selectedMarker) {
+			map.removeLayer(selectedMarker);
+			selectedMarker = null;
+		}
+
+		// Create marker for selected place
+		const marker = createMarker(place);
+		
+		// Add directly to map (not to cluster)
+		marker.addTo(map);
+		
+		// Track it
+		selectedMarker = marker;
+		
+		log.debug(`[PlacesRenderer] Rendered selected marker for place ${place.id}`);
+	}
+
+	/**
+	 * Remove selected marker from map
+	 */
+	function removeSelectedMarker(): void {
+		if (selectedMarker && map) {
+			map.removeLayer(selectedMarker);
+			selectedMarker = null;
+			log.debug('[PlacesRenderer] Removed selected marker');
+		}
 	}
 
 	/**
@@ -228,6 +325,19 @@
 					}
 				}
 
+				// After loading all tiles, check if selected place needs to be rendered
+				// (it might be in a newly loaded tile)
+				if (selectedPlaceId) {
+					// Find selected place in all loaded tiles
+					for (const [tileKey, places] of placesByTile.entries()) {
+						const selectedPlace = places.find((p) => p.id === selectedPlaceId);
+						if (selectedPlace) {
+							renderSelectedMarker(selectedPlace);
+							break;
+						}
+					}
+				}
+
 				const totalMarkers = Array.from(clusterGroupsByTile.values()).reduce(
 					(sum, clusterGroup) => sum + clusterGroup.getLayers().length,
 					0
@@ -265,14 +375,26 @@
 		}
 	}
 
-	// Reactive: Update markers when visible tiles, zoom, or filter changes
+	// Reactive: Update markers when visible tiles, zoom changes (initial load)
 	$: if (map && L && MarkerClusterGroup && visibleTiles.length > 0 && zoom >= 6) {
 		updateMarkersForTiles();
 	}
 
-	// Reactive: Update markers when filter predicate changes
-	$: if (map && L && MarkerClusterGroup && clusterGroupsByTile.size > 0) {
-		// Filter changed - need to reload all tiles
+	// Reactive: Update markers when filter changes (reload all currently loaded tiles)
+	// Track selectedPlaceId to detect filter changes - this will reload markers when filter is set/cleared
+	$: if (
+		map &&
+		L &&
+		MarkerClusterGroup &&
+		clusterGroupsByTile.size > 0 &&
+		visibleTiles.length > 0 &&
+		zoom >= 6 &&
+		selectedPlaceId !== undefined
+	) {
+		// Filter changed - need to reload all currently loaded tiles
+		// Remove selected marker first (it will be re-added if still selected)
+		removeSelectedMarker();
+		
 		const currentTiles = Array.from(clusterGroupsByTile.keys());
 		// Unload all existing cluster groups
 		currentTiles.forEach((tileKey) => {
@@ -282,11 +404,38 @@
 		updateMarkersForTiles();
 	}
 
-	// Reactive: Update markers when selected place changes (for future use)
-	$: if (map && L && MarkerClusterGroup && selectedPlaceId !== null) {
-		// Future: filter to show only related places
-		// For now, just trigger update
-		updateMarkersForTiles();
+	// Reactive: Update selected marker when selectedPlaceId changes
+	$: if (map && L && MarkerClusterGroup && selectedPlaceId !== null && visibleTiles.length > 0 && zoom >= 6) {
+		// Selected place changed - find and render it
+		updateSelectedMarkerFromLoadedTiles();
+	}
+
+	// Reactive: Remove selected marker when selection is cleared
+	$: if (selectedPlaceId === null && selectedMarker) {
+		removeSelectedMarker();
+	}
+
+	/**
+	 * Update selected marker by finding it in currently loaded tiles
+	 */
+	async function updateSelectedMarkerFromLoadedTiles(): Promise<void> {
+		if (!selectedPlaceId || !map || !L) {
+			return;
+		}
+
+		// Get places for visible tiles to find the selected place
+		try {
+			const placesByTile = await getPlacesForVisibleTilesGrouped(visibleTiles, zoom);
+			for (const places of placesByTile.values()) {
+				const selectedPlace = places.find((p) => p.id === selectedPlaceId);
+				if (selectedPlace) {
+					renderSelectedMarker(selectedPlace);
+					return;
+				}
+			}
+		} catch (error) {
+			log.error('[PlacesRenderer] Error updating selected marker:', error);
+		}
 	}
 
 	onDestroy(() => {
@@ -298,6 +447,9 @@
 			}
 		});
 		clusterGroupsByTile.clear();
+		
+		// Clean up selected marker
+		removeSelectedMarker();
 	});
 </script>
 

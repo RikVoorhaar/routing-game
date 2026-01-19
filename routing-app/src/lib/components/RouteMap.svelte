@@ -20,6 +20,10 @@
 	import { allSearchResultJobs, jobSearchActions } from '$lib/stores/jobSearch';
 	import { travelModeState, travelModeActions, isInTravelMode } from '$lib/stores/travelMode';
 	import { currentGameState } from '$lib/stores/gameData';
+	import { placeFilter } from '$lib/stores/placeFilter';
+	import { placeGoods } from '$lib/stores/placeGoods';
+	import { createPlaceFilterPredicate } from '$lib/places/placeFilter';
+	import type { PlaceFilterPredicate } from '$lib/map/placesLimiter';
 	import type {
 		Employee,
 		Address,
@@ -66,6 +70,13 @@
 	// NUTS overlay layer management
 	let nutsLayer: any = null;
 	let zoomEndHandler: (() => void) | null = null;
+
+	// Reactive: Create place filter predicate based on active filter
+	$: placeFilterPredicate = createPlaceFilterPredicate(
+		$placeFilter,
+		$currentGameState,
+		$placeGoods
+	);
 
 	// Derived: Map employee IDs to their route paths for animation
 	$: routesByEmployee = $displayedRoutes.reduce(
@@ -873,6 +884,30 @@
 		</div>
 	{/if}
 
+	<!-- Place Filter Indicator -->
+	{#if $placeFilter}
+		<div class="place-filter-indicator" style="top: {$travelModeState.employeeId ? '60px' : '0'};">
+			<div class="flex items-center justify-between gap-4 px-4 py-2">
+				<div class="flex items-center gap-3">
+					<span class="text-lg">🔍</span>
+					<div class="flex flex-col">
+						<span class="text-sm font-semibold">Place Filter Active</span>
+						<span class="text-xs text-white/90">
+							Showing places that {$placeFilter.targetType === 'demand' ? 'demand' : 'supply'}{' '}
+							<span class="font-semibold">{$placeFilter.selectedGood}</span>
+						</span>
+					</div>
+				</div>
+				<button
+					class="btn btn-ghost btn-sm"
+					on:click={() => placeFilter.set(null)}
+				>
+					Clear Filter
+				</button>
+			</div>
+		</div>
+	{/if}
+
 	<!-- Render markers and routes -->
 	{#if leafletMap && L}
 		<MarkerRenderer
@@ -903,8 +938,8 @@
 			{L}
 			visibleTiles={visibleTilesForPlaces}
 			zoom={currentZoom}
-			filterPredicate={() => true}
-			selectedPlaceId={null}
+			filterPredicate={placeFilterPredicate}
+			selectedPlaceId={$placeFilter?.selectedPlaceId ?? null}
 		/>
 	{/if}
 </div>
@@ -953,6 +988,17 @@
 		z-index: 1000;
 		background: linear-gradient(to bottom, rgba(16, 185, 129, 0.95), rgba(16, 185, 129, 0.9));
 		border-bottom: 2px solid rgba(16, 185, 129, 1);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+		color: white;
+	}
+
+	.place-filter-indicator {
+		position: absolute;
+		left: 0;
+		right: 0;
+		z-index: 999;
+		background: linear-gradient(to bottom, rgba(59, 130, 246, 0.95), rgba(59, 130, 246, 0.9));
+		border-bottom: 2px solid rgba(59, 130, 246, 1);
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 		color: white;
 	}
