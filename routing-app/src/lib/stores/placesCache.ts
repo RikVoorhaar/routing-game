@@ -42,7 +42,7 @@ export async function initPlacesDB(): Promise<IDBDatabase> {
 
 		request.onsuccess = () => {
 			dbInstance = request.result;
-			log.info('[PlacesCache] IndexedDB opened successfully');
+			log.debug('[PlacesCache] IndexedDB opened successfully');
 			initPromise = null;
 			resolve(dbInstance);
 		};
@@ -53,7 +53,7 @@ export async function initPlacesDB(): Promise<IDBDatabase> {
 			// Create object store if it doesn't exist
 			if (!db.objectStoreNames.contains(STORE_NAME)) {
 				const objectStore = db.createObjectStore(STORE_NAME, { keyPath: 'tileKey' });
-				log.info('[PlacesCache] Created object store:', STORE_NAME);
+				log.debug('[PlacesCache] Created object store:', STORE_NAME);
 			}
 		};
 	});
@@ -85,10 +85,10 @@ export async function getPlaces(tileX: number, tileY: number): Promise<Place[] |
 			request.onsuccess = () => {
 				const result = request.result;
 				if (result && result.places) {
-					log.info(`[PlacesCache] Cache hit for tile ${tileKey}, found ${result.places.length} places`);
+					log.debug(`[PlacesCache] Cache hit for tile ${tileKey}, found ${result.places.length} places`);
 					resolve(result.places);
 				} else {
-					log.info(`[PlacesCache] Cache miss for tile ${tileKey}`);
+					log.debug(`[PlacesCache] Cache miss for tile ${tileKey}`);
 					resolve(null);
 				}
 			};
@@ -121,7 +121,7 @@ export async function setPlaces(tileX: number, tileY: number, places: Place[]): 
 			};
 
 			request.onsuccess = () => {
-				log.info(`[PlacesCache] Stored ${places.length} places for tile ${tileKey} in IndexedDB`);
+				log.debug(`[PlacesCache] Stored ${places.length} places for tile ${tileKey} in IndexedDB`);
 				resolve();
 			};
 		});

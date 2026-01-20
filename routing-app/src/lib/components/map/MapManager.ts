@@ -34,7 +34,7 @@ export class MapManager {
 				shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png'
 			});
 
-			log.info('[MapManager] Creating Leaflet map');
+			log.debug('[MapManager] Creating Leaflet map');
 
 			// Create map
 			this.map = this.L.map(this.mapElement, {

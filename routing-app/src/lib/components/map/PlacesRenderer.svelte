@@ -19,6 +19,8 @@
 	import { computeCompleteJobValue } from '$lib/jobs/jobValue';
 	import { getVehicleConfig } from '$lib/vehicles/vehicleUtils';
 	import { config } from '$lib/stores/config';
+	import { computeJobXp } from '$lib/jobs/jobUtils';
+	import { mapGoodToCategory } from '$lib/jobs/goodToCategory';
 
 	export let map: any;
 	export let L: any;
@@ -80,7 +82,7 @@
 				shadowSize: [41, 41]
 			});
 
-			log.info('[PlacesRenderer] MarkerClusterGroup class initialized');
+			log.debug('[PlacesRenderer] MarkerClusterGroup class initialized');
 		} catch (error) {
 			log.error('[PlacesRenderer] Error initializing MarkerClusterGroup:', error);
 		}
@@ -125,6 +127,8 @@
 		let supplyAmount: number | null = null;
 		let vehicleCapacity: number | null = null;
 		let jobValue: number | null = null;
+		let routeDuration: number | null = null;
+		let jobXp: number | null = null;
 		
 		const gameState = get(currentGameState);
 		const employeeId = get(selectedEmployee);
@@ -172,14 +176,34 @@
 			selectedGoods,
 			supplyAmount,
 			vehicleCapacity,
-			jobValue
+			jobValue,
+			routeDuration,
+			jobXp,
+			selectedSupplyPlace?.id ?? null
 		);
 		const popup = L.popup({
 			maxWidth: 250,
-			className: 'place-tooltip-popup'
+			className: 'place-tooltip-popup',
+			autoPan: false, // Disable auto-panning to prevent sticky centering
+			closeOnClick: false
 		}).setContent(popupContent);
 
 		marker.bindPopup(popup);
+		
+		// Set up accept job button handler for demand nodes
+		if (selectedGoods?.type === 'demand' && selectedSupplyPlace) {
+			marker.on('popupopen', () => {
+				setTimeout(() => {
+					const acceptButton = document.getElementById(`accept-job-btn-${place.id}`);
+					if (acceptButton) {
+						acceptButton.onclick = async () => {
+							await handleAcceptJob(selectedSupplyPlace!, place);
+							marker.closePopup();
+						};
+					}
+				}, 10);
+			});
+		}
 
 		// Add click handler to set/clear filter and compute routes
 		marker.on('click', async () => {
@@ -199,26 +223,72 @@
 			
 			// If we have selected goods, set the filter
 			if (selectedGoods) {
-				const filter: PlaceFilter = {
-					selectedPlaceId: place.id,
-					selectedGood: selectedGoods.good,
-					filterType: selectedGoods.type,
-					targetType: selectedGoods.type === 'supply' ? 'demand' : 'supply'
-				};
-				placeFilter.set(filter);
-				
-				// If clicking a supply place, track it for route computation
+				// For supply nodes: filter to show demand nodes
+				// For demand nodes: don't change filter, just select this node
 				if (selectedGoods.type === 'supply') {
+					const filter: PlaceFilter = {
+						selectedPlaceId: place.id,
+						selectedGood: selectedGoods.good,
+						filterType: selectedGoods.type,
+						targetType: 'demand' // Show demand nodes
+					};
+					placeFilter.set(filter);
 					selectedSupplyPlace = place;
-					clearPlaceRoutes(); // Clear any existing routes
-				}
-				// If clicking a demand place and we have a selected supply place, compute route from supply to demand
-				else if (selectedGoods.type === 'demand' && selectedSupplyPlace && employeeData) {
-					await computeRouteFromSupplyToDemand(
-						employeeData.employee.id,
-						selectedSupplyPlace,
-						place
-					);
+					clearPlaceRoutes(); // Clear any existing routes before computing new ones
+					
+					// Compute route from employee location to supply place
+					if (employeeData && employeeData.employee.location) {
+						setTimeout(async () => {
+							const routeResult = await computeRouteFromEmployeeToSupply(
+								employeeData.employee.id,
+								employeeData.employee.location,
+								place
+							);
+							if (!routeResult) {
+								log.warn('[PlacesRenderer] Failed to compute route from employee to supply place');
+							}
+						}, 150);
+					}
+				} else if (selectedGoods.type === 'demand') {
+					// For demand nodes, just select this one without changing the filter
+					// This keeps other demand nodes visible
+					const filter: PlaceFilter = {
+						selectedPlaceId: place.id,
+						selectedGood: selectedGoods.good,
+						filterType: selectedGoods.type,
+						targetType: 'demand' // Keep showing demand nodes
+					};
+					placeFilter.set(filter);
+					
+					// If we have a selected supply place, compute route and update popup
+					const gameStateValue = get(currentGameState);
+					const currentConfigValue = get(placeGoods) || placeGoodsConfig;
+					if (selectedSupplyPlace && employeeData && gameStateValue && currentConfigValue) {
+						// Wait for selected marker to be rendered
+						setTimeout(async () => {
+							const currentSelectedMarker = selectedMarker;
+							if (currentSelectedMarker && map.hasLayer(currentSelectedMarker)) {
+								await computeRouteFromSupplyToDemand(
+									employeeData.employee.id,
+									selectedSupplyPlace,
+									place
+								);
+								
+								// Update popup with route info
+								await updateDemandPopupWithRoute(currentSelectedMarker, place, selectedSupplyPlace, employeeData, gameStateValue, currentConfigValue);
+								
+								// Open popup
+								currentSelectedMarker.openPopup();
+							}
+						}, 150);
+					} else {
+						// Open popup after a short delay to allow marker to be re-rendered
+						setTimeout(() => {
+							if (selectedMarker && map.hasLayer(selectedMarker)) {
+								selectedMarker.openPopup();
+							}
+						}, 100);
+					}
 				}
 			}
 		});
@@ -233,6 +303,14 @@
 		if (!map || !L || !MarkerClusterGroup || !defaultIcon) {
 			log.warn('[PlacesRenderer] Cannot load tile markers - not initialized');
 			return;
+		}
+
+		// Remove existing cluster group for this tile if it exists (to prevent duplicates)
+		const existingClusterGroup = clusterGroupsByTile.get(tileKey);
+		if (existingClusterGroup) {
+			map.removeLayer(existingClusterGroup);
+			existingClusterGroup.clearLayers();
+			clusterGroupsByTile.delete(tileKey);
 		}
 
 		// Filter places
@@ -275,8 +353,15 @@
 		log.debug(`[PlacesRenderer] Created cluster group for tile ${tileKey} with ${markers.length} markers`);
 
 		// If selected place is in this tile, render it directly on map (not in cluster)
+		// Only render if it's the currently selected place
 		if (selectedPlace) {
-			renderSelectedMarker(selectedPlace);
+			const currentFilter = get(placeFilter);
+			// Only render if this matches the current filter selection
+			if (currentFilter && currentFilter.selectedPlaceId === selectedPlace.id) {
+				// Remove old marker first to avoid duplicates
+				removeSelectedMarker();
+				renderSelectedMarker(selectedPlace);
+			}
 		}
 	}
 
@@ -290,7 +375,9 @@
 
 		// Remove old selected marker if it exists
 		if (selectedMarker) {
-			map.removeLayer(selectedMarker);
+			if (map.hasLayer(selectedMarker)) {
+				map.removeLayer(selectedMarker);
+			}
 			selectedMarker = null;
 		}
 
@@ -302,6 +389,13 @@
 		
 		// Track it
 		selectedMarker = marker;
+		
+		// Open popup automatically when marker is selected (after a short delay to ensure it's rendered)
+		setTimeout(() => {
+			if (selectedMarker && map.hasLayer(selectedMarker)) {
+				selectedMarker.openPopup();
+			}
+		}, 50);
 		
 		log.debug(`[PlacesRenderer] Rendered selected marker for place ${place.id}`);
 	}
@@ -335,7 +429,7 @@
 	 */
 	async function updateMarkersForTiles(): Promise<void> {
 		if (!map || !L || zoom < 6 || visibleTiles.length === 0) {
-			log.info('[PlacesRenderer] Skipping update - conditions not met', {
+			log.debug('[PlacesRenderer] Skipping update - conditions not met', {
 				hasMap: !!map,
 				hasL: !!L,
 				zoom,
@@ -346,14 +440,14 @@
 
 		// Ensure MarkerClusterGroup is initialized
 		if (!MarkerClusterGroup) {
-			await initMarkerClusterClass();
+			await initMarkerClass();
 			if (!MarkerClusterGroup) {
 				log.error('[PlacesRenderer] Failed to initialize MarkerClusterGroup, cannot update markers');
 				return;
 			}
 		}
 
-		log.info(`[PlacesRenderer] Updating markers for ${visibleTiles.length} visible tiles at zoom ${zoom}`);
+		log.debug(`[PlacesRenderer] Updating markers for ${visibleTiles.length} visible tiles at zoom ${zoom}`);
 
 		// Get currently loaded tiles (keys of clusterGroupsByTile)
 		const loadedTiles = new Set(clusterGroupsByTile.keys());
@@ -367,7 +461,7 @@
 		// Find tiles to add (visible but not loaded)
 		const tilesToAdd = visibleTiles.filter((tile) => !loadedTiles.has(tile));
 
-		log.info(
+		log.debug(
 			`[PlacesRenderer] Tiles to remove: ${tilesToRemove.length}, tiles to add: ${tilesToAdd.length}`
 		);
 
@@ -375,6 +469,10 @@
 		tilesToRemove.forEach((tileKey) => {
 			unloadTileMarkers(tileKey);
 		});
+
+		// Ensure routes persist after marker updates
+		// Routes are stored separately and should not be affected by tile loading/unloading
+		ensureRoutesPersist();
 
 		// Load places for new tiles
 		if (tilesToAdd.length > 0) {
@@ -413,9 +511,12 @@
 					(sum, clusterGroup) => sum + clusterGroup.getLayers().length,
 					0
 				);
-				log.info(
+				log.debug(
 					`[PlacesRenderer] Finished loading. Total markers across ${clusterGroupsByTile.size} tiles: ${totalMarkers}`
 				);
+				
+				// Ensure routes persist after loading new tiles
+				ensureRoutesPersist();
 			} catch (error) {
 				log.error('[PlacesRenderer] Error loading places for new tiles:', error);
 			}
@@ -427,7 +528,7 @@
 		try {
 			await placeGoods.load();
 			placeGoodsConfig = get(placeGoods);
-			log.info('[PlacesRenderer] Place goods config loaded');
+			log.debug('[PlacesRenderer] Place goods config loaded');
 		} catch (error) {
 			log.error('[PlacesRenderer] Failed to load place goods config:', error);
 		}
@@ -446,44 +547,86 @@
 		}
 	}
 
-	// Reactive: Update markers when visible tiles, zoom changes (initial load)
+	// Track previous visible tiles and zoom to detect actual changes
+	let lastVisibleTiles: string[] = [];
+	let lastZoom: number = 0;
+	let updateTimeout: ReturnType<typeof setTimeout> | null = null;
+	
+	// Reactive: Update markers when visible tiles or zoom actually changes
 	$: if (map && L && MarkerClusterGroup && visibleTiles.length > 0 && zoom >= 6) {
-		updateMarkersForTiles();
+		// Check if tiles or zoom actually changed
+		const tilesChanged = 
+			visibleTiles.length !== lastVisibleTiles.length ||
+			!visibleTiles.every((tile, i) => tile === lastVisibleTiles[i]) ||
+			zoom !== lastZoom;
+		
+		if (tilesChanged) {
+			// Debounce rapid updates (e.g., during panning)
+			if (updateTimeout) {
+				clearTimeout(updateTimeout);
+			}
+			
+			updateTimeout = setTimeout(() => {
+				lastVisibleTiles = [...visibleTiles];
+				lastZoom = zoom;
+				updateMarkersForTiles();
+			}, 150); // 150ms debounce
+		}
 	}
 
-	// Reactive: Update markers when filter changes (reload all currently loaded tiles)
-	// Track selectedPlaceId to detect filter changes - this will reload markers when filter is set/cleared
-	$: if (
-		map &&
-		L &&
-		MarkerClusterGroup &&
-		clusterGroupsByTile.size > 0 &&
-		visibleTiles.length > 0 &&
-		zoom >= 6 &&
-		selectedPlaceId !== undefined
-	) {
-		// Filter changed - need to reload all currently loaded tiles
-		// Remove selected marker first (it will be re-added if still selected)
-		removeSelectedMarker();
+	// Track placeFilter to detect filter changes
+	let lastFilterPlaceId: number | null = null;
+	$: {
+		const currentFilter = get(placeFilter);
+		const currentPlaceId = currentFilter?.selectedPlaceId ?? null;
 		
-		const currentTiles = Array.from(clusterGroupsByTile.keys());
-		// Unload all existing cluster groups
-		currentTiles.forEach((tileKey) => {
-			unloadTileMarkers(tileKey);
-		});
-		// Reload with new filter
-		updateMarkersForTiles();
+		// Only reload if filter actually changed
+		if (currentPlaceId !== lastFilterPlaceId) {
+			lastFilterPlaceId = currentPlaceId;
+			
+			if (
+				map &&
+				L &&
+				MarkerClusterGroup &&
+				clusterGroupsByTile.size > 0 &&
+				visibleTiles.length > 0 &&
+				zoom >= 6
+			) {
+				// Filter changed - need to reload all currently loaded tiles
+				// Remove selected marker first (it will be re-added if still selected)
+				removeSelectedMarker();
+				clearPlaceRoutes();
+				
+				// Reset selectedSupplyPlace when filter is cleared
+				if (!currentFilter) {
+					selectedSupplyPlace = null;
+				}
+				
+				const currentTiles = Array.from(clusterGroupsByTile.keys());
+				// Unload all existing cluster groups
+				currentTiles.forEach((tileKey) => {
+					unloadTileMarkers(tileKey);
+				});
+				// Reload with new filter
+				updateMarkersForTiles();
+			}
+		}
 	}
 
 	// Reactive: Update selected marker when selectedPlaceId changes
 	$: if (map && L && MarkerClusterGroup && selectedPlaceId !== null && visibleTiles.length > 0 && zoom >= 6) {
 		// Selected place changed - find and render it
-		updateSelectedMarkerFromLoadedTiles();
+		// Wait a bit for tiles to load, then update
+		setTimeout(() => {
+			updateSelectedMarkerFromLoadedTiles();
+		}, 100);
 	}
 
 	// Reactive: Remove selected marker when selection is cleared
 	$: if (selectedPlaceId === null && selectedMarker) {
 		removeSelectedMarker();
+		selectedSupplyPlace = null;
+		clearPlaceRoutes();
 	}
 
 	/**
@@ -510,14 +653,68 @@
 	}
 
 	/**
+	 * Compute route from employee location to supply place
+	 */
+	async function computeRouteFromEmployeeToSupply(
+		employeeId: string,
+		employeeLocation: { lat: number; lon: number },
+		supplyPlace: Place
+	): Promise<any | null> {
+		if (!map || !L || !employeeId || !employeeLocation || !supplyPlace) return null;
+		
+		// Validate coordinates
+		if (!isValidCoordinate(employeeLocation) || !isValidCoordinate({ lat: supplyPlace.lat, lon: supplyPlace.lon })) {
+			log.warn('[PlacesRenderer] Invalid coordinates for route computation', {
+				employeeLocation,
+				supplyPlace: { lat: supplyPlace.lat, lon: supplyPlace.lon }
+			});
+			return null;
+		}
+		
+		try {
+			log.info(
+				`[PlacesRenderer] Computing route from employee to supply ${supplyPlace.id}`
+			);
+			
+			const routeResult = await computeRouteFromCoordinates(
+				employeeId,
+				employeeLocation,
+				{ lat: supplyPlace.lat, lon: supplyPlace.lon }
+			);
+			
+			if (routeResult && routeResult.path && routeResult.path.length > 0) {
+				// Display route on map
+				displayPlaceRoute(routeResult);
+				return routeResult;
+			} else {
+				log.warn('[PlacesRenderer] No route found from employee to supply place');
+				return null;
+			}
+		} catch (error) {
+			log.error('[PlacesRenderer] Error computing route from employee to supply:', error);
+			return null;
+		}
+	}
+	
+	/**
 	 * Compute route from supply place to demand place
 	 */
 	async function computeRouteFromSupplyToDemand(
 		employeeId: string,
 		supplyPlace: Place,
 		demandPlace: Place
-	): Promise<void> {
-		if (!map || !L || !employeeId) return;
+	): Promise<any | null> {
+		if (!map || !L || !employeeId || !supplyPlace || !demandPlace) return null;
+		
+		// Validate coordinates
+		if (!isValidCoordinate({ lat: supplyPlace.lat, lon: supplyPlace.lon }) || 
+			!isValidCoordinate({ lat: demandPlace.lat, lon: demandPlace.lon })) {
+			log.warn('[PlacesRenderer] Invalid coordinates for route computation', {
+				supplyPlace: { lat: supplyPlace.lat, lon: supplyPlace.lon },
+				demandPlace: { lat: demandPlace.lat, lon: demandPlace.lon }
+			});
+			return null;
+		}
 		
 		try {
 			log.info(
@@ -526,42 +723,263 @@
 			
 			const routeResult = await computePlaceRoute(employeeId, supplyPlace.id, demandPlace.id);
 			
-			if (routeResult && routeResult.path.length > 0) {
-				// Display route on map
-				displayPlaceRoute(routeResult);
+			if (routeResult && routeResult.path && routeResult.path.length > 0) {
+				// Display route on map (blue dashed for supply to demand)
+				displayPlaceRoute(routeResult, '#3b82f6', true);
+				return routeResult;
 			} else {
 				log.warn('[PlacesRenderer] No route found between places');
+				return null;
 			}
 		} catch (error) {
 			log.error('[PlacesRenderer] Error computing route:', error);
+			return null;
+		}
+	}
+	
+	/**
+	 * Validate coordinate
+	 */
+	function isValidCoordinate(coord: { lat: number; lon: number }): boolean {
+		return (
+			typeof coord.lat === 'number' &&
+			typeof coord.lon === 'number' &&
+			!isNaN(coord.lat) &&
+			!isNaN(coord.lon) &&
+			coord.lat >= -90 &&
+			coord.lat <= 90 &&
+			coord.lon >= -180 &&
+			coord.lon <= 180
+		);
+	}
+	
+	/**
+	 * Compute route from coordinates to coordinates
+	 */
+	async function computeRouteFromCoordinates(
+		employeeId: string,
+		from: { lat: number; lon: number },
+		to: { lat: number; lon: number }
+	): Promise<any | null> {
+		try {
+			const response = await fetch(
+				`/api/travel/route?employeeId=${employeeId}&fromLat=${from.lat}&fromLon=${from.lon}&toLat=${to.lat}&toLon=${to.lon}`
+			);
+			
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+				log.error(
+					`[PlacesRenderer] Failed to compute route from coordinates: ${response.status} ${errorData.error || 'Unknown error'}`
+				);
+				return null;
+			}
+			
+			const data = await response.json();
+			
+			if (!data.success || !data.path || data.path.length === 0) {
+				log.warn(`[PlacesRenderer] Route computation failed: ${data.error || 'No path returned'}`);
+				return null;
+			}
+			
+			return {
+				path: data.path,
+				travelTimeSeconds: data.travelTimeSeconds,
+				totalDistanceMeters: data.totalDistanceMeters,
+				startLocation: from,
+				endLocation: to
+			};
+		} catch (error) {
+			log.error('[PlacesRenderer] Error computing route from coordinates:', error);
+			return null;
+		}
+	}
+	
+	/**
+	 * Update demand popup with route information
+	 */
+	async function updateDemandPopupWithRoute(
+		marker: any,
+		demandPlace: Place,
+		supplyPlace: Place,
+		employeeData: any,
+		gameState: any,
+		placeGoodsConfig: PlaceGoodsConfig
+	): Promise<void> {
+		if (!marker || !employeeData || !gameState || !placeGoodsConfig) return;
+		
+		try {
+			// Compute route
+			const routeResult = await computePlaceRoute(
+				employeeData.employee.id,
+				supplyPlace.id,
+				demandPlace.id
+			);
+			
+			if (!routeResult) return;
+			
+			// Get category goods for supply place
+			const supplyCategoryGoods = placeGoodsConfig.categories.find(
+				(cat) => cat.name === supplyPlace.category
+			);
+			if (!supplyCategoryGoods) return;
+			
+			const supplyGoods = selectPlaceGoods(gameState.seed, supplyPlace.id, supplyCategoryGoods);
+			const supplyAmount = generateSupplyAmount(gameState.seed, supplyPlace.id, supplyCategoryGoods);
+			const vehicleConfig = getVehicleConfig(employeeData.employee.vehicleLevel);
+			const vehicleCapacity = vehicleConfig?.capacity ?? 0;
+			const goodValue = placeGoodsConfig.goods?.[supplyGoods.good]?.value_per_kg ?? 0;
+			const currentConfigStore = get(config);
+			
+			// Compute job value
+			let jobValue: number | null = null;
+			if (goodValue > 0 && vehicleCapacity > 0 && currentConfigStore) {
+				jobValue = computeCompleteJobValue(
+					goodValue,
+					supplyAmount,
+					vehicleCapacity,
+					gameState.seed,
+					supplyPlace.id,
+					gameState,
+					currentConfigStore.jobs.value.randomFactorMax
+				);
+			}
+			
+			// Compute XP
+			// Estimate distance from duration and average speed (assume 60% of max speed as average)
+			const employeeMaxSpeed = vehicleConfig?.maxSpeed ?? 50;
+			const averageSpeedKmh = employeeMaxSpeed * 0.6;
+			const estimatedDistanceKm = (routeResult.travelTimeSeconds * averageSpeedKmh) / 3600;
+			const jobCategory = mapGoodToCategory(supplyGoods.good);
+			let jobXp: number | null = null;
+			if (currentConfigStore) {
+				jobXp = computeJobXp(
+					{ totalDistanceKm: estimatedDistanceKm, jobCategory } as any,
+					currentConfigStore,
+					gameState
+				);
+			}
+			
+			// Update popup content
+			const popupContent = createPlacePopupHTML(
+				demandPlace,
+				placeGoodsConfig,
+				{ type: 'demand', good: supplyGoods.good },
+				supplyAmount,
+				vehicleCapacity,
+				jobValue,
+				routeResult.travelTimeSeconds,
+				jobXp,
+				supplyPlace.id
+			);
+			
+			marker.setPopupContent(popupContent);
+			
+			// Set up accept button handler
+			setTimeout(() => {
+				const acceptButton = document.getElementById(`accept-job-btn-${demandPlace.id}`);
+				if (acceptButton) {
+					acceptButton.onclick = async () => {
+						await handleAcceptJob(supplyPlace, demandPlace);
+						marker.closePopup();
+					};
+				}
+			}, 10);
+		} catch (error) {
+			log.error('[PlacesRenderer] Error updating demand popup:', error);
+		}
+	}
+	
+	/**
+	 * Handle accepting a job from supply and demand places
+	 */
+	async function handleAcceptJob(supplyPlace: Place, demandPlace: Place): Promise<void> {
+		const employeeId = get(selectedEmployee);
+		const gameState = get(currentGameState);
+		
+		if (!employeeId || !gameState) {
+			log.warn('[PlacesRenderer] Cannot accept job: missing employee or game state');
+			return;
+		}
+		
+		try {
+			const response = await fetch('/api/jobs/accept-from-places', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					employeeId,
+					gameStateId: gameState.id,
+					supplyPlaceId: supplyPlace.id,
+					demandPlaceId: demandPlace.id
+				})
+			});
+			
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+				log.error(`[PlacesRenderer] Failed to accept job: ${errorData.error || 'Unknown error'}`);
+				return;
+			}
+			
+			// Clear filter and routes
+			placeFilter.set(null);
+			selectedSupplyPlace = null;
+			clearPlaceRoutes();
+			
+			// Reload employee data to show the new active job
+			// This will be handled by the parent component
+			log.info('[PlacesRenderer] Job accepted successfully');
+		} catch (error) {
+			log.error('[PlacesRenderer] Error accepting job:', error);
 		}
 	}
 	
 	/**
 	 * Display route polyline on map
+	 * @param routeResult - Route result with path, travelTimeSeconds, totalDistanceMeters
+	 * @param color - Optional color for the route (default: blue)
+	 * @param isDashed - Whether to use dashed line (default: true)
 	 */
-	function displayPlaceRoute(routeResult: any): void {
-		if (!map || !L) return;
-		
-		// Clear existing place routes
-		clearPlaceRoutes();
+	function displayPlaceRoute(routeResult: any, color: string = '#3b82f6', isDashed: boolean = true): void {
+		if (!map || !L || !routeResult || !routeResult.path || routeResult.path.length === 0) {
+			log.warn('[PlacesRenderer] Cannot display route: invalid route result');
+			return;
+		}
 		
 		// Create polyline from route path
-		const routeCoords = routeResult.path.map((point: any) => [
-			point.coordinates.lat,
-			point.coordinates.lon
-		]);
+		const routeCoords = routeResult.path.map((point: any) => {
+			if (!point.coordinates || typeof point.coordinates.lat !== 'number' || typeof point.coordinates.lon !== 'number') {
+				log.warn('[PlacesRenderer] Invalid route point:', point);
+				return null;
+			}
+			return [point.coordinates.lat, point.coordinates.lon];
+		}).filter((coord: any) => coord !== null);
 		
-		const polyline = L.polyline(routeCoords, {
-			color: '#3b82f6',
+		if (routeCoords.length === 0) {
+			log.warn('[PlacesRenderer] No valid coordinates in route path');
+			return;
+		}
+		
+		const polylineOptions: any = {
+			color,
 			weight: 4,
 			opacity: 0.7,
-			dashArray: '10, 5'
-		}).addTo(map);
+			interactive: true // Make routes interactive so they persist
+		};
+		
+		if (isDashed) {
+			polylineOptions.dashArray = '10, 5';
+		}
+		
+		const polyline = L.polyline(routeCoords, polylineOptions).addTo(map);
 		
 		// Add popup with route info
-		const durationFormatted = `${Math.floor(routeResult.travelTimeSeconds / 60)}m`;
-		const distanceFormatted = `${(routeResult.totalDistanceMeters / 1000).toFixed(1)} km`;
+		const durationFormatted = routeResult.travelTimeSeconds
+			? `${Math.floor(routeResult.travelTimeSeconds / 60)}m ${Math.floor(routeResult.travelTimeSeconds % 60)}s`
+			: 'Unknown';
+		const distanceFormatted = routeResult.totalDistanceMeters
+			? `${(routeResult.totalDistanceMeters / 1000).toFixed(1)} km`
+			: 'Unknown';
 		
 		polyline.bindPopup(`
 			<div>
@@ -571,7 +989,13 @@
 			</div>
 		`);
 		
+		// Store reference to polyline
 		placeRoutePolylines.push(polyline);
+		
+		// Ensure polyline persists by bringing it to front (above markers)
+		polyline.bringToFront();
+		
+		log.debug(`[PlacesRenderer] Added route polyline, total routes: ${placeRoutePolylines.length}`);
 	}
 	
 	/**
@@ -585,8 +1009,34 @@
 		});
 		placeRoutePolylines = [];
 	}
+	
+	/**
+	 * Ensure routes persist on the map even when markers are updated
+	 * Routes are stored separately from markers and should not be cleared on pan/zoom
+	 */
+	function ensureRoutesPersist(): void {
+		if (!map || !L) return;
+		
+		// Filter out any null/undefined polylines
+		placeRoutePolylines = placeRoutePolylines.filter((polyline) => polyline !== null && polyline !== undefined);
+		
+		// Re-add routes to map if they were accidentally removed
+		placeRoutePolylines.forEach((polyline) => {
+			if (polyline && map && !map.hasLayer(polyline)) {
+				log.debug('[PlacesRenderer] Re-adding route polyline to map');
+				polyline.addTo(map);
+				polyline.bringToFront(); // Ensure routes are visible above markers
+			}
+		});
+	}
 
 	onDestroy(() => {
+		// Clear update timeout
+		if (updateTimeout) {
+			clearTimeout(updateTimeout);
+			updateTimeout = null;
+		}
+		
 		// Clean up all cluster groups
 		clusterGroupsByTile.forEach((clusterGroup, tileKey) => {
 			if (map && clusterGroup) {

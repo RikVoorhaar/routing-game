@@ -59,7 +59,7 @@ export async function getPlacesForVisibleTilesGrouped(
 	const result = new Map<string, Place[]>();
 
 	if (zoom < 8) {
-		log.info(`[PlacesGetter] Zoom level ${zoom} < 8, returning empty map`);
+		log.debug(`[PlacesGetter] Zoom level ${zoom} < 8, returning empty map`);
 		return result;
 	}
 
@@ -89,7 +89,7 @@ export async function getPlacesForVisibleTilesGrouped(
 		parentTilesMap.get(parentTileKey)!.push(tileStr);
 	}
 
-	log.info(
+	log.debug(
 		`[PlacesGetter] Computing places for ${visibleTiles.length} visible tiles across ${parentTilesMap.size} parent tiles at zoom 8`
 	);
 
@@ -151,7 +151,7 @@ export async function getPlacesForVisibleTilesGrouped(
 	}
 
 	const totalPlaces = Array.from(result.values()).reduce((sum, places) => sum + places.length, 0);
-	log.info(
+	log.debug(
 		`[PlacesGetter] Distributed ${totalPlaces} places across ${result.size} visible tiles`
 	);
 

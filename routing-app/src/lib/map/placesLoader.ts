@@ -49,11 +49,11 @@ export async function loadPlacesForTiles(
 	zoom: number,
 	map: any
 ): Promise<void> {
-	log.info(`[PlacesLoader] Tile change detected: zoom=${zoom}, visibleTiles=${visibleTiles.length}`);
+	log.debug(`[PlacesLoader] Tile change detected: zoom=${zoom}, visibleTiles=${visibleTiles.length}`);
 
 	// If zoom < 8, do nothing
 	if (zoom < 8) {
-		log.info(`[PlacesLoader] Zoom level ${zoom} < 8, skipping places loading`);
+		log.debug(`[PlacesLoader] Zoom level ${zoom} < 8, skipping places loading`);
 		return;
 	}
 
@@ -61,7 +61,7 @@ export async function loadPlacesForTiles(
 	const parentTilesSet = new Set<string>();
 	const parentTilesData: Map<string, { x: number; y: number }> = new Map();
 
-	log.info(`[PlacesLoader] Computing parent tiles at zoom 8 from ${visibleTiles.length} visible tiles`);
+	log.debug(`[PlacesLoader] Computing parent tiles at zoom 8 from ${visibleTiles.length} visible tiles`);
 
 	for (const tileStr of visibleTiles) {
 		const tile = parseTile(tileStr);
@@ -81,7 +81,7 @@ export async function loadPlacesForTiles(
 		parentTilesData.set(parentTileKey, parentTile);
 	}
 
-	log.info(
+	log.debug(
 		`[PlacesLoader] Computed ${parentTilesSet.size} unique parent tiles at zoom 8:`,
 		Array.from(parentTilesSet)
 	);
@@ -97,12 +97,12 @@ export async function loadPlacesForTiles(
 
 		try {
 			// Check IndexedDB cache first
-			log.info(`[PlacesLoader] Checking cache for tile ${tileKey}`);
+			log.debug(`[PlacesLoader] Checking cache for tile ${tileKey}`);
 			let places = await getPlaces(tileX, tileY);
 
 			if (places === null) {
 				// Cache miss - fetch from API
-				log.info(`[PlacesLoader] Cache miss for tile ${tileKey}, fetching from API`);
+				log.debug(`[PlacesLoader] Cache miss for tile ${tileKey}, fetching from API`);
 				const response = await fetch(`/api/places/${tileX}/${tileY}`);
 
 				if (!response.ok) {
@@ -115,18 +115,18 @@ export async function loadPlacesForTiles(
 				// Browser automatically decompresses gzip when Content-Encoding: gzip is set
 				places = (await response.json()) as Place[];
 
-				log.info(
+				log.debug(
 					`[PlacesLoader] Fetched ${places.length} places from API for tile ${tileKey}`
 				);
 
 				// Store in IndexedDB cache
 				await setPlaces(tileX, tileY, places);
-				log.info(`[PlacesLoader] Stored ${places.length} places in cache for tile ${tileKey}`);
+				log.debug(`[PlacesLoader] Stored ${places.length} places in cache for tile ${tileKey}`);
 				
 				// Mark tile as loaded in availability store
 				markTileLoaded(tileX, tileY);
 			} else {
-				log.info(
+				log.debug(
 					`[PlacesLoader] Cache hit for tile ${tileKey}, found ${places.length} places`
 				);
 				
@@ -135,7 +135,7 @@ export async function loadPlacesForTiles(
 			}
 
 			// Log data counts
-			log.info(
+			log.debug(
 				`[PlacesLoader] Tile ${tileKey} loaded: ${places.length} places`,
 				places.length > 0
 					? {
@@ -156,5 +156,5 @@ export async function loadPlacesForTiles(
 
 	// Wait for all tiles to load
 	await Promise.all(loadPromises);
-	log.info(`[PlacesLoader] Finished loading places for ${parentTilesSet.size} tiles`);
+	log.debug(`[PlacesLoader] Finished loading places for ${parentTilesSet.size} tiles`);
 }

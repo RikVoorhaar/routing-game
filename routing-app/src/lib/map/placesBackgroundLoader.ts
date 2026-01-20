@@ -19,7 +19,7 @@ const INITIAL_DELAY_MS = 2000; // Delay before starting background processing
  */
 async function fetchAllTiles(): Promise<TileCoordinate[]> {
 	try {
-		log.info('[PlacesBackgroundLoader] Fetching list of all tiles with places data');
+		log.debug('[PlacesBackgroundLoader] Fetching list of all tiles with places data');
 		const response = await fetch('/api/places/tiles');
 
 		if (!response.ok) {
@@ -30,7 +30,7 @@ async function fetchAllTiles(): Promise<TileCoordinate[]> {
 		}
 
 		const tiles = (await response.json()) as TileCoordinate[];
-		log.info(`[PlacesBackgroundLoader] Fetched ${tiles.length} tiles with places data`);
+		log.debug(`[PlacesBackgroundLoader] Fetched ${tiles.length} tiles with places data`);
 		return tiles;
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
@@ -47,7 +47,7 @@ async function filterCachedTiles(
 ): Promise<Array<{ tileX: number; tileY: number }>> {
 	const uncachedTiles: Array<{ tileX: number; tileY: number }> = [];
 
-	log.info(`[PlacesBackgroundLoader] Checking IndexedDB cache for ${tiles.length} tiles`);
+	log.debug(`[PlacesBackgroundLoader] Checking IndexedDB cache for ${tiles.length} tiles`);
 
 	for (const tile of tiles) {
 		try {
@@ -64,7 +64,7 @@ async function filterCachedTiles(
 		}
 	}
 
-	log.info(
+	log.debug(
 		`[PlacesBackgroundLoader] Found ${uncachedTiles.length} uncached tiles out of ${tiles.length} total`
 	);
 	return uncachedTiles;
@@ -120,7 +120,7 @@ async function loadTile(tileX: number, tileY: number): Promise<boolean> {
 async function processNextTile(): Promise<void> {
 	if (processingQueue.length === 0) {
 		isProcessing = false;
-		log.info('[PlacesBackgroundLoader] Queue empty, background loading complete');
+		log.debug('[PlacesBackgroundLoader] Queue empty, background loading complete');
 		return;
 	}
 
@@ -139,7 +139,7 @@ async function processNextTile(): Promise<void> {
 		}, PROCESSING_DELAY_MS);
 	} else {
 		isProcessing = false;
-		log.info('[PlacesBackgroundLoader] Queue processing complete');
+		log.debug('[PlacesBackgroundLoader] Queue processing complete');
 	}
 }
 
@@ -153,11 +153,11 @@ async function processNextTile(): Promise<void> {
  */
 export async function startBackgroundPrefetching(): Promise<void> {
 	if (isProcessing) {
-		log.info('[PlacesBackgroundLoader] Background prefetching already in progress');
+		log.debug('[PlacesBackgroundLoader] Background prefetching already in progress');
 		return;
 	}
 
-	log.info('[PlacesBackgroundLoader] Starting background prefetching');
+	log.debug('[PlacesBackgroundLoader] Starting background prefetching');
 
 	// Wait a bit before starting to avoid blocking initial page load
 	setTimeout(async () => {
@@ -176,7 +176,7 @@ export async function startBackgroundPrefetching(): Promise<void> {
 			const uncachedTiles = await filterCachedTiles(allTiles);
 
 			if (uncachedTiles.length === 0) {
-				log.info('[PlacesBackgroundLoader] All tiles already cached, nothing to prefetch');
+				log.debug('[PlacesBackgroundLoader] All tiles already cached, nothing to prefetch');
 				// Mark all tiles as loaded
 				allTiles.forEach((tile) => markTileLoaded(tile.tileX, tile.tileY));
 				return;
@@ -210,5 +210,5 @@ export function stopBackgroundPrefetching(): void {
 	}
 	isProcessing = false;
 	processingQueue = [];
-	log.info('[PlacesBackgroundLoader] Background prefetching stopped');
+	log.debug('[PlacesBackgroundLoader] Background prefetching stopped');
 }

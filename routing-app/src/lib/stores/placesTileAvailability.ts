@@ -31,7 +31,7 @@ export function markTileLoaded(tileX: number, tileY: number): void {
 export function initializeTilesNeedingData(tiles: Array<{ tileX: number; tileY: number }>): void {
 	const tileKeys = new Set(tiles.map((t) => `8/${t.tileX}/${t.tileY}`));
 	tilesNeedingData.set(tileKeys);
-	log.info(
+	log.debug(
 		`[PlacesTileAvailability] Initialized with ${tileKeys.size} tiles needing data`
 	);
 }

@@ -283,7 +283,7 @@
 				currentZoom = zoom;
 				visibleTilesForPlaces = visibleTiles;
 
-				log.info('[RouteMap] Tile change callback triggered', {
+				log.debug('[RouteMap] Tile change callback triggered', {
 					zoom,
 					visibleTileCount: visibleTiles.length
 				});
@@ -306,7 +306,7 @@
 			if (initialZoom >= 8) {
 				const initialTiles = mapManager.getVisibleTiles();
 				visibleTilesForPlaces = initialTiles;
-				log.info('[RouteMap] Initial map load, loading places for visible tiles', {
+				log.debug('[RouteMap] Initial map load, loading places for visible tiles', {
 					zoom: initialZoom,
 					visibleTileCount: initialTiles.length
 				});

@@ -78,6 +78,41 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return error(404, 'End place not found');
 		}
 
+		// Validate place coordinates
+		if (
+			typeof startPlace.lat !== 'number' ||
+			typeof startPlace.lon !== 'number' ||
+			isNaN(startPlace.lat) ||
+			isNaN(startPlace.lon) ||
+			startPlace.lat < -90 ||
+			startPlace.lat > 90 ||
+			startPlace.lon < -180 ||
+			startPlace.lon > 180
+		) {
+			serverLog.api.warn(
+				{ startPlaceId, lat: startPlace.lat, lon: startPlace.lon },
+				'Invalid start place coordinates'
+			);
+			return error(400, 'Invalid start place coordinates');
+		}
+
+		if (
+			typeof endPlace.lat !== 'number' ||
+			typeof endPlace.lon !== 'number' ||
+			isNaN(endPlace.lat) ||
+			isNaN(endPlace.lon) ||
+			endPlace.lat < -90 ||
+			endPlace.lat > 90 ||
+			endPlace.lon < -180 ||
+			endPlace.lon > 180
+		) {
+			serverLog.api.warn(
+				{ endPlaceId, lat: endPlace.lat, lon: endPlace.lon },
+				'Invalid end place coordinates'
+			);
+			return error(400, 'Invalid end place coordinates');
+		}
+
 		// Compute the route using getShortestPath
 		const from: Coordinate = { lat: startPlace.lat, lon: startPlace.lon };
 		const to: Coordinate = { lat: endPlace.lat, lon: endPlace.lon };
