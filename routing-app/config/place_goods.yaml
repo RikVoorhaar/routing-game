@@ -1,5 +1,42 @@
+goods:
+  people:
+    value_per_kg: 5.0
+  groceries:
+    value_per_kg: 2.0
+  "food (hot)":
+    value_per_kg: 3.0
+  electronics:
+    value_per_kg: 50.0
+  "consumer goods":
+    value_per_kg: 4.0
+  packages:
+    value_per_kg: 1.5
+  flowers:
+    value_per_kg: 8.0
+  "fuel (liquid)":
+    value_per_kg: 1.2
+  cars:
+    value_per_kg: 200.0
+  medicine:
+    value_per_kg: 100.0
+  "bulk food":
+    value_per_kg: 1.0
+  coal:
+    value_per_kg: 0.3
+  ore:
+    value_per_kg: 0.5
+  "quarried stuff":
+    value_per_kg: 0.4
+  "construction materials":
+    value_per_kg: 0.6
+  chemicals:
+    value_per_kg: 2.5
+  animals:
+    value_per_kg: 15.0
+
 categories:
   - name: residential
+    base_supply_amount_kg: 10
     supply_fraction: 0.05
     demand_fraction: 0.95
     supply:
@@ -25,6 +62,7 @@ categories:
       - good: medicine
         fraction: 0.02
   - name: office
+    base_supply_amount_kg: 20
     supply_fraction: 0.15
     demand_fraction: 0.85
     supply:
@@ -46,6 +84,7 @@ categories:
       - good: medicine
         fraction: 0.05
   - name: shop
+    base_supply_amount_kg: 50
     supply_fraction: 0.45
     demand_fraction: 0.55
     supply:
@@ -81,6 +120,7 @@ categories:
       - good: medicine
         fraction: 0.02
   - name: restaurant
+    base_supply_amount_kg: 100
     supply_fraction: 0.40
     demand_fraction: 0.60
     supply:
@@ -155,6 +195,7 @@ categories:
       - good: medicine
         fraction: 0.064
   - name: farm
+    base_supply_amount_kg: 2000
     supply_fraction: 0.75
     demand_fraction: 0.25
     supply:
@@ -174,6 +215,7 @@ categories:
       - good: construction materials
         fraction: 0.20
   - name: power_plant
+    base_supply_amount_kg: 4000
     supply_fraction: 0.90
     demand_fraction: 0.10
     supply:
@@ -191,6 +233,7 @@ categories:
       - good: construction materials
         fraction: 0.10
   - name: factory
+    base_supply_amount_kg: 1000
     supply_fraction: 0.60
     demand_fraction: 0.40
     supply:
@@ -222,6 +265,7 @@ categories:
       - good: quarried stuff
         fraction: 0.10
   - name: railway_terminal
+    base_supply_amount_kg: 2500
     supply_fraction: 0.50
     demand_fraction: 0.50
     supply:
@@ -251,6 +295,7 @@ categories:
       - good: packages
         fraction: 0.20
   - name: station
+    base_supply_amount_kg: 150
     supply_fraction: 0.50
     demand_fraction: 0.50
     supply:
@@ -286,6 +331,7 @@ categories:
       - good: fuel (liquid)
         fraction: 0.05
   - name: airport
+    base_supply_amount_kg: 200
     supply_fraction: 0.50
     demand_fraction: 0.50
     supply:
@@ -315,6 +361,7 @@ categories:
       - good: packages
         fraction: 0.15
   - name: warehouse
+    base_supply_amount_kg: 1500
     supply_fraction: 0.55
     demand_fraction: 0.45
     supply:
@@ -367,6 +414,7 @@ categories:
       - good: construction materials
         fraction: 0.20
   - name: gas_station
+    base_supply_amount_kg: 500
     supply_fraction: 0.80
     demand_fraction: 0.20
     supply:
@@ -380,6 +428,7 @@ categories:
       - good: construction materials
         fraction: 0.20
   - name: construction
+    base_supply_amount_kg: 800
     supply_fraction: 0.05
     demand_fraction: 0.95
     supply:

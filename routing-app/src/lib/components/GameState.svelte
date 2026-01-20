@@ -110,6 +110,14 @@
 		const { employeeId, newBalance } = event.detail;
 
 		try {
+			// Evict all routes for this employee (job completed)
+			const { evictAllRoutes } = await import('$lib/stores/routeCache');
+			try {
+				await evictAllRoutes(employeeId);
+			} catch (error) {
+				console.error('Error evicting routes cache:', error);
+			}
+
 			// Update game state money and refresh employee data
 			gameDataActions.updateMoney(newBalance);
 

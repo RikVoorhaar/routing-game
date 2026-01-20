@@ -175,8 +175,7 @@ export const activeJobs = pgTable(
 			.notNull()
 			.references(() => employees.id, { onDelete: 'cascade' }),
 		jobId: integer('job_id')
-			.notNull()
-			.references(() => jobs.id, { onDelete: 'cascade' }),
+			.references(() => jobs.id, { onDelete: 'cascade' }), // Nullable for place-based jobs
 		gameStateId: text('game_state_id')
 			.notNull()
 			.references(() => gameStates.id, { onDelete: 'cascade' }),
@@ -195,7 +194,9 @@ export const activeJobs = pgTable(
 			.references(() => addresses.id, { onDelete: 'cascade' }),
 		jobDeliverAddress: varchar('job_deliver_address')
 			.notNull()
-			.references(() => addresses.id, { onDelete: 'cascade' })
+			.references(() => addresses.id, { onDelete: 'cascade' }),
+		startRegion: varchar('start_region').references(() => regions.code, { onDelete: 'restrict' }),
+		endRegion: varchar('end_region').references(() => regions.code, { onDelete: 'restrict' })
 	},
 	(table) => [
 		index('active_jobs_game_state_idx').on(table.gameStateId),

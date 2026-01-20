@@ -10,12 +10,18 @@ export interface PlaceGood {
 
 export interface PlaceCategoryGoods {
 	name: string;
+	base_supply_amount_kg?: number;
 	supply_fraction: number;
 	demand_fraction: number;
 	supply: PlaceGood[];
 	demand: PlaceGood[];
 }
 
+export interface GoodValue {
+	value_per_kg: number;
+}
+
 export interface PlaceGoodsConfig {
+	goods?: Record<string, GoodValue>;
 	categories: PlaceCategoryGoods[];
 }

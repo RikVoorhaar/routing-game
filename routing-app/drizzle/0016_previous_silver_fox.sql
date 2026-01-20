@@ -1,0 +1,1 @@
+ALTER TABLE "active_job" ALTER COLUMN "job_id" DROP NOT NULL;

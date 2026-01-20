@@ -12,6 +12,13 @@
 	import type { PlaceGoodsConfig } from '$lib/config/placeGoodsTypes';
 	import { selectPlaceGoods } from '$lib/places/placeGoodsSelection';
 	import type { PlaceFilter } from '$lib/stores/placeFilter';
+	import { selectedEmployee } from '$lib/stores/selectedEmployee';
+	import { fullEmployeeData } from '$lib/stores/gameData';
+	import { computePlaceRoute } from '$lib/routes/placeRouteCompute';
+	import { generateSupplyAmount } from '$lib/places/supplyAmount';
+	import { computeCompleteJobValue } from '$lib/jobs/jobValue';
+	import { getVehicleConfig } from '$lib/vehicles/vehicleUtils';
+	import { config } from '$lib/stores/config';
 
 	export let map: any;
 	export let L: any;
@@ -26,6 +33,8 @@
 	let selectedIcon: any = null; // Cached selected marker icon
 	let placeGoodsConfig: PlaceGoodsConfig | null = null;
 	let selectedMarker: any = null; // Directly rendered selected marker (not in cluster)
+	let selectedSupplyPlace: Place | null = null; // Track selected supply place
+	let placeRoutePolylines: any[] = []; // Track route polylines for cleanup
 
 	/**
 	 * Initialize MarkerClusterGroup class
@@ -113,16 +122,58 @@
 
 		// Compute selected goods if we have game state seed and config
 		let selectedGoods: { type: 'supply' | 'demand'; good: string } | null = null;
+		let supplyAmount: number | null = null;
+		let vehicleCapacity: number | null = null;
+		let jobValue: number | null = null;
+		
 		const gameState = get(currentGameState);
+		const employeeId = get(selectedEmployee);
+		const employeeData = employeeId
+			? get(fullEmployeeData).find((fed) => fed.employee.id === employeeId)
+			: null;
+		
 		if (gameState?.seed && currentConfig) {
 			const categoryGoods = currentConfig.categories.find((cat) => cat.name === place.category);
 			if (categoryGoods) {
 				selectedGoods = selectPlaceGoods(gameState.seed, place.id, categoryGoods);
+				
+				// Compute supply amount for suppliers
+				if (selectedGoods.type === 'supply') {
+					supplyAmount = generateSupplyAmount(gameState.seed, place.id, categoryGoods);
+					
+					// Get vehicle capacity if employee is selected
+					if (employeeData) {
+						const vehicleConfig = getVehicleConfig(employeeData.employee.vehicleLevel);
+						vehicleCapacity = vehicleConfig?.capacity ?? null;
+						
+						// Compute job value estimate
+						const goodValue = currentConfig.goods?.[selectedGoods.good]?.value_per_kg ?? 0;
+						const currentConfigStore = get(config);
+						if (goodValue > 0 && vehicleCapacity !== null && currentConfigStore) {
+							jobValue = computeCompleteJobValue(
+								goodValue,
+								supplyAmount,
+								vehicleCapacity,
+								gameState.seed,
+								place.id,
+								gameState,
+								currentConfigStore.jobs.value.randomFactorMax
+							);
+						}
+					}
+				}
 			}
 		}
 
-		// Create popup with selected goods
-		const popupContent = createPlacePopupHTML(place, currentConfig, selectedGoods);
+		// Create popup with selected goods, supply amount, and job value
+		const popupContent = createPlacePopupHTML(
+			place,
+			currentConfig,
+			selectedGoods,
+			supplyAmount,
+			vehicleCapacity,
+			jobValue
+		);
 		const popup = L.popup({
 			maxWidth: 250,
 			className: 'place-tooltip-popup'
@@ -130,13 +181,19 @@
 
 		marker.bindPopup(popup);
 
-		// Add click handler to set/clear filter
-		marker.on('click', () => {
+		// Add click handler to set/clear filter and compute routes
+		marker.on('click', async () => {
 			const currentFilter = get(placeFilter);
+			const employeeId = get(selectedEmployee);
+			const employeeData = employeeId
+				? get(fullEmployeeData).find((fed) => fed.employee.id === employeeId)
+				: null;
 			
 			// If filter is already set for this place, clear it (toggle behavior)
 			if (currentFilter && currentFilter.selectedPlaceId === place.id) {
 				placeFilter.set(null);
+				selectedSupplyPlace = null;
+				clearPlaceRoutes();
 				return;
 			}
 			
@@ -149,6 +206,20 @@
 					targetType: selectedGoods.type === 'supply' ? 'demand' : 'supply'
 				};
 				placeFilter.set(filter);
+				
+				// If clicking a supply place, track it for route computation
+				if (selectedGoods.type === 'supply') {
+					selectedSupplyPlace = place;
+					clearPlaceRoutes(); // Clear any existing routes
+				}
+				// If clicking a demand place and we have a selected supply place, compute route from supply to demand
+				else if (selectedGoods.type === 'demand' && selectedSupplyPlace && employeeData) {
+					await computeRouteFromSupplyToDemand(
+						employeeData.employee.id,
+						selectedSupplyPlace,
+						place
+					);
+				}
 			}
 		});
 
@@ -438,6 +509,83 @@
 		}
 	}
 
+	/**
+	 * Compute route from supply place to demand place
+	 */
+	async function computeRouteFromSupplyToDemand(
+		employeeId: string,
+		supplyPlace: Place,
+		demandPlace: Place
+	): Promise<void> {
+		if (!map || !L || !employeeId) return;
+		
+		try {
+			log.info(
+				`[PlacesRenderer] Computing route from supply ${supplyPlace.id} to demand ${demandPlace.id}`
+			);
+			
+			const routeResult = await computePlaceRoute(employeeId, supplyPlace.id, demandPlace.id);
+			
+			if (routeResult && routeResult.path.length > 0) {
+				// Display route on map
+				displayPlaceRoute(routeResult);
+			} else {
+				log.warn('[PlacesRenderer] No route found between places');
+			}
+		} catch (error) {
+			log.error('[PlacesRenderer] Error computing route:', error);
+		}
+	}
+	
+	/**
+	 * Display route polyline on map
+	 */
+	function displayPlaceRoute(routeResult: any): void {
+		if (!map || !L) return;
+		
+		// Clear existing place routes
+		clearPlaceRoutes();
+		
+		// Create polyline from route path
+		const routeCoords = routeResult.path.map((point: any) => [
+			point.coordinates.lat,
+			point.coordinates.lon
+		]);
+		
+		const polyline = L.polyline(routeCoords, {
+			color: '#3b82f6',
+			weight: 4,
+			opacity: 0.7,
+			dashArray: '10, 5'
+		}).addTo(map);
+		
+		// Add popup with route info
+		const durationFormatted = `${Math.floor(routeResult.travelTimeSeconds / 60)}m`;
+		const distanceFormatted = `${(routeResult.totalDistanceMeters / 1000).toFixed(1)} km`;
+		
+		polyline.bindPopup(`
+			<div>
+				<strong>Route Preview</strong><br>
+				Duration: ${durationFormatted}<br>
+				Distance: ${distanceFormatted}
+			</div>
+		`);
+		
+		placeRoutePolylines.push(polyline);
+	}
+	
+	/**
+	 * Clear all place route polylines
+	 */
+	function clearPlaceRoutes(): void {
+		placeRoutePolylines.forEach((polyline) => {
+			if (polyline && map && map.hasLayer(polyline)) {
+				map.removeLayer(polyline);
+			}
+		});
+		placeRoutePolylines = [];
+	}
+
 	onDestroy(() => {
 		// Clean up all cluster groups
 		clusterGroupsByTile.forEach((clusterGroup, tileKey) => {
@@ -450,6 +598,9 @@
 		
 		// Clean up selected marker
 		removeSelectedMarker();
+		
+		// Clean up place routes
+		clearPlaceRoutes();
 	});
 </script>
 

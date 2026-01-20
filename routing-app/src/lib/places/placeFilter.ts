@@ -18,9 +18,31 @@ export function createPlaceFilterPredicate(
 	gameState: GameState | null,
 	placeGoodsConfig: PlaceGoodsConfig | null
 ): PlaceFilterPredicate<Place> {
-	// No filter if any required data is missing
-	if (!filter || !gameState || !placeGoodsConfig) {
-		return () => true; // No filter - show all places
+	// Default behavior: show only suppliers when no filter is active
+	if (!filter) {
+		// If we don't have game state or config, show all places (fallback)
+		if (!gameState || !placeGoodsConfig) {
+			return () => true;
+		}
+
+		// Default: show only places that supply goods
+		return (place: Place): boolean => {
+			const categoryGoods = placeGoodsConfig.categories.find((cat) => cat.name === place.category);
+			if (!categoryGoods) {
+				return false; // No category config, exclude
+			}
+
+			// Compute selected goods for this place
+			const selectedGoods = selectPlaceGoods(gameState.seed, place.id, categoryGoods);
+
+			// Only show suppliers
+			return selectedGoods.type === 'supply';
+		};
+	}
+
+	// Active filter: show places matching the filter
+	if (!gameState || !placeGoodsConfig) {
+		return () => true; // No filter - show all places (fallback)
 	}
 
 	return (place: Place): boolean => {

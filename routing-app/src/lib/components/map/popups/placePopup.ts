@@ -12,6 +12,12 @@ import type { PlaceGoodsConfig, PlaceCategoryGoods } from '$lib/config/placeGood
  *     The place goods configuration (optional, will show goods if provided)
  * selectedGoods: { type: 'supply' | 'demand', good: string } | null
  *     Selected goods for this place (optional, will highlight if provided)
+ * supplyAmount: number | null
+ *     Supply amount in kg (optional, only for suppliers)
+ * vehicleCapacity: number | null
+ *     Vehicle capacity in kg (optional, for comparison)
+ * jobValue: number | null
+ *     Estimated job value in euros (optional)
  *
  * Returns
  * --------
@@ -21,7 +27,10 @@ import type { PlaceGoodsConfig, PlaceCategoryGoods } from '$lib/config/placeGood
 export function createPlacePopupHTML(
 	place: Place,
 	placeGoodsConfig: PlaceGoodsConfig | null = null,
-	selectedGoods: { type: 'supply' | 'demand'; good: string } | null = null
+	selectedGoods: { type: 'supply' | 'demand'; good: string } | null = null,
+	supplyAmount: number | null = null,
+	vehicleCapacity: number | null = null,
+	jobValue: number | null = null
 ): string {
 	// Find category goods data
 	let categoryGoods: PlaceCategoryGoods | undefined;
@@ -53,6 +62,34 @@ export function createPlacePopupHTML(
 			<div style="margin-top: 8px;">
 				<div style="color: #888; margin-bottom: 4px; font-size: 10px; font-weight: 600;">${label}</div>
 				${goodsList}
+			</div>
+		`;
+	}
+
+	// Build supply amount section (for suppliers)
+	let supplyAmountSection = '';
+	if (selectedGoods?.type === 'supply' && supplyAmount !== null) {
+		const goodValue = placeGoodsConfig?.goods?.[selectedGoods.good]?.value_per_kg ?? 0;
+		const capacityWarning = vehicleCapacity !== null && supplyAmount > vehicleCapacity;
+		const capacityStatus = capacityWarning
+			? `<span style="color: #dc2626; font-weight: 600;">⚠ Exceeds capacity (${vehicleCapacity.toFixed(0)} kg)</span>`
+			: vehicleCapacity !== null
+				? `<span style="color: #059669;">✓ Within capacity (${vehicleCapacity.toFixed(0)} kg)</span>`
+				: '';
+
+		supplyAmountSection = `
+			<div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+				<div style="margin-bottom: 8px;">
+					<div style="color: #888; margin-bottom: 4px; font-size: 10px; font-weight: 600;">Supply Details</div>
+					<div style="font-size: 11px; color: #374151;">
+						<div style="margin-bottom: 4px;">
+							<span style="font-weight: 600;">Amount:</span> ${supplyAmount.toFixed(1)} kg
+						</div>
+						${capacityStatus ? `<div style="margin-bottom: 4px; font-size: 10px;">${capacityStatus}</div>` : ''}
+						${goodValue > 0 ? `<div style="margin-bottom: 4px; font-size: 10px; color: #6b7280;">Value: €${goodValue.toFixed(2)}/kg</div>` : ''}
+						${jobValue !== null ? `<div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #e5e7eb; font-size: 11px; font-weight: 600; color: #059669;">Estimated Job Value: €${jobValue.toFixed(2)}</div>` : ''}
+					</div>
+				</div>
 			</div>
 		`;
 	}
@@ -101,6 +138,7 @@ export function createPlacePopupHTML(
 				</div>
 				` : ''}
 			</div>
+			${supplyAmountSection}
 			${supplyDemandSection}
 		</div>
 	`;

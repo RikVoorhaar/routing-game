@@ -21,7 +21,7 @@
 	import { computeJobXp, computeJobReward } from '$lib/jobs/jobUtils';
 	import { config } from '$lib/stores/config';
 	import { getSearchResultsForEmployee, jobSearchActions } from '$lib/stores/jobSearch';
-	import { getRoute } from '$lib/stores/routeCache';
+	import { getRoute, evictRoutesExcept, getRouteKey } from '$lib/stores/routeCache';
 
 	let isAcceptingJob = false;
 	let isLoadingRoute = false;
@@ -150,6 +150,17 @@
 			if (response.ok) {
 				const result = await response.json();
 				addError('Job accepted successfully!', 'info');
+
+				// Evict all routes except the one being used (if it's a place-based job)
+				if ($selectedEmployee && result.activeJob) {
+					// For place-based jobs, we'd need to track the route key
+					// For now, evict all routes for this employee
+					try {
+						await evictAllRoutes($selectedEmployee);
+					} catch (error) {
+						console.error('Error evicting routes:', error);
+					}
+				}
 
 				// Clear all search results for this employee (all other jobs)
 				if ($selectedEmployee) {

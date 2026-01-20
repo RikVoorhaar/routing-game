@@ -437,6 +437,13 @@ export const gameDataActions = {
 			clearTimeout(existingTimer);
 			jobCompletionTimers.delete(employeeId);
 		}
+
+		// Evict all routes for this employee (job completed)
+		import('$lib/stores/routeCache')
+			.then(({ evictAllRoutes }) => evictAllRoutes(employeeId))
+			.catch((error) => {
+				log.error('[GameData] Failed to evict routes cache:', error);
+			});
 	},
 
 	// Update multiple employees at once (for bulk loading) - backward compatibility
@@ -559,6 +566,14 @@ export const gameDataAPI = {
 
 	// Complete a specific job
 	async completeJob(employeeId: string, activeJobId: string) {
+		// Evict all routes for this employee before completing job
+		try {
+			const { evictAllRoutes } = await import('$lib/stores/routeCache');
+			await evictAllRoutes(employeeId);
+		} catch (error) {
+			log.error('[GameData] Failed to evict routes cache before job completion:', error);
+		}
+
 		try {
 			log.debug('[GameData] Completing job for employee:', employeeId, 'job:', activeJobId);
 

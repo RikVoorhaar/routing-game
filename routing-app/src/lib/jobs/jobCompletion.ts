@@ -118,6 +118,9 @@ export async function completeActiveJob(
 		};
 	});
 
+	// Note: Route cache eviction happens client-side when job completion is detected
+	// The client will call evictAllRoutes(employeeId) when refreshing employee data
+
 	// Log structured business event at info level
 	log.game.info(
 		{
