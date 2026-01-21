@@ -1,5 +1,7 @@
-import { getRandomAddressInAnnulus } from '../addresses';
-import type { Address } from '../server/db/schema';
+import type { Place, Coordinate } from '../server/db/schema';
+import { db } from '../server/db/standalone';
+import { places } from '../server/db/schema';
+import { sql } from 'drizzle-orm';
 import type { Coordinate, RoutingResult, PathPoint } from '../server/db/schema';
 import http from 'http';
 import { gunzipSync } from 'zlib';
@@ -123,7 +125,7 @@ export async function getShortestPath(
 
 export interface RouteInAnnulus {
 	route: RoutingResult;
-	destination: Address;
+	destination: Coordinate; // Changed from Address to Coordinate
 }
 
 export async function getRandomRouteInAnnulus(
@@ -133,8 +135,9 @@ export async function getRandomRouteInAnnulus(
 	maxSpeed?: number,
 	includePath: boolean = true
 ): Promise<RouteInAnnulus> {
-	// Get a random destination address in the annulus
-	const destination = await getRandomAddressInAnnulus(from, minDistance, maxDistance);
+	// Get a random destination place in the annulus
+	const destinationPlace = await getRandomPlaceInAnnulus(from, minDistance, maxDistance);
+	const destination: Coordinate = { lat: destinationPlace.lat, lon: destinationPlace.lon };
 
 	// Get the route to that destination (with optional path inclusion)
 	const routingResult = await getShortestPath(from, destination, {
@@ -142,10 +145,130 @@ export async function getRandomRouteInAnnulus(
 		includePath
 	});
 
-	// Preserve the full destination address information
+	// Return route with destination coordinates
 	return {
 		route: routingResult,
 		destination
+	};
+}
+
+/**
+ * Get a random place within a square annulus around a center point using PostgreSQL
+ * @param center Center point of the annulus
+ * @param minDistanceKm Minimum distance from center in kilometers
+ * @param maxDistanceKm Maximum distance from center in kilometers
+ * @returns Random place within the square annulus
+ * @throws Error if distances are invalid or no place found
+ */
+async function getRandomPlaceInAnnulus(
+	center: Coordinate,
+	minDistanceKm: number,
+	maxDistanceKm: number
+): Promise<Place> {
+	// Validate inputs
+	if (minDistanceKm < 0) {
+		throw new Error('Minimum distance cannot be negative');
+	}
+	if (maxDistanceKm <= minDistanceKm) {
+		throw new Error('Maximum distance must be greater than minimum distance');
+	}
+
+	// Calculate latitude bounds (constant across longitude)
+	const minLatDeg = minDistanceKm / 111.0; // 1 degree latitude ≈ 111 km everywhere
+	const maxLatDeg = maxDistanceKm / 111.0;
+
+	// Calculate longitude bounds (simplified - could use turf for more accuracy)
+	const avgLat = center.lat;
+	const lonDegPerKm = 1.0 / (111.0 * Math.cos((avgLat * Math.PI) / 180));
+	const minLonDeg = minDistanceKm * lonDegPerKm;
+	const maxLonDeg = maxDistanceKm * lonDegPerKm;
+
+	// Define the square annulus bounds
+	const outerBounds = {
+		minLat: center.lat - maxLatDeg,
+		maxLat: center.lat + maxLatDeg,
+		minLon: center.lon - maxLonDeg,
+		maxLon: center.lon + maxLonDeg
+	};
+
+	const innerBounds = {
+		minLat: center.lat - minLatDeg,
+		maxLat: center.lat + minLatDeg,
+		minLon: center.lon - minLonDeg,
+		maxLon: center.lon + minLonDeg
+	};
+
+	// Query places table
+	const result = await db.execute(sql`
+		SELECT 
+			id, category, lat, lon, x_mercator, y_mercator, region, tile_x, tile_y, location_4326, location_3857
+		FROM places TABLESAMPLE SYSTEM(5) -- Sample 5% of table for speed
+		WHERE 
+			-- Outer square bounds
+			lat BETWEEN ${outerBounds.minLat} AND ${outerBounds.maxLat}
+			AND lon BETWEEN ${outerBounds.minLon} AND ${outerBounds.maxLon}
+			-- Exclude inner square (creating the annulus)
+			AND NOT (
+				lat BETWEEN ${innerBounds.minLat} AND ${innerBounds.maxLat}
+				AND lon BETWEEN ${innerBounds.minLon} AND ${innerBounds.maxLon}
+			)
+		LIMIT 1
+	`);
+
+	// If TABLESAMPLE doesn't find anything, fall back to more comprehensive search
+	if (result.length === 0) {
+		const fallbackResult = await db.execute(sql`
+			SELECT 
+				id, category, lat, lon, x_mercator, y_mercator, region, tile_x, tile_y, location_4326, location_3857
+			FROM places 
+			WHERE 
+				-- Outer square bounds
+				lat BETWEEN ${outerBounds.minLat} AND ${outerBounds.maxLat}
+				AND lon BETWEEN ${outerBounds.minLon} AND ${outerBounds.maxLon}
+				-- Exclude inner square (creating the annulus)
+				AND NOT (
+					lat BETWEEN ${innerBounds.minLat} AND ${innerBounds.maxLat}
+					AND lon BETWEEN ${innerBounds.minLon} AND ${innerBounds.maxLon}
+				)
+			ORDER BY RANDOM()
+			LIMIT 1
+		`);
+
+		if (fallbackResult.length === 0) {
+			throw new Error(
+				`No place found in square annulus: center=(${center.lat}, ${center.lon}), min=${minDistanceKm}km, max=${maxDistanceKm}km`
+			);
+		}
+
+		const row = fallbackResult[0] as any;
+		return {
+			id: Number(row.id),
+			category: row.category,
+			lat: Number(row.lat),
+			lon: Number(row.lon),
+			xMercator: Number(row.x_mercator),
+			yMercator: Number(row.y_mercator),
+			region: row.region,
+			tileX: row.tile_x,
+			tileY: row.tile_y,
+			location4326: row.location_4326,
+			location3857: row.location_3857
+		};
+	}
+
+	const row = result[0] as any;
+	return {
+		id: Number(row.id),
+		category: row.category,
+		lat: Number(row.lat),
+		lon: Number(row.lon),
+		xMercator: Number(row.x_mercator),
+		yMercator: Number(row.y_mercator),
+		region: row.region,
+		tileX: row.tile_x,
+		tileY: row.tile_y,
+		location4326: row.location_4326,
+		location3857: row.location_3857
 	};
 }
 

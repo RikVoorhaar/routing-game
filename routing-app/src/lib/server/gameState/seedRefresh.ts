@@ -33,7 +33,7 @@ export async function refreshSeedIfNeeded(
 			.limit(1);
 
 		if (!gameState) {
-			log.server.warn({ gameStateId }, 'Game state not found for seed refresh');
+			log.game.warn({ gameStateId }, 'Game state not found for seed refresh');
 			return null;
 		}
 
@@ -50,7 +50,7 @@ export async function refreshSeedIfNeeded(
 				})
 				.where(eq(gameStates.id, gameStateId));
 
-			log.server.debug(
+			log.game.debug(
 				{ gameStateId, seed: newSeed },
 				'Generated initial seed for game state'
 			);
@@ -74,7 +74,7 @@ export async function refreshSeedIfNeeded(
 				})
 				.where(eq(gameStates.id, gameStateId));
 
-			log.server.debug(
+			log.game.debug(
 				{
 					gameStateId,
 					oldSeed: gameState.seed,
@@ -90,7 +90,7 @@ export async function refreshSeedIfNeeded(
 		// No refresh needed
 		return null;
 	} catch (error) {
-		log.server.error(
+		log.game.error(
 			{
 				gameStateId,
 				refreshHours,

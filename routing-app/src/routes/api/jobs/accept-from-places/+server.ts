@@ -1,11 +1,10 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { employees, gameStates, places, activeJobs, addresses } from '$lib/server/db/schema';
+import { employees, gameStates, places, activeJobs, travelJobs } from '$lib/server/db/schema';
 import { eq, and, isNotNull } from 'drizzle-orm';
 import { serverLog } from '$lib/server/logging/serverLogger';
 import { nanoid } from 'nanoid';
-import { getClosestAddress } from '$lib/server';
 import { getCompleteJobRoute } from '$lib/routes/routing';
 import { getEmployeeMaxSpeed } from '$lib/employeeUtils';
 import { config } from '$lib/server/config';
@@ -18,6 +17,7 @@ import type { Coordinate } from '$lib/server/db/schema';
 import { placeGoodsConfig } from '$lib/server/config/placeGoods';
 import { getVehicleConfig } from '$lib/vehicles/vehicleUtils';
 import { evictRoutesExcept, getRouteKey } from '$lib/stores/routeCache';
+import { mapGoodToCategory } from '$lib/jobs/goodToCategory';
 
 // POST /api/jobs/accept-from-places
 // Body: { employeeId, gameStateId, supplyPlaceId, demandPlaceId }
@@ -59,8 +59,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return error(404, 'Employee not found');
 		}
 
-		// Check if employee has an active job or travel job
-		const [activeJob, activeTravelJob] = await Promise.all([
+		// Check if employee has an active job with startTime or travel job
+		const [activeJobWithStartTime, activeTravelJob] = await Promise.all([
 			db.query.activeJobs.findFirst({
 				where: and(
 					eq(activeJobs.employeeId, employeeId),
@@ -77,7 +77,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			})
 		]);
 
-		if (activeJob || activeTravelJob) {
+		if (activeJobWithStartTime || activeTravelJob) {
 			return error(400, 'Employee is currently on a job or traveling');
 		}
 
@@ -100,7 +100,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		// Verify supply/demand relationship
-		const placeGoodsConfig = await loadPlaceGoodsConfig();
 		if (!placeGoodsConfig) {
 			return error(500, 'Place goods configuration not available');
 		}
@@ -123,15 +122,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return error(400, 'Supply and demand places must trade the same good');
 		}
 
-		// Get addresses for places (use closest address)
-		const supplyAddress = await getClosestAddress({
-			lat: supplyPlace.lat,
-			lon: supplyPlace.lon
-		});
-		const demandAddress = await getClosestAddress({
-			lat: demandPlace.lat,
-			lon: demandPlace.lon
-		});
+		// Use place IDs directly - no need to create addresses
 
 		// Compute route from employee location to supply, then supply to demand
 		const employeeMaxSpeed = getEmployeeMaxSpeed(employee);
@@ -182,30 +173,47 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		// Create active job
 		const activeJobId = nanoid();
+		const startTime = new Date();
 
 		// Store route in Redis
 		const ttlSeconds = 24 * 3600; // 24 hours
 		await setRoute(activeJobId, compressedRouteData, ttlSeconds);
 
-		// Create active job entry
-		const newActiveJob = await db
-			.insert(activeJobs)
-			.values({
-				id: activeJobId,
-				employeeId: employee.id,
-				jobId: null, // Place-based jobs don't have a job ID
-				gameStateId: gameState.id,
-				durationSeconds,
-				reward: jobReward,
-				xp: jobXp,
-				jobCategory,
+		// Create active job entry and clear other active jobs in a transaction
+		const newActiveJob = await db.transaction(async (tx) => {
+			// Delete all other active jobs for this employee (including pending ones)
+			await tx
+				.delete(activeJobs)
+				.where(
+					and(
+						eq(activeJobs.employeeId, employeeId),
+						eq(activeJobs.gameStateId, gameStateId)
+					)
+				);
+
+			// Create new active job with startTime
+			const result = await tx
+				.insert(activeJobs)
+				.values({
+					id: activeJobId,
+					employeeId: employee.id,
+					jobId: null, // Place-based jobs don't have a job ID
+					gameStateId: gameState.id,
+					durationSeconds,
+					reward: jobReward,
+					xp: jobXp,
+					jobCategory,
 				employeeStartLocation: employee.location,
-				jobPickupAddress: supplyAddress.id,
-				jobDeliverAddress: demandAddress.id,
+				jobPickupPlaceId: supplyPlace.id,
+				jobDeliverPlaceId: demandPlace.id,
 				startRegion: supplyPlace.region,
-				endRegion: demandPlace.region
-			})
-			.returning();
+				endRegion: demandPlace.region,
+				startTime // Set startTime immediately when accepting
+				})
+				.returning();
+
+			return result;
+		});
 
 		if (newActiveJob.length === 0) {
 			return error(500, 'Failed to create active job');
@@ -237,21 +245,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			'Job accepted from places'
 		);
 
-		// Get addresses for response
-		const [pickupAddress, deliverAddress] = await Promise.all([
-			db.query.addresses.findFirst({
-				where: eq(addresses.id, supplyAddress.id)
-			}),
-			db.query.addresses.findFirst({
-				where: eq(addresses.id, demandAddress.id)
-			})
-		]);
-
+		// Return places for response
 		return json({
 			activeJob: newActiveJob[0],
 			employeeStartLocation: employee.location,
-			jobPickupAddress: pickupAddress,
-			jobDeliverAddress: deliverAddress
+			jobPickupPlace: supplyPlace,
+			jobDeliverPlace: demandPlace
 		});
 	} catch (err) {
 		const errorMessage = err instanceof Error ? err.message : String(err);

@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import type { Job, ActiveJob, Address, Coordinate, RoutingResult } from '$lib/server/db/schema';
+import type { Job, ActiveJob, Place, Coordinate, RoutingResult } from '$lib/server/db/schema';
 
 // Store for the currently selected job
 export const selectedJob = writable<Job | null>(null);
@@ -10,8 +10,8 @@ export const selectedJob = writable<Job | null>(null);
 export interface SelectedActiveJobData {
 	activeJob: ActiveJob;
 	employeeStartLocation: Coordinate;
-	jobPickupAddress: Address | null;
-	jobDeliverAddress: Address | null;
+	jobPickupPlace: Place | null;
+	jobDeliverPlace: Place | null;
 	activeRoute?: RoutingResult | null; // RoutingResult from route computation, not ActiveRoute from DB
 }
 

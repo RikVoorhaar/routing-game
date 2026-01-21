@@ -17,7 +17,7 @@
 	import { getCategoryName, getTierColor } from '$lib/jobs/jobCategories';
 	import { formatCurrency, formatDistance, formatDuration } from '$lib/formatting';
 	import { addError } from '$lib/stores/errors';
-	import type { Employee, Job, Address } from '$lib/server/db/schema';
+	import type { Employee, Job, Place } from '$lib/server/db/schema';
 	import { computeJobXp, computeJobReward } from '$lib/jobs/jobUtils';
 	import { config } from '$lib/stores/config';
 	import { getSearchResultsForEmployee, jobSearchActions } from '$lib/stores/jobSearch';
@@ -25,8 +25,8 @@
 
 	let isAcceptingJob = false;
 	let isLoadingRoute = false;
-	let jobPickupAddress: Address | null = null;
-	let jobDeliverAddress: Address | null = null;
+	let jobPickupPlace: Place | null = null;
+	let jobDeliverPlace: Place | null = null;
 
 	// Get search results for the selected employee
 	$: searchResults = $selectedEmployee ? getSearchResultsForEmployee($selectedEmployee) : null;
@@ -95,8 +95,8 @@
 							setSelectedActiveJobData({
 								activeJob: updatedActiveJob,
 								employeeStartLocation: updatedActiveJob.employeeStartLocation,
-								jobPickupAddress: null,
-								jobDeliverAddress: null,
+								jobPickupPlace: null,
+								jobDeliverPlace: null,
 								activeRoute: routeData
 							});
 							isLoadingRoute = false;
@@ -125,8 +125,8 @@
 
 	function clearPreviousState() {
 		setSelectedActiveJobData(null);
-		jobPickupAddress = null;
-		jobDeliverAddress = null;
+		jobPickupPlace = null;
+		jobDeliverPlace = null;
 		isAcceptingJob = false;
 		isLoadingRoute = false;
 	}

@@ -1,5 +1,5 @@
 import { writable, derived } from 'svelte/store';
-import type { RoutingResult, PathPoint, Address } from '$lib/server/db/schema';
+import type { RoutingResult, PathPoint, Coordinate } from '$lib/server/db/schema';
 
 /**
  * Route display styling options
@@ -19,7 +19,7 @@ export interface DisplayableRoute {
 	path: PathPoint[]; // PathPoint array from RoutingResult
 	travelTimeSeconds: number;
 	totalDistanceMeters: number;
-	destination?: Address; // Address from RoutingResult
+	destination?: Coordinate; // Coordinate from RoutingResult
 	startTime?: Date | null;
 	routeData?: RoutingResult;
 }

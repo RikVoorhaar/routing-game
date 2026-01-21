@@ -7,13 +7,12 @@
 		Employee,
 		ActiveJob,
 		TravelJob,
-		Address,
 		UpgradeState,
 		GameState
 	} from '$lib/server/db/schema';
 	import { addError } from '$lib/stores/errors';
 	import { selectedRoute, clearSelection } from '$lib/stores/selectedRoute';
-	import { formatMoney, formatAddress, formatTimeFromMs } from '$lib/formatting';
+	import { formatMoney, formatTimeFromMs } from '$lib/formatting';
 	import { currentGameState, gameDataActions, gameDataAPI } from '$lib/stores/gameData';
 	import { jobSearchActions, getSearchResultsForEmployee } from '$lib/stores/jobSearch';
 	import { clearSelectedJob } from '$lib/stores/selectedJob';

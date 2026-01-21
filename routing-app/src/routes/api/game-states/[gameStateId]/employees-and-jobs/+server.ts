@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { employees, activeJobs, travelJobs, addresses } from '$lib/server/db/schema';
+import { employees, activeJobs, travelJobs, places } from '$lib/server/db/schema';
 import type { FullEmployeeData } from '$lib/server/db/schema';
 import { eq, and, isNotNull, inArray, asc } from 'drizzle-orm';
 import { processCompletedJobs } from '$lib/jobs/jobCompletion';
@@ -63,8 +63,8 @@ export const GET: RequestHandler = async ({ params }) => {
 				employee,
 				activeJob: null,
 				employeeStartLocation: null,
-				jobPickupAddress: null,
-				jobDeliverAddress: null,
+				jobPickupPlace: null,
+				jobDeliverPlace: null,
 				activeRoute: null,
 				travelJob: null
 			}));
@@ -78,21 +78,21 @@ export const GET: RequestHandler = async ({ params }) => {
 			});
 		}
 
-		// Get all unique address IDs from active jobs (employeeStartLocation is now Coordinate JSONB, not an address ID)
-		const addressIds = new Set<string>();
+		// Get all unique place IDs from active jobs
+		const placeIds = new Set<number>();
 		activeJobsData.forEach((job) => {
-			addressIds.add(job.jobPickupAddress);
-			addressIds.add(job.jobDeliverAddress);
+			placeIds.add(job.jobPickupPlaceId);
+			placeIds.add(job.jobDeliverPlaceId);
 		});
 
-		// Get all addresses (routes are now fetched on-demand via /api/active-routes/[activeJobId])
-		const addressesData = await db
+		// Get all places (routes are now fetched on-demand via /api/active-routes/[activeJobId])
+		const placesData = await db
 			.select()
-			.from(addresses)
-			.where(inArray(addresses.id, Array.from(addressIds)));
+			.from(places)
+			.where(inArray(places.id, Array.from(placeIds)));
 
 		// Create maps for quick lookup
-		const addressMap = new Map(addressesData.map((addr) => [addr.id, addr]));
+		const placeMap = new Map(placesData.map((place) => [place.id, place]));
 
 		// Create FullEmployeeData array
 		const fullEmployeeData: FullEmployeeData[] = allEmployees.map((employee) => {
@@ -104,8 +104,8 @@ export const GET: RequestHandler = async ({ params }) => {
 					employee,
 					activeJob: null,
 					employeeStartLocation: null,
-					jobPickupAddress: null,
-					jobDeliverAddress: null,
+					jobPickupPlace: null,
+					jobDeliverPlace: null,
 					activeRoute: null,
 					travelJob
 				};
@@ -115,8 +115,8 @@ export const GET: RequestHandler = async ({ params }) => {
 				employee,
 				activeJob,
 				employeeStartLocation: activeJob.employeeStartLocation,
-				jobPickupAddress: addressMap.get(activeJob.jobPickupAddress) || null,
-				jobDeliverAddress: addressMap.get(activeJob.jobDeliverAddress) || null,
+				jobPickupPlace: placeMap.get(activeJob.jobPickupPlaceId) || null,
+				jobDeliverPlace: placeMap.get(activeJob.jobDeliverPlaceId) || null,
 				activeRoute: null, // Routes are now fetched on-demand via /api/active-routes/[activeJobId]
 				travelJob
 			};

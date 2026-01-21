@@ -153,8 +153,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 				xp,
 				jobCategory: job.jobCategory,
 				employeeStartLocation: employee.location,
-				jobPickupAddress: job.startAddressId,
-				jobDeliverAddress: job.endAddressId
+				jobPickupPlaceId: job.startPlaceId,
+				jobDeliverPlaceId: job.endPlaceId
 			} as typeof activeJobs.$inferInsert;
 		});
 		createActiveJobsTimer();
@@ -214,8 +214,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 					xp: r.activeJob.xp,
 					jobCategory: r.activeJob.jobCategory,
 					employeeStartLocation: r.activeJob.employeeStartLocation,
-					jobPickupAddress: r.activeJob.jobPickupAddress,
-					jobDeliverAddress: r.activeJob.jobDeliverAddress,
+					jobPickupPlaceId: r.activeJob.jobPickupPlaceId,
+					jobDeliverPlaceId: r.activeJob.jobDeliverPlaceId,
 					generatedTime: r.activeJob.generatedTime
 					// Note: startTime is not included since these are search results
 				}

@@ -26,14 +26,13 @@
 	import type { PlaceFilterPredicate } from '$lib/map/placesLimiter';
 	import type {
 		Employee,
-		Address,
+		Place,
 		Coordinate,
 		RoutingResult,
 		PathPoint,
 		FullEmployeeData
 	} from '$lib/server/db/schema';
 	import type { DisplayableRoute } from '$lib/stores/mapDisplay';
-	import { formatAddress } from '$lib/formatting';
 	import { log } from '$lib/logger';
 	import { getRoute, prefetchRoutes } from '$lib/stores/routeCache';
 
@@ -581,7 +580,7 @@
 	function addRouteMarkers(data: any, routeType: string) {
 		if (!leafletMap || !L) return;
 
-		const { employeeStartLocation, jobPickupAddress, jobDeliverAddress } = data;
+		const { employeeStartLocation, jobPickupPlace, jobDeliverPlace } = data;
 
 		// Marker styles
 		const markerStyles: Record<string, any> = {
@@ -611,21 +610,21 @@
 		}
 
 		// Add job marker
-		if (jobPickupAddress) {
-			const jobMarker = L.marker([jobPickupAddress.lat, jobPickupAddress.lon], {
+		if (jobPickupPlace) {
+			const jobMarker = L.marker([jobPickupPlace.lat, jobPickupPlace.lon], {
 				icon: createCustomIcon(style.job.icon, style.job.color)
 			}).addTo(leafletMap);
-			jobMarker.bindPopup(`Job Pickup Location<br/>${formatAddress(jobPickupAddress)}`);
+			jobMarker.bindPopup(`Job Pickup Location<br/>${jobPickupPlace.category} (${jobPickupPlace.region})`);
 			routeMarkers.push(jobMarker);
 		}
 
 		// Add end marker
-		if (jobDeliverAddress) {
-			const endMarker = L.marker([jobDeliverAddress.lat, jobDeliverAddress.lon], {
+		if (jobDeliverPlace) {
+			const endMarker = L.marker([jobDeliverPlace.lat, jobDeliverPlace.lon], {
 				icon: createCustomIcon(style.end.icon, style.end.color)
 			}).addTo(leafletMap);
 			endMarker.bindPopup(
-				`${routeType === 'preview' ? 'Preview' : 'Active'} Route End<br/>${formatAddress(jobDeliverAddress)}`
+				`${routeType === 'preview' ? 'Preview' : 'Active'} Route End<br/>${jobDeliverPlace.category} (${jobDeliverPlace.region})`
 			);
 			routeMarkers.push(endMarker);
 		}

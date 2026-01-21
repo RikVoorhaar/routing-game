@@ -1,8 +1,8 @@
 import { db } from '$lib/server/db';
-import { addresses, activeJobs } from '$lib/server/db/schema';
+import { places, activeJobs } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCompleteJobRoute } from '$lib/routes/routing';
-import type { Employee, Job, GameState, Address, Coordinate } from '$lib/server/db/schema';
+import type { Employee, Job, GameState, Place, Coordinate } from '$lib/server/db/schema';
 import { getEmployeeMaxSpeed } from '$lib/employeeUtils';
 import { config } from '$lib/server/config';
 import { serverLog } from '$lib/server/logging/serverLogger';
@@ -31,7 +31,7 @@ function getMultiplier(_employee: Employee, _gameState: GameState, _job: Job): n
  * -----------
  * activeJobId: string
  *     The active job ID (for linking the route)
- * activeJob: { employeeStartLocation: Coordinate; jobPickupAddress: string; jobDeliverAddress: string }
+ * activeJob: { employeeStartLocation: Coordinate; jobPickupPlaceId: number; jobDeliverPlaceId: number }
  *     The active job data (must have employeeStartLocation set)
  * job: Job
  *     The job record
@@ -39,8 +39,8 @@ function getMultiplier(_employee: Employee, _gameState: GameState, _job: Job): n
  *     The employee record (for speed calculations)
  * gameState: GameState
  *     The game state (for multipliers)
- * addressMap?: Map<string, Address>
- *     Optional pre-fetched address map for performance
+ * placeMap?: Map<number, Place>
+ *     Optional pre-fetched place map for performance
  *
  * Returns
  * --------
@@ -51,38 +51,38 @@ export async function computeActiveRouteForActiveJob(
 	activeJobId: string,
 	activeJob: {
 		employeeStartLocation: Coordinate;
-		jobPickupAddress: string;
-		jobDeliverAddress: string;
+		jobPickupPlaceId: number;
+		jobDeliverPlaceId: number;
 	},
 	job: Job,
 	employee: Employee,
 	gameState: GameState,
-	addressMap?: Map<string, Address>
+	placeMap?: Map<number, Place>
 ): Promise<{ routeDataGzip: Buffer; durationSeconds: number }> {
 	const totalTimer = time(`computeActiveRouteForActiveJob_job_${job.id}`);
 
-	// Get job start and end addresses (from cache if provided, otherwise fetch)
-	const addressTimer = time('fetch_job_addresses');
-	let jobStartAddress: Address | undefined;
-	let jobEndAddress: Address | undefined;
+	// Get job start and end places (from cache if provided, otherwise fetch)
+	const placeTimer = time('fetch_job_places');
+	let jobStartPlace: Place | undefined;
+	let jobEndPlace: Place | undefined;
 
-	if (addressMap) {
-		jobStartAddress = addressMap.get(job.startAddressId);
-		jobEndAddress = addressMap.get(job.endAddressId);
+	if (placeMap) {
+		jobStartPlace = placeMap.get(job.startPlaceId);
+		jobEndPlace = placeMap.get(job.endPlaceId);
 	} else {
-		[jobStartAddress, jobEndAddress] = await Promise.all([
-			db.query.addresses.findFirst({
-				where: eq(addresses.id, job.startAddressId)
+		[jobStartPlace, jobEndPlace] = await Promise.all([
+			db.query.places.findFirst({
+				where: eq(places.id, job.startPlaceId)
 			}),
-			db.query.addresses.findFirst({
-				where: eq(addresses.id, job.endAddressId)
+			db.query.places.findFirst({
+				where: eq(places.id, job.endPlaceId)
 			})
 		]);
 	}
-	addressTimer();
+	placeTimer();
 
-	if (!jobStartAddress || !jobEndAddress) {
-		throw new Error('Job addresses not found');
+	if (!jobStartPlace || !jobEndPlace) {
+		throw new Error('Job places not found');
 	}
 
 	// Get employee's max speed
@@ -96,8 +96,8 @@ export async function computeActiveRouteForActiveJob(
 	const routingTimer = time('routing_complete_job_route');
 	const { compressedRouteData, durationSeconds } = await getCompleteJobRoute(
 		activeJob.employeeStartLocation,
-		{ lat: jobStartAddress.lat, lon: jobStartAddress.lon },
-		{ lat: jobEndAddress.lat, lon: jobEndAddress.lon },
+		{ lat: jobStartPlace.lat, lon: jobStartPlace.lon },
+		{ lat: jobEndPlace.lat, lon: jobEndPlace.lon },
 		{
 			maxSpeed: employeeMaxSpeed,
 			speedMultiplier

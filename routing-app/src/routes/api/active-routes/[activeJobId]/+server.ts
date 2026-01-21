@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { activeJobs, gameStates, jobs, employees, addresses } from '$lib/server/db/schema';
+import { activeJobs, gameStates, jobs, employees, places } from '$lib/server/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { serverLog } from '$lib/server/logging/serverLogger';
 import { computeActiveRouteForActiveJob } from '$lib/server/routes/activeRouteCompute';
@@ -86,16 +86,16 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 				return error(404, 'Employee not found');
 			}
 
-			// Pre-fetch addresses for performance
-			const addressIds = [job.startAddressId, job.endAddressId];
-			const fetchedAddresses = await db
+			// Pre-fetch places for performance
+			const placeIds = [job.startPlaceId, job.endPlaceId];
+			const fetchedPlaces = await db
 				.select()
-				.from(addresses)
-				.where(inArray(addresses.id, addressIds));
+				.from(places)
+				.where(inArray(places.id, placeIds));
 
-			const addressMap = new Map<string, (typeof fetchedAddresses)[0]>();
-			fetchedAddresses.forEach((addr) => {
-				addressMap.set(addr.id, addr);
+			const placeMap = new Map<number, (typeof fetchedPlaces)[0]>();
+			fetchedPlaces.forEach((place) => {
+				placeMap.set(place.id, place);
 			});
 
 			// Compute the route using the helper function
@@ -105,13 +105,13 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 					activeJobId,
 					{
 						employeeStartLocation: activeJob.employeeStartLocation,
-						jobPickupAddress: activeJob.jobPickupAddress,
-						jobDeliverAddress: activeJob.jobDeliverAddress
+						jobPickupPlaceId: activeJob.jobPickupPlaceId,
+						jobDeliverPlaceId: activeJob.jobDeliverPlaceId
 					},
 					job,
 					employee,
 					gameState,
-					addressMap
+					placeMap
 				);
 
 			// Store the computed route in Redis with 24h TTL

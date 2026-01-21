@@ -7,7 +7,7 @@ import {
 	travelJobs,
 	gameStates,
 	jobs,
-	addresses
+	places
 } from '$lib/server/db/schema';
 import { eq, inArray, and, isNotNull } from 'drizzle-orm';
 import { serverLog } from '$lib/server/logging/serverLogger';
@@ -58,16 +58,16 @@ async function computeRouteForActiveJob(
 		throw new Error('Job not found');
 	}
 
-	// Pre-fetch addresses for performance
-	const addressIds = [job.startAddressId, job.endAddressId];
-	const fetchedAddresses = await db
+	// Pre-fetch places for performance
+	const placeIds = [job.startPlaceId, job.endPlaceId];
+	const fetchedPlaces = await db
 		.select()
-		.from(addresses)
-		.where(inArray(addresses.id, addressIds));
+		.from(places)
+		.where(inArray(places.id, placeIds));
 
-	const addressMap = new Map<string, (typeof fetchedAddresses)[0]>();
-	fetchedAddresses.forEach((addr) => {
-		addressMap.set(addr.id, addr);
+	const placeMap = new Map<number, (typeof fetchedPlaces)[0]>();
+	fetchedPlaces.forEach((place) => {
+		placeMap.set(place.id, place);
 	});
 
 	// Compute the route
@@ -75,13 +75,13 @@ async function computeRouteForActiveJob(
 		activeJob.id,
 		{
 			employeeStartLocation: activeJob.employeeStartLocation,
-			jobPickupAddress: activeJob.jobPickupAddress,
-			jobDeliverAddress: activeJob.jobDeliverAddress
+			jobPickupPlaceId: activeJob.jobPickupPlaceId,
+			jobDeliverPlaceId: activeJob.jobDeliverPlaceId
 		},
 		job,
 		employee,
 		gameState,
-		addressMap
+		placeMap
 	);
 
 	return routeDataGzip;
@@ -133,17 +133,7 @@ async function computeRouteForTravelJob(travelJob: TravelJob, employee: Employee
 		path: modifiedRoute.path,
 		travelTimeSeconds: modifiedRoute.travelTimeSeconds,
 		totalDistanceMeters: modifiedRoute.totalDistanceMeters,
-		destination: {
-			id: 'travel-destination',
-			street: null,
-			houseNumber: null,
-			postcode: null,
-			city: null,
-			location: `POINT(${travelJob.destinationLocation.lon} ${travelJob.destinationLocation.lat})`,
-			lat: travelJob.destinationLocation.lat,
-			lon: travelJob.destinationLocation.lon,
-			createdAt: new Date()
-		}
+		destination: travelJob.destinationLocation
 	};
 
 	// Compress route data

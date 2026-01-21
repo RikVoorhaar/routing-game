@@ -1,5 +1,5 @@
 import { type InferSelectModel } from 'drizzle-orm';
-import { addresses, jobs } from '$lib/server/db/schema';
+import { places, jobs } from '$lib/server/db/schema';
 import { getRandomRouteInAnnulus, type RouteInAnnulus } from '$lib/routes/routing';
 import { type Coordinate } from '$lib/server/db/schema';
 import type { InferInsertModel } from 'drizzle-orm';
@@ -9,6 +9,40 @@ import { distance } from '@turf/turf';
 import { JobCategory } from '$lib/jobs/jobCategories';
 import { config } from '$lib/server/config';
 import { profiledAsync, profiledSync, profiledCount } from '$lib/profiling';
+
+/**
+ * Find the closest place to a given coordinate
+ */
+async function findClosestPlace(coord: Coordinate): Promise<InferSelectModel<typeof places> | null> {
+	const result = await db.execute(sql`
+		SELECT id, category, lat, lon, x_mercator, y_mercator, region, tile_x, tile_y, location_4326, location_3857
+		FROM places
+		ORDER BY ST_Distance(
+			ST_GeomFromText(${`POINT(${coord.lon} ${coord.lat})`}, 4326),
+			ST_GeomFromEWKT(location_4326)
+		)
+		LIMIT 1
+	`);
+	
+	if (result.length === 0) {
+		return null;
+	}
+	
+	const row = result[0] as any;
+	return {
+		id: Number(row.id),
+		category: row.category,
+		lat: Number(row.lat),
+		lon: Number(row.lon),
+		xMercator: Number(row.x_mercator),
+		yMercator: Number(row.y_mercator),
+		region: row.region,
+		tileX: row.tile_x,
+		tileY: row.tile_y,
+		location4326: row.location_4326,
+		location3857: row.location_3857
+	};
+}
 
 type JobInsert = InferInsertModel<typeof jobs>;
 
@@ -167,8 +201,8 @@ function generateJobTier(): number {
  * @param retryCount Current retry attempt (internal use)
  * @returns true if job was successfully created, false otherwise
  */
-export async function generateJobFromAddress(
-	startAddress: InferSelectModel<typeof addresses>,
+export async function generateJobFromPlace(
+	startPlace: InferSelectModel<typeof places>,
 	initialTier?: number,
 	retryCount: number = 0,
 	options?: { dryRun?: boolean }
@@ -188,8 +222,8 @@ export async function generateJobFromAddress(
 
 		// Generate route within the specified annulus
 		const startLocation: Coordinate = {
-			lat: Number(startAddress.lat),
-			lon: Number(startAddress.lon)
+			lat: Number(startPlace.lat),
+			lon: Number(startPlace.lon)
 		};
 
 		// Get route metadata only (no path array) for job generation
@@ -206,7 +240,7 @@ export async function generateJobFromAddress(
 			}
 		);
 		const routeResult = routeInAnnulus.route;
-		const endAddress = routeInAnnulus.destination;
+		const endCoordinate = routeInAnnulus.destination;
 
 		// Get available categories for this tier
 		const availableCategories = getAvailableCategories(jobTier);
@@ -223,8 +257,8 @@ export async function generateJobFromAddress(
 
 		// Distance validation: check if route distance is suspiciously high
 		// Calculate straight-line distance between start and end using Turf.js
-		const startPoint = [Number(startAddress.lon), Number(startAddress.lat)]; // [longitude, latitude] for Turf
-		const endPoint = [Number(endAddress.lon), Number(endAddress.lat)];
+		const startPoint = [Number(startPlace.lon), Number(startPlace.lat)]; // [longitude, latitude] for Turf
+		const endPoint = [endCoordinate.lon, endCoordinate.lat];
 		const straightLineDistanceKm = profiledSync('job.turf.distance', () =>
 			distance(startPoint, endPoint, { units: 'kilometers' })
 		);
@@ -232,6 +266,15 @@ export async function generateJobFromAddress(
 		// Reject if route distance is more than 10x the straight-line distance
 		if (totalDistanceKm > straightLineDistanceKm * 10) {
 			return false; // Suspiciously long route, skip silently
+		}
+
+		// Find the end place by coordinates (or create a temporary one - but we need a place ID)
+		// For now, we'll need to find the closest place to the destination coordinate
+		// This is a limitation - we need a place, not just coordinates
+		// For job generation, we should find the closest place to the destination
+		const endPlace = await findClosestPlace(endCoordinate);
+		if (!endPlace) {
+			return false; // Could not find a place for destination
 		}
 
 		// Create job record (no route record needed)
@@ -243,19 +286,19 @@ export async function generateJobFromAddress(
 			await profiledAsync('job.db.insert', async () => {
 				await db.execute(sql`
 					INSERT INTO job (
-						start_address_id,
-						end_address_id,
+						start_place_id,
+						end_place_id,
 						job_tier,
 						job_category,
 						total_distance_km,
 						location
 					) VALUES (
-						${startAddress.id},
-						${endAddress.id},
+						${startPlace.id},
+						${endPlace.id},
 						${jobTier},
 						${jobCategory},
 						${totalDistanceKm},
-						ST_Transform(ST_SetSRID(ST_MakePoint(${startAddress.lon}, ${startAddress.lat}), 4326), 3857)
+						ST_Transform(ST_SetSRID(ST_MakePoint(${startPlace.lon}, ${startPlace.lat}), 4326), 3857)
 					)
 				`);
 			});

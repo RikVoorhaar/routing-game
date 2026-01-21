@@ -13,8 +13,10 @@
 	import { selectPlaceGoods } from '$lib/places/placeGoodsSelection';
 	import type { PlaceFilter } from '$lib/stores/placeFilter';
 	import { selectedEmployee } from '$lib/stores/selectedEmployee';
-	import { fullEmployeeData } from '$lib/stores/gameData';
+	import { fullEmployeeData, gameDataActions, gameDataAPI } from '$lib/stores/gameData';
 	import { computePlaceRoute } from '$lib/routes/placeRouteCompute';
+	import { jobSearchActions } from '$lib/stores/jobSearch';
+	import { evictAllRoutes } from '$lib/stores/routeCache';
 	import { generateSupplyAmount } from '$lib/places/supplyAmount';
 	import { computeCompleteJobValue } from '$lib/jobs/jobValue';
 	import { getVehicleConfig } from '$lib/vehicles/vehicleUtils';
@@ -223,18 +225,30 @@
 
 		marker.bindPopup(popup);
 		
-		// Set up accept job button handler for demand nodes
+		// Set up accept job button handler for demand nodes using event delegation
 		if (selectedGoods?.type === 'demand' && selectedSupplyPlace) {
 			marker.on('popupopen', () => {
-				setTimeout(() => {
-					const acceptButton = document.getElementById(`accept-job-btn-${place.id}`);
-					if (acceptButton) {
-						acceptButton.onclick = async () => {
+				const popupElement = marker.getPopup()?.getElement();
+				if (popupElement) {
+					// Use event delegation on the popup container
+					const clickHandler = async (e: MouseEvent) => {
+						const target = e.target as HTMLElement;
+						const button = target.closest(`#accept-job-btn-${place.id}`);
+						if (button) {
+							e.preventDefault();
+							e.stopPropagation();
+							log.debug(`[PlacesRenderer] Accept job button clicked for place ${place.id}`);
 							await handleAcceptJob(selectedSupplyPlace!, place);
 							marker.closePopup();
-						};
-					}
-				}, 10);
+						}
+					};
+					popupElement.addEventListener('click', clickHandler);
+					
+					// Clean up handler when popup closes
+					marker.once('popupclose', () => {
+						popupElement.removeEventListener('click', clickHandler);
+					});
+				}
 			});
 		}
 
@@ -597,18 +611,30 @@
 
 		marker.bindPopup(popup);
 		
-		// Set up accept job button handler for demand markers if supply exists
+		// Set up accept job button handler for demand markers if supply exists using event delegation
 		if (selectedGoods?.type === 'demand' && supplyPlace) {
 			marker.on('popupopen', () => {
-				setTimeout(() => {
-					const acceptButton = document.getElementById(`accept-job-btn-${place.id}`);
-					if (acceptButton) {
-						acceptButton.onclick = async () => {
+				const popupElement = marker.getPopup()?.getElement();
+				if (popupElement) {
+					// Use event delegation on the popup container
+					const clickHandler = async (e: MouseEvent) => {
+						const target = e.target as HTMLElement;
+						const button = target.closest(`#accept-job-btn-${place.id}`);
+						if (button) {
+							e.preventDefault();
+							e.stopPropagation();
+							log.debug(`[PlacesRenderer] Accept job button clicked for demand marker place ${place.id}`);
 							await handleAcceptJob(supplyPlace, place);
 							marker.closePopup();
-						};
-					}
-				}, 10);
+						}
+					};
+					popupElement.addEventListener('click', clickHandler);
+					
+					// Clean up handler when popup closes
+					marker.once('popupclose', () => {
+						popupElement.removeEventListener('click', clickHandler);
+					});
+				}
 			});
 		}
 
@@ -1538,16 +1564,36 @@
 			
 			marker.setPopupContent(popupContent);
 			
-			// Set up accept button handler
-			setTimeout(() => {
-				const acceptButton = document.getElementById(`accept-job-btn-${demandPlace.id}`);
-				if (acceptButton) {
-					acceptButton.onclick = async () => {
+			// Set up accept button handler using event delegation
+			const popupElement = marker.getPopup()?.getElement();
+			if (popupElement) {
+				// Remove any existing handler first
+				const existingHandler = (popupElement as any)._acceptJobHandler;
+				if (existingHandler) {
+					popupElement.removeEventListener('click', existingHandler);
+				}
+				
+				// Use event delegation on the popup container
+				const clickHandler = async (e: MouseEvent) => {
+					const target = e.target as HTMLElement;
+					const button = target.closest(`#accept-job-btn-${demandPlace.id}`);
+					if (button) {
+						e.preventDefault();
+						e.stopPropagation();
+						log.debug(`[PlacesRenderer] Accept job button clicked after route update for place ${demandPlace.id}`);
 						await handleAcceptJob(supplyPlace, demandPlace);
 						marker.closePopup();
-					};
-				}
-			}, 10);
+					}
+				};
+				popupElement.addEventListener('click', clickHandler);
+				(popupElement as any)._acceptJobHandler = clickHandler; // Store reference for cleanup
+				
+				// Clean up handler when popup closes
+				marker.once('popupclose', () => {
+					popupElement.removeEventListener('click', clickHandler);
+					delete (popupElement as any)._acceptJobHandler;
+				});
+			}
 		} catch (error) {
 			log.error('[PlacesRenderer] Error updating demand popup:', error);
 		}
@@ -1585,14 +1631,35 @@
 				return;
 			}
 			
-			// Clear filter and routes
+			const result = await response.json();
+			log.info('[PlacesRenderer] Job accepted successfully');
+			
+			// Clear all routes cache for this employee
+			try {
+				await evictAllRoutes(employeeId);
+			} catch (error) {
+				log.error('[PlacesRenderer] Error evicting routes cache:', error);
+			}
+			
+			// Clear all search results for this employee (all other jobs)
+			jobSearchActions.clearSearchResults(employeeId);
+			
+			// Update the global store with the new active job
+			if (result.activeJob) {
+				gameDataActions.setEmployeeActiveJob(employeeId, result.activeJob);
+			}
+			
+			// Clear filter and routes UI
 			placeFilter.set(null);
 			selectedSupplyPlace = null;
 			clearPlaceRoutes();
 			
-			// Reload employee data to show the new active job
-			// This will be handled by the parent component
-			log.info('[PlacesRenderer] Job accepted successfully');
+			// Refresh the full employee data to ensure everything is in sync
+			try {
+				await gameDataAPI.loadAllEmployeeData();
+			} catch (error) {
+				log.error('[PlacesRenderer] Error refreshing employee data:', error);
+			}
 		} catch (error) {
 			log.error('[PlacesRenderer] Error accepting job:', error);
 		}

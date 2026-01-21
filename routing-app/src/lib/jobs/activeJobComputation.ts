@@ -1,10 +1,10 @@
 import { db } from '$lib/server/db';
-import { addresses, activeJobs } from '$lib/server/db/schema';
+import { places, activeJobs } from '$lib/server/db/schema';
 import type { InferInsertModel } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { getCompleteJobRoute } from '$lib/routes/routing';
-import type { Employee, Job, GameState, Address } from '$lib/server/db/schema';
+import type { Employee, Job, GameState, Place } from '$lib/server/db/schema';
 import { getEmployeeMaxSpeed } from '$lib/employeeUtils';
 import { config } from '$lib/server/config';
 import { computeJobXp, computeJobReward } from '$lib/jobs/jobUtils';
@@ -36,32 +36,32 @@ export async function computeActiveJob(
 	employee: Employee,
 	job: Job,
 	gameState: GameState,
-	addressMap?: Map<string, Address>
+	placeMap?: Map<number, Place>
 ): Promise<{ activeJob: ActiveJobInsert; activeRoute: { routeDataGzip: Buffer } }> {
 	const totalTimer = time(`computeActiveJob_job_${job.id}`);
 
-	// Get job start and end addresses (from cache if provided, otherwise fetch)
-	const addressTimer = time('fetch_job_addresses');
-	let jobStartAddress: Address | undefined;
-	let jobEndAddress: Address | undefined;
+	// Get job start and end places (from cache if provided, otherwise fetch)
+	const placeTimer = time('fetch_job_places');
+	let jobStartPlace: Place | undefined;
+	let jobEndPlace: Place | undefined;
 
-	if (addressMap) {
-		jobStartAddress = addressMap.get(job.startAddressId);
-		jobEndAddress = addressMap.get(job.endAddressId);
+	if (placeMap) {
+		jobStartPlace = placeMap.get(job.startPlaceId);
+		jobEndPlace = placeMap.get(job.endPlaceId);
 	} else {
-		[jobStartAddress, jobEndAddress] = await Promise.all([
-			db.query.addresses.findFirst({
-				where: eq(addresses.id, job.startAddressId)
+		[jobStartPlace, jobEndPlace] = await Promise.all([
+			db.query.places.findFirst({
+				where: eq(places.id, job.startPlaceId)
 			}),
-			db.query.addresses.findFirst({
-				where: eq(addresses.id, job.endAddressId)
+			db.query.places.findFirst({
+				where: eq(places.id, job.endPlaceId)
 			})
 		]);
 	}
-	addressTimer();
+	placeTimer();
 
-	if (!jobStartAddress || !jobEndAddress) {
-		throw new Error('Job addresses not found');
+	if (!jobStartPlace || !jobEndPlace) {
+		throw new Error('Job places not found');
 	}
 
 	// Get employee's max speed
@@ -78,8 +78,8 @@ export async function computeActiveJob(
 	const routingTimer = time('routing_complete_job_route');
 	const { compressedRouteData, durationSeconds } = await getCompleteJobRoute(
 		employee.location,
-		{ lat: jobStartAddress.lat, lon: jobStartAddress.lon },
-		{ lat: jobEndAddress.lat, lon: jobEndAddress.lon },
+		{ lat: jobStartPlace.lat, lon: jobStartPlace.lon },
+		{ lat: jobEndPlace.lat, lon: jobEndPlace.lon },
 		{
 			maxSpeed: employeeMaxSpeed,
 			speedMultiplier
@@ -110,8 +110,8 @@ export async function computeActiveJob(
 		xp,
 		jobCategory: job.jobCategory,
 		employeeStartLocation: employee.location,
-		jobPickupAddress: job.startAddressId,
-		jobDeliverAddress: job.endAddressId
+		jobPickupPlaceId: job.startPlaceId,
+		jobDeliverPlaceId: job.endPlaceId
 	};
 
 	totalTimer();

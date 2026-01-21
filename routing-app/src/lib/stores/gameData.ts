@@ -230,8 +230,8 @@ export const gameDataActions = {
 				employee,
 				activeJob: null,
 				employeeStartLocation: null,
-				jobPickupAddress: null,
-				jobDeliverAddress: null,
+				jobPickupPlace: null,
+				jobDeliverPlace: null,
 				activeRoute: null,
 				travelJob: null
 			}));
@@ -423,8 +423,8 @@ export const gameDataActions = {
 							...fed,
 							activeJob: null,
 							employeeStartLocation: null,
-							jobPickupAddress: null,
-							jobDeliverAddress: null,
+							jobPickupPlace: null,
+							jobDeliverPlace: null,
 							activeRoute: null
 						}
 					: fed

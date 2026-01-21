@@ -100,35 +100,6 @@ export const regions = pgTable('region', {
 	nameLatn: text('name_latn').notNull() // Latin name of the region
 });
 
-// Addresses table - stores geographic addresses with PostGIS geometry
-export const addresses = pgTable(
-	'address',
-	{
-		id: varchar('id').notNull().primaryKey(),
-		street: varchar('street'),
-		houseNumber: varchar('house_number'),
-		postcode: varchar('postcode'),
-		city: varchar('city'),
-		// PostGIS geometry column for efficient spatial queries
-		location: text('location').notNull(), // POINT geometry as text (handled by PostGIS)
-		lat: doublePrecision('lat').notNull(),
-		lon: doublePrecision('lon').notNull(),
-		region: varchar('region')
-			.notNull()
-			.references(() => regions.code, { onDelete: 'restrict' }),
-		createdAt: timestamp('created_at', { withTimezone: false })
-			.notNull()
-			.default(sql`CURRENT_TIMESTAMP`)
-	},
-	(table) => [
-		// Create a spatial index on the geometry column for efficient spatial queries
-		index('addresses_location_idx').on(sql`${table.location}`),
-		index('addresses_city_idx').on(table.city),
-		index('addresses_postcode_idx').on(table.postcode),
-		index('addresses_region_idx').on(table.region)
-	]
-);
-
 // Game state table - tracks user's game progress
 export const gameStates = pgTable(
 	'game_state',
@@ -189,12 +160,12 @@ export const activeJobs = pgTable(
 		xp: integer('xp').notNull(),
 		jobCategory: integer('job_category').notNull(),
 		employeeStartLocation: jsonb('employee_start_location').$type<Coordinate>().notNull(),
-		jobPickupAddress: varchar('job_pickup_address')
+		jobPickupPlaceId: bigint('job_pickup_place_id', { mode: 'number' })
 			.notNull()
-			.references(() => addresses.id, { onDelete: 'cascade' }),
-		jobDeliverAddress: varchar('job_deliver_address')
+			.references(() => places.id, { onDelete: 'cascade' }),
+		jobDeliverPlaceId: bigint('job_deliver_place_id', { mode: 'number' })
 			.notNull()
-			.references(() => addresses.id, { onDelete: 'cascade' }),
+			.references(() => places.id, { onDelete: 'cascade' }),
 		startRegion: varchar('start_region').references(() => regions.code, { onDelete: 'restrict' }),
 		endRegion: varchar('end_region').references(() => regions.code, { onDelete: 'restrict' })
 	},
@@ -258,12 +229,12 @@ export const jobs = pgTable(
 		// PostGIS geometry column for efficient spatial queries
 		// Note: Stored as geometry(Point,3857) in DB, but Drizzle schema uses text for compatibility
 		location: text('location').notNull(), // geometry(Point,3857) - handled by PostGIS
-		startAddressId: varchar('start_address_id')
+		startPlaceId: bigint('start_place_id', { mode: 'number' })
 			.notNull()
-			.references(() => addresses.id, { onDelete: 'cascade' }),
-		endAddressId: varchar('end_address_id')
+			.references(() => places.id, { onDelete: 'cascade' }),
+		endPlaceId: bigint('end_place_id', { mode: 'number' })
 			.notNull()
-			.references(() => addresses.id, { onDelete: 'cascade' }),
+			.references(() => places.id, { onDelete: 'cascade' }),
 		jobTier: integer('job_tier').notNull(),
 		jobCategory: integer('job_category').notNull(), // Refers to JobCategory enum
 		totalDistanceKm: doublePrecision('total_distance_km').notNull(),
@@ -276,7 +247,7 @@ export const jobs = pgTable(
 		index('jobs_tier_idx').on(table.jobTier),
 		index('jobs_category_idx').on(table.jobCategory),
 		index('jobs_generated_time_idx').on(table.generatedTime),
-		index('jobs_start_address_idx').on(table.startAddressId) // Index for finding addresses without jobs
+		index('jobs_start_place_idx').on(table.startPlaceId) // Index for finding places without jobs
 		// Note: Spatial GiST index on location is created by createSpatialIndexes() helper function
 	]
 );
@@ -397,7 +368,7 @@ export interface RoutingResult {
 	path: PathPoint[];
 	travelTimeSeconds: number;
 	totalDistanceMeters: number;
-	destination: Address;
+	destination: Coordinate; // Changed from Address to Coordinate - just lat/lon
 }
 
 // Full employee data that includes active job with complete address information
@@ -405,16 +376,15 @@ export interface FullEmployeeData {
 	employee: Employee;
 	activeJob: ActiveJob | null;
 	employeeStartLocation: Coordinate | null;
-	jobPickupAddress: Address | null;
-	jobDeliverAddress: Address | null;
-	activeRoute: ActiveRoute | null;
+	jobPickupPlace: Place | null;
+	jobDeliverPlace: Place | null;
+	activeRoute: RoutingResult | null; // Routes are fetched on-demand, not stored in DB
 	travelJob: TravelJob | null;
 }
 
 export type Employee = InferSelectModel<typeof employees>;
 export type Job = InferSelectModel<typeof jobs>;
 export type GameState = InferSelectModel<typeof gameStates>;
-export type Address = InferSelectModel<typeof addresses>;
 export type ActiveJob = InferSelectModel<typeof activeJobs>;
 export type TravelJob = InferSelectModel<typeof travelJobs>;
 export type Region = InferSelectModel<typeof regions>;

@@ -6,7 +6,7 @@ import {
 	employees,
 	activeJobs,
 	jobs,
-	addresses,
+	places,
 	travelJobs
 } from '$lib/server/db/schema';
 import { eq, and, ne, isNotNull } from 'drizzle-orm';
@@ -91,12 +91,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		if (existingActiveJob) {
 			// Get complete data for existing active job (route fetched on-demand)
-			const [jobPickupAddress, jobDeliverAddress] = await Promise.all([
-				db.query.addresses.findFirst({
-					where: eq(addresses.id, existingActiveJob.jobPickupAddress)
+			const [jobPickupPlace, jobDeliverPlace] = await Promise.all([
+				db.query.places.findFirst({
+					where: eq(places.id, existingActiveJob.jobPickupPlaceId)
 				}),
-				db.query.addresses.findFirst({
-					where: eq(addresses.id, existingActiveJob.jobDeliverAddress)
+				db.query.places.findFirst({
+					where: eq(places.id, existingActiveJob.jobDeliverPlaceId)
 				})
 			]);
 
@@ -104,8 +104,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				activeJob: existingActiveJob,
 				activeRoute: null, // Routes are now fetched on-demand via /api/active-routes/[activeJobId]
 				employeeStartLocation: existingActiveJob.employeeStartLocation,
-				jobPickupAddress,
-				jobDeliverAddress,
+				jobPickupPlace,
+				jobDeliverPlace,
 				isExisting: true
 			});
 		}
@@ -122,24 +122,22 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// Compute the active job using our new logic
 		const { activeJob, activeRoute } = await computeActiveJob(employee, job, gameState);
 
-		// Get the addresses for the computed active job
-		const [jobPickupAddress, jobDeliverAddress] = await Promise.all([
-			db.query.addresses.findFirst({ where: eq(addresses.id, activeJob.jobPickupAddress) }),
-			db.query.addresses.findFirst({ where: eq(addresses.id, activeJob.jobDeliverAddress) })
+		// Get the places for the computed active job
+		const [jobPickupPlace, jobDeliverPlace] = await Promise.all([
+			db.query.places.findFirst({ where: eq(places.id, activeJob.jobPickupPlaceId) }),
+			db.query.places.findFirst({ where: eq(places.id, activeJob.jobDeliverPlaceId) })
 		]);
 
-		// Insert the computed active job and active route into the database
-		await db.transaction(async (tx) => {
-			await tx.insert(activeJobs).values(activeJob);
-			await tx.insert(activeRoutes).values(activeRoute);
-		});
+		// Insert the computed active job into the database
+		// Routes are now stored in Redis and fetched on-demand via /api/active-routes/[activeJobId]
+		await db.insert(activeJobs).values(activeJob);
 
 		return json({
 			activeJob: activeJob,
 			activeRoute: null, // Routes are now fetched on-demand via /api/active-routes/[activeJobId]
 			employeeStartLocation: activeJob.employeeStartLocation,
-			jobPickupAddress,
-			jobDeliverAddress
+			jobPickupPlace,
+			jobDeliverPlace
 		});
 	} catch (err) {
 		console.error('Error creating active job:', err);
@@ -234,13 +232,13 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 		}
 
 		// Get the updated active job and complete data (route fetched on-demand)
-		const [updatedActiveJob, jobPickupAddress, jobDeliverAddress] = await Promise.all([
+		const [updatedActiveJob, jobPickupPlace, jobDeliverPlace] = await Promise.all([
 			db.query.activeJobs.findFirst({
 				where: eq(activeJobs.id, activeJob.id)
 			}),
-			db.query.addresses.findFirst({ where: eq(addresses.id, activeJob.jobPickupAddress) }),
-			db.query.addresses.findFirst({
-				where: eq(addresses.id, activeJob.jobDeliverAddress)
+			db.query.places.findFirst({ where: eq(places.id, activeJob.jobPickupPlaceId) }),
+			db.query.places.findFirst({
+				where: eq(places.id, activeJob.jobDeliverPlaceId)
 			})
 		]);
 
@@ -252,8 +250,8 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
 			activeJob: updatedActiveJob,
 			activeRoute: null, // Routes are now fetched on-demand via /api/active-routes/[activeJobId]
 			employeeStartLocation: updatedActiveJob.employeeStartLocation,
-			jobPickupAddress,
-			jobDeliverAddress
+			jobPickupPlace,
+			jobDeliverPlace
 		});
 	} catch (err) {
 		console.error('Error accepting active job:', err);

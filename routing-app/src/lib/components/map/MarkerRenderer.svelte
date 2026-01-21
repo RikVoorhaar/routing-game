@@ -33,7 +33,7 @@
 		Employee,
 		ActiveJob,
 		PathPoint,
-		Address,
+		Place,
 		Coordinate,
 		Job
 	} from '$lib/server/db/schema';
@@ -337,8 +337,8 @@
 										setSelectedActiveJobData({
 											activeJob: updatedActiveJob,
 											employeeStartLocation: updatedActiveJob.employeeStartLocation,
-											jobPickupAddress: null,
-											jobDeliverAddress: null,
+											jobPickupPlace: null,
+											jobDeliverPlace: null,
 											activeRoute: routeData
 										});
 									}

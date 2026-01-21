@@ -31,14 +31,14 @@ export const GET: RequestHandler = async ({ params }) => {
 	}
 
 	try {
-		serverLog.api.info({ tileX, tileY }, 'Fetching places for tile');
+		serverLog.api.debug({ tileX, tileY }, 'Fetching places for tile');
 
 		// Check Redis cache first
 		let placesDataGzip = await getPlaces(tileX, tileY);
 
 		// If places don't exist in cache, query database and compress
 		if (!placesDataGzip) {
-			serverLog.api.info({ tileX, tileY }, 'Places not found in cache, querying database');
+			serverLog.api.debug({ tileX, tileY }, 'Places not found in cache, querying database');
 
 			// Query places table for all places in this tile
 			const placesList = await db
@@ -61,12 +61,12 @@ export const GET: RequestHandler = async ({ params }) => {
 			// Store in Redis with 1 hour TTL
 			await setPlaces(tileX, tileY, placesDataGzip);
 
-			serverLog.api.info(
+			serverLog.api.debug(
 				{ tileX, tileY, placesCount: placesList.length, dataLength: placesDataGzip.length },
 				'Places queried, compressed, and stored in Redis'
 			);
 		} else {
-			serverLog.api.info(
+			serverLog.api.debug(
 				{ tileX, tileY, dataLength: placesDataGzip.length },
 				'Places retrieved from Redis cache'
 			);
@@ -88,7 +88,7 @@ export const GET: RequestHandler = async ({ params }) => {
 			});
 		}
 
-		serverLog.api.info({ tileX, tileY, dataLength: placesDataGzip.length }, 'Returning places data');
+		serverLog.api.debug({ tileX, tileY, dataLength: placesDataGzip.length }, 'Returning places data');
 
 		// Return gzip data with Content-Encoding header
 		return new Response(placesDataGzip, {

@@ -1,5 +1,5 @@
 import { db } from '../server/db';
-import { employees, activeJobs, gameStates, addresses } from '../server/db/schema';
+import { employees, activeJobs, gameStates, places } from '../server/db/schema';
 import { eq, and, isNotNull, sql } from 'drizzle-orm';
 import { log } from '$lib/logger';
 import type { Employee, ActiveJob, GameState } from '../server/db/schema';
@@ -61,24 +61,24 @@ export async function completeActiveJob(
 	const jobCategory = activeJob.jobCategory as JobCategory;
 
 	// Get the job end location for updating employee position
-	const endAddress = await db.query.addresses.findFirst({
-		where: eq(addresses.id, activeJob.jobDeliverAddress)
+	const endPlace = await db.query.places.findFirst({
+		where: eq(places.id, activeJob.jobDeliverPlaceId)
 	});
 
-	if (!endAddress) {
-		throw new Error('End address not found');
+	if (!endPlace) {
+		throw new Error('End place not found');
 	}
 
 	const result = await db.transaction(async (tx) => {
 		// Delete the completed active job
 		await tx.delete(activeJobs).where(eq(activeJobs.id, activeJobId));
 
-		// Update employee - atomically increment XP and update location (store Coordinate, not Address)
+		// Update employee - atomically increment XP and update location (store Coordinate, not Place)
 		const [updatedEmployee] = await tx
 			.update(employees)
 			.set({
 				xp: sql`${employees.xp} + ${employeeXpGained}`,
-				location: { lat: endAddress.lat, lon: endAddress.lon }
+				location: { lat: endPlace.lat, lon: endPlace.lon }
 			})
 			.where(eq(employees.id, employee.id))
 			.returning();
