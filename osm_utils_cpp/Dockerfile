@@ -22,13 +22,13 @@ WORKDIR /app
 # Copy osm_utils_cpp directory
 COPY . /app/osm_utils_cpp
 
-# Build trim_and_extract and extract_categorized_places
+# Build trim_and_extract, extract_categorized_places, and connect_components
 WORKDIR /app/osm_utils_cpp
 RUN rm -rf build && \
     mkdir -p build && \
     cd build && \
     cmake .. && \
-    make -j$(nproc) trim_and_extract extract_categorized_places
+    make -j$(nproc) trim_and_extract extract_categorized_places connect_components
 
 # Set working directory to build directory for easy execution
 WORKDIR /app/osm_utils_cpp/build

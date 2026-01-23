@@ -66,3 +66,17 @@ target_link_libraries(extract_categorized_places
     yaml-cpp
     pthread
 )
+
+# Source files for connect_components
+set(CONNECT_SOURCES
+    src/connect_components.cpp
+)
+
+# Add the connect_components executable
+add_executable(connect_components ${CONNECT_SOURCES})
+
+# Link libraries for connect_components
+target_link_libraries(connect_components
+    ${ZLIB_LIBRARIES}
+    pthread
+)
