@@ -116,6 +116,10 @@ This will:
 
 > **Note:** This will take a while to complete, depending on the size of the CSV file. The script samples addresses uniformly within each region to keep the dataset manageable.
 
+
+### 6. Load osm data into postgis
+Install `osm2pgsql` and run `./scripts/ingest_osm.sh osm_files/europe-latest.osm.pbf europe 2>&1 | tee scripts/logs/europe-import.log`. This will need around 300GB of disk space free during processing (but will only take up around 100GB of space in the database).
+
 ### 6. Generate Jobs
 Populate the database with delivery jobs:
 ```bash
