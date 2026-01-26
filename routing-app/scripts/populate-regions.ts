@@ -44,7 +44,7 @@ async function main() {
 			}
 
 			// Convert geometry to PostGIS MultiPolygon
-			// The GeoJSON is already in EPSG:3857 according to the CRS property
+			// The GeoJSON CRS says 3857, and coordinates are large numbers (millions), so they're already in 3857
 			// Use raw SQL for geometry insertion since Drizzle doesn't handle PostGIS types directly
 			const geomJson = JSON.stringify(feature.geometry);
 			await db.execute(sql`
@@ -54,8 +54,13 @@ async function main() {
 					${props.CNTR_CODE},
 					${props.NAME_LATN},
 					${props.NAME_LOCAL || props.NUTS_NAME || null},
-					ST_GeomFromGeoJSON(${geomJson})::geometry(MultiPolygon, 3857)
+					ST_SetSRID(ST_GeomFromGeoJSON(${geomJson}), 3857)::geometry(MultiPolygon, 3857)
 				)
+				ON CONFLICT (code) DO UPDATE SET
+					country_code = EXCLUDED.country_code,
+					name_latin = EXCLUDED.name_latin,
+					name_local = EXCLUDED.name_local,
+					geom = EXCLUDED.geom
 			`);
 
 			inserted++;
