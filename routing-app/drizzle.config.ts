@@ -14,5 +14,15 @@ export default defineConfig({
 	},
 	verbose: true,
 	strict: true,
-	tablesFilter: ['!spatial_ref_sys', '!geography_columns', '!geometry_columns']
+	tablesFilter: [
+		'!spatial_ref_sys',
+		'!geography_columns',
+		'!geometry_columns',
+		'!planet_osm_point',
+		'!planet_osm_line',
+		'!planet_osm_polygon',
+		'!planet_osm_roads',
+		'!planet_osm_rels',
+		'!osm2pgsql_properties'
+	]
 });

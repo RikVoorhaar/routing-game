@@ -10,7 +10,8 @@ import {
 	index,
 	serial,
 	varchar,
-	bigint
+	bigint,
+	pgEnum
 } from 'drizzle-orm/pg-core';
 import { sql, type InferSelectModel } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
@@ -93,12 +94,32 @@ export const users = pgTable('user', {
 	cheatsEnabled: boolean('cheats_enabled').notNull().default(false)
 });
 
-// Regions table - stores NUTS region metadata
-export const regions = pgTable('region', {
-	code: varchar('code').notNull().primaryKey(), // NUTS region code (e.g., "ITH3", "NL36")
-	countryCode: varchar('country_code', { length: 2 }).notNull(), // Country code (e.g., "IT", "NL")
-	nameLatn: text('name_latn').notNull() // Latin name of the region
+// Categories table - stores place categories
+export const categories = pgTable('categories', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull().unique()
 });
+
+// Origin table enum for places
+export const originTableEnum = pgEnum('origin_table', ['point', 'line', 'polygon', 'rel']);
+
+// Regions table - stores NUTS region metadata with PostGIS geometry
+export const regions = pgTable(
+	'region',
+	{
+		id: serial('id').primaryKey(),
+		code: text('code').notNull().unique(), // NUTS region code (e.g., "ITH3", "NL36")
+		nameLatin: text('name_latin'), // Latin name of the region
+		nameLocal: text('name_local'), // Local name of the region
+		countryCode: text('country_code'), // Country code (e.g., "IT", "NL")
+		geom: text('geom').notNull() // geometry(MultiPolygon, 3857)
+	},
+	(table) => [
+		index('regions_country_code_idx').on(table.countryCode),
+		index('regions_name_latin_idx').on(table.nameLatin)
+		// Note: GIST index on geom is created in migration file
+	]
+);
 
 // Game state table - tracks user's game progress
 export const gameStates = pgTable(
@@ -166,8 +187,8 @@ export const activeJobs = pgTable(
 		jobDeliverPlaceId: bigint('job_deliver_place_id', { mode: 'number' })
 			.notNull()
 			.references(() => places.id, { onDelete: 'cascade' }),
-		startRegion: varchar('start_region').references(() => regions.code, { onDelete: 'restrict' }),
-		endRegion: varchar('end_region').references(() => regions.code, { onDelete: 'restrict' })
+		startRegion: integer('start_region').references(() => regions.id, { onDelete: 'restrict' }),
+		endRegion: integer('end_region').references(() => regions.id, { onDelete: 'restrict' })
 	},
 	(table) => [
 		index('active_jobs_game_state_idx').on(table.gameStateId),
@@ -257,24 +278,20 @@ export const places = pgTable(
 	'places',
 	{
 		id: bigint('id', { mode: 'number' }).notNull().primaryKey(),
-		category: text('category').notNull(),
-		lat: doublePrecision('lat').notNull(),
-		lon: doublePrecision('lon').notNull(),
-		xMercator: doublePrecision('x_mercator').notNull(),
-		yMercator: doublePrecision('y_mercator').notNull(),
-		region: varchar('region')
-			.notNull()
-			.references(() => regions.code, { onDelete: 'restrict' }),
-		tileX: integer('tile_x').notNull(),
-		tileY: integer('tile_y').notNull(),
-		// PostGIS geometry columns for efficient spatial queries
-		location4326: text('location_4326').notNull(), // POINT geometry in EPSG:4326 as text (handled by PostGIS)
-		location3857: text('location_3857').notNull() // POINT geometry in EPSG:3857 as text (handled by PostGIS)
+		originTable: originTableEnum('origin_table').notNull(), // 'point', 'line', 'polygon', 'rel'
+		originId: bigint('origin_id', { mode: 'number' }).notNull(), // OSM object ID (no FK constraint)
+		categoryId: integer('category_id')
+			.references(() => categories.id, { onDelete: 'cascade' }),
+		regionId: integer('region_id')
+			.references(() => regions.id, { onDelete: 'cascade' }),
+		geom: text('geom').notNull() // geometry(Point, 3857)
 	},
 	(table) => [
-		// Composite index on tile coordinates for efficient tile queries
-		index('places_tile_idx').on(table.tileX, table.tileY)
-		// Note: Spatial GiST indexes on location columns are created in the migration file
+		index('places_origin_unique_idx').on(table.originTable, table.originId).unique(),
+		index('places_category_id_idx').on(table.categoryId),
+		index('places_region_id_idx').on(table.regionId),
+		index('places_category_region_idx').on(table.categoryId, table.regionId)
+		// Note: GIST index on geom is created in migration file
 	]
 );
 
@@ -389,3 +406,4 @@ export type ActiveJob = InferSelectModel<typeof activeJobs>;
 export type TravelJob = InferSelectModel<typeof travelJobs>;
 export type Region = InferSelectModel<typeof regions>;
 export type Place = InferSelectModel<typeof places>;
+export type Category = InferSelectModel<typeof categories>;
