@@ -8,6 +8,7 @@ import {
 	boolean,
 	jsonb,
 	index,
+	uniqueIndex,
 	serial,
 	varchar,
 	bigint,
@@ -287,7 +288,7 @@ export const places = pgTable(
 		geom: text('geom').notNull() // geometry(Point, 3857)
 	},
 	(table) => [
-		index('places_origin_unique_idx').on(table.originTable, table.originId).unique(),
+		uniqueIndex('places_origin_unique_idx').on(table.originTable, table.originId),
 		index('places_category_id_idx').on(table.categoryId),
 		index('places_region_id_idx').on(table.regionId),
 		index('places_category_region_idx').on(table.categoryId, table.regionId)
