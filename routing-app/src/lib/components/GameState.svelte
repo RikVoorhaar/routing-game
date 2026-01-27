@@ -6,6 +6,7 @@
 	import ErrorOverlay from './ErrorOverlay.svelte';
 	import Cheats from './Cheats.svelte';
 	import RouteMap from './RouteMap.svelte';
+	import RouteMapMaplibre from './RouteMapMaplibre.svelte';
 	import GlobalXpPanel from './GlobalXpPanel.svelte';
 	import UpgradesPanel from './UpgradesPanel.svelte';
 	import EmployeesPanel from './EmployeesPanel.svelte';
@@ -212,6 +213,13 @@
 				</button>
 				<button
 					class="tab"
+					class:tab-active={$activeMainTab === 'map_maplibre'}
+					on:click={() => switchToTab('map_maplibre')}
+				>
+					MapLibre
+				</button>
+				<button
+					class="tab"
 					class:tab-active={$activeMainTab === 'employees'}
 					on:click={() => switchToTab('employees')}
 				>
@@ -251,6 +259,17 @@
 							</div>
 							<div class="flex-1">
 								<RouteMap />
+							</div>
+						</div>
+					</div>
+				{:else if $activeMainTab === 'map_maplibre'}
+					<div class="card h-[700px] bg-base-100 shadow-lg">
+						<div class="card-body p-2">
+							<div class="flex items-center justify-between px-4 py-2">
+								<h3 class="card-title">Route Map (MapLibre)</h3>
+							</div>
+							<div class="flex-1">
+								<RouteMapMaplibre />
 							</div>
 						</div>
 					</div>

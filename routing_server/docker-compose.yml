@@ -59,5 +59,15 @@ services:
       retries: 5
       start_period: 10s
 
+  martin:
+    image: ghcr.io/maplibre/martin:1.2.0
+    container_name: routing-martin
+    environment:
+      - DATABASE_URL=postgres://routing_user:routing_password@postgres:5432/routing_game
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+
 volumes:
   postgres_data: 
