@@ -141,6 +141,13 @@
       "when": 1769460000000,
       "tag": "0019_active_places",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1769460100000,
+      "tag": "0020_active_places_with_geom",
+      "breakpoints": true
     }
   ]
 }
