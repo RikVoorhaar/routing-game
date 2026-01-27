@@ -21,6 +21,7 @@
 		"init-db": "NODE_OPTIONS='--import=tsx' node scripts/init-db.ts",
 		"init-db:force": "NODE_OPTIONS='--import=tsx' node scripts/init-db.ts --force",
 		"setup-postgis": "NODE_OPTIONS='--import=tsx' node scripts/setup-postgis.ts",
+		"populate-active-places": "NODE_OPTIONS='--import=tsx' node scripts/populate-active-places.ts",
 		"analyze-addresses": "tsx src/scripts/analyze-address-distribution.ts",
 		"generate-auth-secret": "node scripts/generate-auth-secret.js",
 		"job-generator": "tsx src/scripts/job-generator.ts",

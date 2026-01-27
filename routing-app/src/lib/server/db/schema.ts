@@ -296,6 +296,31 @@ export const places = pgTable(
 	]
 );
 
+// Active places - derived table of place ids selected per (category, region) up to max_per_region from place_categories.yaml.
+// Computed by scripts/populate-active-places.ts (e.g. daily). Use joins to places when full place data is needed.
+export const activePlaces = pgTable(
+	'active_places',
+	{
+		placeId: bigint('place_id', { mode: 'number' })
+			.notNull()
+			.references(() => places.id, { onDelete: 'cascade' }),
+		regionId: integer('region_id')
+			.notNull()
+			.references(() => regions.id, { onDelete: 'cascade' }),
+		categoryId: integer('category_id')
+			.notNull()
+			.references(() => categories.id, { onDelete: 'cascade' }),
+		createdAt: timestamp('created_at', { withTimezone: true })
+			.notNull()
+			.default(sql`CURRENT_TIMESTAMP`)
+	},
+	(table) => [
+		index('active_places_region_id_idx').on(table.regionId),
+		index('active_places_category_id_idx').on(table.categoryId),
+		index('active_places_region_category_idx').on(table.regionId, table.categoryId)
+	]
+);
+
 // Accounts table - OAuth providers info
 export const accounts = pgTable(
 	'account',
@@ -407,4 +432,5 @@ export type ActiveJob = InferSelectModel<typeof activeJobs>;
 export type TravelJob = InferSelectModel<typeof travelJobs>;
 export type Region = InferSelectModel<typeof regions>;
 export type Place = InferSelectModel<typeof places>;
+export type ActivePlace = InferSelectModel<typeof activePlaces>;
 export type Category = InferSelectModel<typeof categories>;
