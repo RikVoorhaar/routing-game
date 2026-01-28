@@ -155,6 +155,27 @@
       "when": 1769460200000,
       "tag": "0021_martin_tile_functions",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1769460300000,
+      "tag": "0022_refine_tile_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1769460400000,
+      "tag": "0023_cap_tile_size",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1769460500000,
+      "tag": "0024_cap_tile_size_lines_limit",
+      "breakpoints": true
     }
   ]
 }
