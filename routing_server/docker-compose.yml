@@ -66,6 +66,9 @@ services:
       - DATABASE_URL=postgres://routing_user:routing_password@postgres:5432/routing_game
     ports:
       - "3000:3000"
+    volumes:
+      - ./martin-config.yaml:/martin-config.yaml:ro
+    command: ["--config", "/martin-config.yaml"]
     depends_on:
       - postgres
 
