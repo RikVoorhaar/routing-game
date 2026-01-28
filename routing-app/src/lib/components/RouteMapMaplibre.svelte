@@ -6,39 +6,57 @@
 	const defaultCenter: [number, number] = [5.1214, 52.0907];
 	const defaultZoom = 13;
 
-	// All tile sources from Martin only (no OSM raster): commercial licensing + client-side styling.
+	// Martin function source (lines only; polygons dropped in UI). Style per tiles-plan §4.1.
 	const tileServerUrl = getTileServerUrl();
 	const baseStyle = {
 		version: 8 as const,
 		sources: {
-			martin_roads: {
+			europe_lines: {
 				type: 'vector' as const,
-				url: `${tileServerUrl}/europe_planet_osm_roads`
-			},
-			martin_polygon: {
-				type: 'vector' as const,
-				url: `${tileServerUrl}/europe_planet_osm_polygon`
+				url: `${tileServerUrl}/europe_lines`,
+				maxzoom: 15
 			}
 		},
 		layers: [
 			{
-				id: 'polygon-fill',
-				type: 'fill' as const,
-				source: 'martin_polygon',
-				'source-layer': 'europe_planet_osm_polygon',
-				paint: {
-					'fill-color': '#e8e8e8',
-					'fill-outline-color': '#c0c0c0'
-				}
-			},
-			{
-				id: 'roads-line',
+				id: 'roads',
 				type: 'line' as const,
-				source: 'martin_roads',
-				'source-layer': 'europe_planet_osm_roads',
+				source: 'europe_lines',
+				'source-layer': 'europe_lines',
+				filter: ['has', 'highway'],
 				paint: {
-					'line-color': '#888',
-					'line-width': 1
+					'line-color': [
+						'match',
+						['get', 'highway'],
+						'motorway',
+						'#e892a2',
+						'motorway_link',
+						'#e892a2',
+						'trunk',
+						'#f2b3a3',
+						'trunk_link',
+						'#f2b3a3',
+						'primary',
+						'#f2d29b',
+						'primary_link',
+						'#f2d29b',
+						'secondary',
+						'#ffffff',
+						'secondary_link',
+						'#ffffff',
+						'#cccccc'
+					],
+					'line-width': [
+						'interpolate',
+						['linear'],
+						['zoom'],
+						5,
+						0.5,
+						10,
+						2,
+						15,
+						4
+					]
 				}
 			}
 		]
