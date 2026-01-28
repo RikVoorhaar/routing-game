@@ -1,15 +1,12 @@
-# Martin configuration with zoom-aware simplification for Europe OSM data
-# Uses PostgreSQL function sources for custom SQL with zoom-dependent simplification
-# Functions: europe_lines, europe_polygons, europe_points, europe_rels
-#
-# Composite sources are created on-the-fly via URL:
-#   /{source1},{source2},.../{z}/{x}/{y}
-# Example: /europe_lines,europe_polygons,europe_points,europe_rels/{z}/{x}/{y}
+# Martin: Europe basemap (Planetiler MBTiles) + PostGIS overlays (active_places, etc.)
+# MBTiles: generate with scripts/generate_europe_mbtiles.sh, output routing_server/data/europe.mbtiles
+
+mbtiles:
+  sources:
+    europe: /data/europe.mbtiles
 
 postgres:
   connection_string: ${DATABASE_URL}
-  
-  # Auto-discover function sources from public schema
   auto_publish:
     functions:
       from_schemas: public

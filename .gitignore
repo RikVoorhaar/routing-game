@@ -1,5 +1,6 @@
 # Project-specific directories and files
 osm_files/*
+routing_server/data/
 build
 .vscode
 
