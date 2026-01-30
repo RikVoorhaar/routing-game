@@ -1,9 +1,9 @@
 # Martin: Europe basemap (Planetiler MBTiles) + PostGIS overlays (active_places, etc.)
-# MBTiles: generate with scripts/generate_europe_mbtiles.sh, output routing_server/data/europe.mbtiles
+# MBTiles: osm_files/europe.mbtiles (mounted as /data/osm in container)
 
 mbtiles:
   sources:
-    europe: /data/europe.mbtiles
+    europe: /data/osm/europe.mbtiles
 
 postgres:
   connection_string: ${DATABASE_URL}

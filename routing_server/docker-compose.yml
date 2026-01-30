@@ -69,6 +69,7 @@ services:
     volumes:
       - ./martin-config.yaml:/martin-config.yaml:ro
       - ./data:/data
+      - ../osm_files:/data/osm:ro
     command: ["--config", "/martin-config.yaml"]
     depends_on:
       - postgres
