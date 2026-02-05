@@ -1,0 +1,210 @@
+{
+  "version": 8,
+  "name": "Routing Game - Europe Basemap",
+  "metadata": {
+    "maputnik:renderer": "mbgljs"
+  },
+  "sources": {
+    "europe": {
+      "type": "vector",
+      "url": "http://localhost:3000/europe",
+      "maxzoom": 15
+    }
+  },
+  "glyphs": "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+  "layers": [
+  {
+    "id": "background",
+    "type": "background",
+    "layout": { "visibility": "visible" },
+    "paint": { "background-color": "#f8f4f0" }
+  },
+
+  {
+    "id": "landcover",
+    "type": "fill",
+    "source": "europe",
+    "source-layer": "landcover",
+    "layout": { "visibility": "visible" },
+    "paint": {
+      "fill-color": [
+        "match",
+        ["get", "class"],
+        "forest", "#d7e9c4",
+        "grass", "#e7f3cf",
+        "scrub", "#e4ecd0",
+        "#f5f2ea"
+      ]
+    }
+  },
+
+  {
+    "id": "landuse",
+    "type": "fill",
+    "source": "europe",
+    "source-layer": "landuse",
+    "layout": { "visibility": "visible" },
+    "paint": {
+      "fill-color": [
+        "match",
+        ["get", "class"],
+        "residential", "#efe7e3",
+        "industrial", "#e5e2e0",
+        "commercial", "#eae4e0",
+        "park", "#cfe8b5",
+        "cemetery", "#dfe8c8",
+        "#f3efe8"
+      ]
+    }
+  },
+
+  {
+    "id": "water",
+    "type": "fill",
+    "source": "europe",
+    "source-layer": "water",
+    "layout": { "visibility": "visible" },
+    "paint": {
+      "fill-color": "#aad3df"
+    }
+  },
+
+  {
+    "id": "water-lines",
+    "type": "line",
+    "source": "europe",
+    "source-layer": "waterway",
+    "layout": { "visibility": "visible" },
+    "paint": {
+      "line-color": "#85bfd0",
+      "line-width": [
+        "interpolate", ["linear"], ["zoom"],
+        5, 0.3,
+        10, 1,
+        14, 2
+      ]
+    }
+  },
+
+  {
+    "id": "buildings",
+    "type": "fill",
+    "source": "europe",
+    "source-layer": "building",
+    "minzoom": 13,
+    "layout": { "visibility": "visible" },
+    "paint": {
+      "fill-color": "#e0d8d0",
+      "fill-outline-color": "#d0c7be"
+    }
+  },
+
+  {
+    "id": "transportation-tunnels",
+    "type": "line",
+    "source": "europe",
+    "source-layer": "transportation",
+    "filter": ["==", ["get", "brunnel"], "tunnel"],
+    "layout": { "visibility": "visible" },
+    "paint": {
+      "line-color": "#d0cfd0",
+      "line-width": [
+        "interpolate", ["linear"], ["zoom"],
+        5, 0.5,
+        10, 2,
+        15, 4
+      ],
+      "line-dasharray": [2, 2]
+    }
+  },
+
+  {
+    "id": "transportation-roads",
+    "type": "line",
+    "source": "europe",
+    "source-layer": "transportation",
+    "filter": ["!=", ["get", "class"], "path"],
+    "layout": { "visibility": "visible" },
+    "paint": {
+      "line-color": [
+        "match",
+        ["get", "class"],
+        "motorway", "#e892a2",
+        "trunk", "#f2b3a3",
+        "primary", "#f2d29b",
+        "secondary", "#ffffff",
+        "tertiary", "#ffffff",
+        "residential", "#ffffff",
+        "#cccccc"
+      ],
+      "line-width": [
+        "interpolate", ["linear"], ["zoom"],
+        5, 0.5,
+        10, 2,
+        15, 4
+      ]
+    }
+  },
+
+  {
+    "id": "transportation-paths",
+    "type": "line",
+    "source": "europe",
+    "source-layer": "transportation",
+    "filter": ["==", ["get", "class"], "path"],
+    "layout": { "visibility": "visible" },
+    "paint": {
+      "line-color": "#c6c3be",
+      "line-width": [
+        "interpolate", ["linear"], ["zoom"],
+        10, 0.4,
+        14, 1.2
+      ],
+      "line-dasharray": [1, 1.5]
+    }
+  },
+
+  {
+    "id": "admin-boundaries",
+    "type": "line",
+    "source": "europe",
+    "source-layer": "boundary",
+    "layout": { "visibility": "visible" },
+    "paint": {
+      "line-color": "#b9b4ae",
+      "line-width": [
+        "interpolate", ["linear"], ["zoom"],
+        3, 0.3,
+        6, 0.8,
+        10, 1.2
+      ],
+      "line-dasharray": [4, 2]
+    }
+  },
+
+  {
+    "id": "place-labels",
+    "type": "symbol",
+    "source": "europe",
+    "source-layer": "place",
+    "layout": {
+      "visibility": "visible",
+      "text-field": ["get", "name"],
+      "text-font": ["Noto Sans Regular"],
+      "text-size": [
+        "interpolate", ["linear"], ["zoom"],
+        3, 10,
+        8, 14,
+        12, 18
+      ]
+    },
+    "paint": {
+      "text-color": "#444444",
+      "text-halo-color": "#f8f4f0",
+      "text-halo-width": 1.2
+    }
+  }
+
+]
+
+}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { MapLibre, VectorTileSource, CircleLayer } from 'svelte-maplibre-gl';
 	import { getTileServerUrl } from '$lib/map/tileServerUrl';
 	import { selectedEmployee } from '$lib/stores/selectedEmployee';
@@ -8,7 +9,7 @@
 	import type { Employee, Coordinate, PathPoint } from '$lib/server/db/schema';
 	import type { DisplayableRoute } from '$lib/stores/mapDisplay';
 	import { log } from '$lib/logger';
-	import type { Map as MapLibreMap } from 'maplibre-gl';
+	import type { Map as MapLibreMap, StyleSpecification } from 'maplibre-gl';
 
 	// Same default view as Leaflet MapManager (Utrecht, zoom 13). MapLibre uses [lng, lat].
 	const defaultCenter: [number, number] = [5.1214, 52.0907];
@@ -19,83 +20,44 @@
 
 	// Europe basemap: Planetiler MBTiles (OpenMapTiles schema) via Martin. Overlay: PostGIS active_places.
 	const tileServerUrl = getTileServerUrl();
-	const baseStyle = {
-		version: 8 as const,
-		sources: {
-			europe: {
-				type: 'vector' as const,
-				url: `${tileServerUrl}/europe`,
-				maxzoom: 15,
-				attribution: '© <a href="https://openmaptiles.org/">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-			}
-		},
-		layers: [
-			{ id: 'background', type: 'background' as const, paint: { 'background-color': '#f8f4f0' } },
-			{
-				id: 'water',
-				type: 'fill' as const,
-				source: 'europe',
-				'source-layer': 'water',
-				filter: ['==', ['get', 'natural'], 'water'],
-				paint: { 'fill-color': '#aad3df' }
-			},
-			{
-				id: 'landuse',
-				type: 'fill' as const,
-				source: 'europe',
-				'source-layer': 'landuse',
-				filter: ['in', ['get', 'landuse'], ['literal', ['forest', 'grass', 'park']]],
-				paint: {
-					'fill-color': [
-						'match',
-						['get', 'landuse'],
-						'forest',
-						'#cdebb0',
-						'grass',
-						'#e5f5c0',
-						'park',
-						'#c8e6a0',
-						'#eaeaea'
-					]
-				}
-			},
-			{
-				id: 'transportation',
-				type: 'line' as const,
-				source: 'europe',
-				'source-layer': 'transportation',
-				filter: ['has', 'class'],
-				paint: {
-					'line-color': [
-						'match',
-						['get', 'class'],
-						'motorway',
-						'#e892a2',
-						'trunk',
-						'#f2b3a3',
-						'primary',
-						'#f2d29b',
-						'secondary',
-						'#ffffff',
-						'#cccccc'
-					],
-					'line-width': [
-						'interpolate',
-						['linear'],
-						['zoom'],
-						5,
-						0.5,
-						10,
-						2,
-						15,
-						4
-					]
-				}
-			}
-		]
-	};
-
 	const martinActivePlacesUrl = `${tileServerUrl}/active_places_with_geom`;
+
+	// Load map style from JSON file
+	let mapStyle: StyleSpecification | null = null;
+
+	onMount(async () => {
+		try {
+			const response = await fetch('/map-style.json');
+			if (!response.ok) {
+				throw new Error(`Failed to fetch map style: ${response.statusText}`);
+			}
+			const styleJson = await response.json();
+			
+			// Replace hardcoded URL with dynamic tile server URL
+			if (styleJson.sources?.europe) {
+				styleJson.sources.europe.url = `${tileServerUrl}/europe`;
+			}
+			
+			mapStyle = styleJson as StyleSpecification;
+			log.debug('[RouteMapMaplibre] Loaded map style from JSON');
+		} catch (error) {
+			log.error('[RouteMapMaplibre] Failed to load map style JSON:', error);
+			// Fallback to a minimal style if JSON fails to load
+			mapStyle = {
+				version: 8,
+				sources: {
+					europe: {
+						type: 'vector',
+						url: `${tileServerUrl}/europe`,
+						maxzoom: 15
+					}
+				},
+				layers: [
+					{ id: 'background', type: 'background', paint: { 'background-color': '#f8f4f0' } }
+				]
+			} as StyleSpecification;
+		}
+	});
 
 	/**
 	 * Get employee position from employee data
@@ -209,25 +171,31 @@
 </script>
 
 <div class="h-full w-full min-h-[400px]">
-	<MapLibre
-		bind:map={mapInstance}
-		style={baseStyle}
-		center={defaultCenter}
-		zoom={defaultZoom}
-		class="h-full w-full"
-		autoloadGlobalCss={true}
-	>
-		<VectorTileSource id="martin-active-places" url={martinActivePlacesUrl}>
-			<CircleLayer
-				id="active-places-circles"
-				sourceLayer="active_places_with_geom"
-				paint={{
-					'circle-radius': 4,
-					'circle-color': '#2563eb',
-					'circle-stroke-width': 1,
-					'circle-stroke-color': '#fff'
-				}}
-			/>
-		</VectorTileSource>
-	</MapLibre>
+	{#if mapStyle}
+		<MapLibre
+			bind:map={mapInstance}
+			style={mapStyle}
+			center={defaultCenter}
+			zoom={defaultZoom}
+			class="h-full w-full"
+			autoloadGlobalCss={true}
+		>
+			<VectorTileSource id="martin-active-places" url={martinActivePlacesUrl}>
+				<CircleLayer
+					id="active-places-circles"
+					sourceLayer="active_places_with_geom"
+					paint={{
+						'circle-radius': 4,
+						'circle-color': '#2563eb',
+						'circle-stroke-width': 1,
+						'circle-stroke-color': '#fff'
+					}}
+				/>
+			</VectorTileSource>
+		</MapLibre>
+	{:else}
+		<div class="flex h-full items-center justify-center">
+			<span class="loading loading-spinner loading-lg"></span>
+		</div>
+	{/if}
 </div>
