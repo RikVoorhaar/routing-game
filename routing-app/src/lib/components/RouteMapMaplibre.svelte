@@ -6,17 +6,71 @@
 	import { fullEmployeeData } from '$lib/stores/gameData';
 	import { displayedRoutes } from '$lib/stores/mapDisplay';
 	import { getRoute } from '$lib/stores/routeCache';
+	import EmployeeMarkers from './map/maplibre/EmployeeMarkers.svelte';
 	import type { Employee, Coordinate, PathPoint } from '$lib/server/db/schema';
 	import type { DisplayableRoute } from '$lib/stores/mapDisplay';
 	import { log } from '$lib/logger';
 	import type { Map as MapLibreMap, StyleSpecification } from 'maplibre-gl';
 
 	// Same default view as Leaflet MapManager (Utrecht, zoom 13). MapLibre uses [lng, lat].
-	const defaultCenter: [number, number] = [5.1214, 52.0907];
-	const defaultZoom = 13;
+	const DEFAULT_CENTER: [number, number] = [5.1214, 52.0907];
+	const DEFAULT_ZOOM = 13;
 
 	// Map instance reference
-	let mapInstance: MapLibreMap | null = null;
+	let mapInstance: MapLibreMap | undefined = undefined;
+
+	// Track last handled employee ID to prevent re-triggering on tab switches
+	let lastHandledEmployeeId: string | null = null;
+
+	// Map state persistence key
+	const MAP_STATE_KEY = 'maplibre-map-state';
+
+	// Get initial map state from localStorage or use defaults
+	function getInitialMapState(): { center: [number, number]; zoom: number } {
+		if (typeof window === 'undefined') {
+			return { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
+		}
+
+		try {
+			const stored = localStorage.getItem(MAP_STATE_KEY);
+			if (stored) {
+				const parsed = JSON.parse(stored);
+				if (parsed.center && parsed.zoom) {
+					return {
+						center: parsed.center as [number, number],
+						zoom: parsed.zoom as number
+					};
+				}
+			}
+		} catch (e) {
+			log.warn('[RouteMapMaplibre] Failed to load map state from localStorage:', e);
+		}
+
+		return { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
+	}
+
+	// Store map state to localStorage
+	function saveMapState() {
+		if (!mapInstance || typeof window === 'undefined') return;
+
+		try {
+			const center = mapInstance.getCenter();
+			const zoom = mapInstance.getZoom();
+			localStorage.setItem(
+				MAP_STATE_KEY,
+				JSON.stringify({
+					center: [center.lng, center.lat],
+					zoom: zoom
+				})
+			);
+		} catch (e) {
+			log.warn('[RouteMapMaplibre] Failed to save map state to localStorage:', e);
+		}
+	}
+
+	const initialMapState = getInitialMapState();
+	let mapCenter = initialMapState.center;
+	let mapZoom = initialMapState.zoom;
 
 	// Europe basemap: Planetiler MBTiles (OpenMapTiles schema) via Martin. Overlay: PostGIS active_places.
 	const tileServerUrl = getTileServerUrl();
@@ -58,6 +112,13 @@
 			} as StyleSpecification;
 		}
 	});
+
+	// Setup map state persistence when map instance is available
+	$: {
+		if (mapInstance) {
+			setupMapStatePersistence();
+		}
+	}
 
 	/**
 	 * Get employee position from employee data
@@ -114,12 +175,21 @@
 
 	/**
 	 * Handle employee selection - pan/zoom to employee or their route
+	 * Only triggers when employeeId actually changes (not on tab switches)
 	 */
 	async function handleEmployeeSelection(employeeId: string) {
 		if (!mapInstance) return;
 
+		// Don't re-trigger if we've already handled this employee
+		if (lastHandledEmployeeId === employeeId) {
+			return;
+		}
+
 		const fed = $fullEmployeeData.find((fed) => fed.employee.id === employeeId);
 		if (!fed) return;
+
+		// Mark this employee as handled
+		lastHandledEmployeeId = employeeId;
 
 		// Check if employee has an active job with route
 		if (fed.activeJob && fed.activeJob.startTime) {
@@ -161,11 +231,39 @@
 		});
 	}
 
+	// Track if persistence is already set up
+	let persistenceSetup = false;
 
-	// Reactive: Handle selected employee changes
+	// Track map movement to save state
+	function setupMapStatePersistence() {
+		if (!mapInstance || persistenceSetup) return;
+
+		// Save state on moveend (pan/zoom complete)
+		mapInstance.on('moveend', () => {
+			saveMapState();
+		});
+
+		persistenceSetup = true;
+	}
+
+	// Reactive: Setup persistence when map instance is available
 	$: {
-		if (mapInstance && $selectedEmployee) {
+		if (mapInstance && !persistenceSetup) {
+			setupMapStatePersistence();
+		}
+	}
+
+	// Reactive: Handle selected employee changes (only when actually changing)
+	$: {
+		if (mapInstance && $selectedEmployee && $selectedEmployee !== lastHandledEmployeeId) {
 			handleEmployeeSelection($selectedEmployee);
+		}
+	}
+
+	// Reset last handled ID when selectedEmployee is cleared
+	$: {
+		if (!$selectedEmployee) {
+			lastHandledEmployeeId = null;
 		}
 	}
 </script>
@@ -175,8 +273,8 @@
 		<MapLibre
 			bind:map={mapInstance}
 			style={mapStyle}
-			center={defaultCenter}
-			zoom={defaultZoom}
+			center={mapCenter}
+			zoom={mapZoom}
 			class="h-full w-full"
 			autoloadGlobalCss={true}
 		>
@@ -192,6 +290,7 @@
 					}}
 				/>
 			</VectorTileSource>
+			<EmployeeMarkers />
 		</MapLibre>
 	{:else}
 		<div class="flex h-full items-center justify-center">

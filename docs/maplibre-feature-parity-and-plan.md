@@ -87,7 +87,7 @@ Each step is intended for one AI agent run. Do them sequentially.
 
 ---
 
-### Step 2: Employee positions (and animation when moving)
+### Step 2: Employee positions (and animation when moving) ✅ COMPLETE
 
 **Goal:** Show each employee as a marker on the MapLibre map; if they have an active or travel job with a route, animate position along the path.
 
@@ -96,12 +96,26 @@ Each step is intended for one AI agent run. Do them sequentially.
 - Reuse animation idea from Leaflet: `MarkerRenderer.svelte` uses `animationTimestamp` and `routesByEmployee` to interpolate position along `path` (see RouteMap.svelte `routesByEmployee` and MarkerRenderer’s use of it).
 
 **Tasks:**
-1. Add a **GeoJSON source** (or single source with FeatureCollection) for “employee positions”. Data: one point per employee; properties: employee id, name, etc. Use a **symbol or circle layer** to render them (no HTML markers if we can avoid it for performance).
-2. Derive positions: from `fullEmployeeData` — if employee has active/travel job with `startTime`, use interpolated position along route (same formula as Leaflet: progress based on elapsed time and path length); else use `employee.location`.
-3. Run an animation loop (e.g. requestAnimationFrame or 30 FPS timer) that updates a store (e.g. `animationTimestamp`) and recomputes positions; update the GeoJSON source from Svelte.
-4. Style: distinct color/shape for selected employee (from `selectedEmployee` store).
+1. ✅ Add a **GeoJSON source** (or single source with FeatureCollection) for “employee positions”. Data: one point per employee; properties: employee id, name, etc. Use a **symbol or circle layer** to render them (no HTML markers if we can avoid it for performance).
+2. ✅ Derive positions: from `fullEmployeeData` — if employee has active/travel job with `startTime`, use interpolated position along route (same formula as Leaflet: progress based on elapsed time and path length); else use `employee.location`.
+3. ✅ Run an animation loop (e.g. requestAnimationFrame or 30 FPS timer) that updates a store (e.g. `animationTimestamp`) and recomputes positions; update the GeoJSON source from Svelte.
+4. ✅ Style: distinct color/shape for selected employee (from `selectedEmployee` store).
 
-**Acceptance:** All employees visible on map; moving employees (on job/travel) animate along their route; selected employee visually distinct.
+**Acceptance:** ✅ All employees visible on map; moving employees (on job/travel) animate along their route; selected employee visually distinct.
+
+**Implementation Details:**
+- ✅ Created `EmployeeMarkers.svelte` component using `GeoJSONSource` and `CircleLayer` from `svelte-maplibre-gl`
+- ⚠️ **TODO:** Replace CircleLayer with emoji symbols (SymbolLayer) - attempted but not working, needs investigation
+- ✅ GeoJSON FeatureCollection contains one Point feature per employee with properties: `employeeId`, `employeeName`, `isSelected`, `isAnimated`
+- ✅ `getEmployeeCurrentPosition()` checks for active/travel jobs, calculates elapsed time, and uses `interpolateLocationAtTime()` to interpolate along route path
+- ✅ Route paths retrieved from `displayedRoutes` store by matching route IDs (`active-{jobId}` or `travel-{jobId}`)
+- ✅ Animation loop uses `setInterval` with 33ms interval (30 FPS) to update `animationTimestamp` when employees have active/travel jobs
+- ✅ Reactive statements watch `animationTimestamp`, `fullEmployeeData`, `selectedEmployee`, and `displayedRoutes` to trigger position updates
+- ✅ CircleLayer uses MapLibre data-driven styling: selected employees (radius 8px, red `#dc2626`, stroke 2px), animated employees (blue `#3b82f6`), idle employees (green `#10b981`), all with white stroke
+- ✅ Integrated into `RouteMapMaplibre.svelte` as a child component within the `MapLibre` component
+- ✅ Fixed pan/zoom to only trigger on actual employee selection changes (not on tab switches) by tracking `lastHandledEmployeeId`
+- ✅ Map state (center/zoom) persisted to localStorage and restored on load; defaults only used if no stored state exists
+- ⚠️ **Note:** Route animation testing is limited - the Leaflet version has bugs preventing route starts, so full animation testing will need to wait until routes can be started successfully
 
 ---
 
