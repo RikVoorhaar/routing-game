@@ -349,8 +349,8 @@
 		e.stopPropagation(); // Prevent card click
 		// Select this employee
 		selectEmployee(employee.id);
-		// Switch to map tab
-		switchToTab('map');
+		// Switch to MapLibre map tab
+		switchToTab('map_maplibre');
 		// The map will center on the employee automatically via the selectedEmployee store
 	}
 

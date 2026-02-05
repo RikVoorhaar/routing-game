@@ -64,7 +64,7 @@ Each step is intended for one AI agent run. Do them sequentially.
 
 ---
 
-### Step 1: Map control and “To map” pan/zoom
+### Step 1: Map control and "To map" pan/zoom ✅ COMPLETE
 
 **Goal:** Get a reference to the MapLibre map instance, expose center/zoom reactively, and pan/zoom when the user clicks “To map” for an employee (and optionally when selecting a route).
 
@@ -73,14 +73,17 @@ Each step is intended for one AI agent run. Do them sequentially.
 - Same file or a small `useMapLibreMap.ts` — provide a way to call `map.flyTo({ center: [lng, lat], zoom })` and `map.fitBounds(bounds, options)`.
 
 **Tasks:**
-1. In `RouteMapMaplibre.svelte`, obtain the raw MapLibre map instance (from child ref or event/callback from `MapLibre`).
-2. Subscribe to `selectedEmployee` (and optionally `selectedRoute`). When `selectedEmployee` is set:
+1. ✅ In `RouteMapMaplibre.svelte`, obtain the raw MapLibre map instance (from child ref or event/callback from `MapLibre`).
+   - **Implementation:** Used `bind:map={mapInstance}` prop binding on `MapLibre` component (per svelte-maplibre-gl API).
+2. ✅ Subscribe to `selectedEmployee` (and optionally `selectedRoute`). When `selectedEmployee` is set:
    - Resolve employee position from `fullEmployeeData` (reuse logic from Leaflet’s `getEmployeePosition` in RouteMap.svelte).
    - If employee has an active job with route: get route path from `displayedRoutes` or by fetching route data, compute bounds, call `map.fitBounds(bounds, { padding: 20 })`.
    - Else: call `map.flyTo({ center: [lon, lat], zoom: currentZoom or 14 })`.
-3. Ensure “To map” from EmployeeCard can switch to the MapLibre tab: either pass a query/flag so GameState switches to `map_maplibre`, or for this step only switch to `map` and in a later step change to MapLibre. Document the choice.
+   - **Implementation:** Added reactive statement that handles both cases (active job with route → fitBounds, idle → flyTo). Reused `getEmployeePosition()` logic from Leaflet RouteMap.
+3. ✅ Ensure “To map” from EmployeeCard can switch to the MapLibre tab: either pass a query/flag so GameState switches to `map_maplibre`, or for this step only switch to `map` and in a later step change to MapLibre. Document the choice.
+   - **Implementation:** Updated `EmployeeCard.svelte`'s `handleGoToMap()` to call `switchToTab('map_maplibre')` instead of `'map'.
 
-**Acceptance:** Clicking “To map” for an employee opens the map tab, and the map pans/zooms to that employee (or to the route if they have an active job).
+**Acceptance:** ✅ Clicking “To map” for an employee opens the map tab, and the map pans/zooms to that employee (or to the route if they have an active job).
 
 ---
 
