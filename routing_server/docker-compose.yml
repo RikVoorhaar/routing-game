@@ -74,5 +74,13 @@ services:
     depends_on:
       - postgres
 
+  maputnik:
+    image: maputnik/editor:latest
+    container_name: routing-maputnik
+    ports:
+      - "8888:8888"
+    profiles:
+      - maputnik
+
 volumes:
   postgres_data: 
