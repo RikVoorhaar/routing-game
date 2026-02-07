@@ -64,6 +64,11 @@ This document plans bringing the MapLibre GL map tab to feature parity with the 
 
 Each step is intended for one AI agent run. Do them sequentially.
 
+**Note on step ordering:** Step 4 (Active and previewed routes) has been moved to after Step 6 (Second POI selection and "Start job") because the route preview/job selection UI is broken in Leaflet. This means:
+- Travel time computation must be correct for Step 6 even though routes are not yet displayed on the map
+- Travel time should be shown in the POI popup (Step 5)
+- Proper testing of the "Start job" logic will require route display to be implemented (Step 7)
+
 ---
 
 ### Step 1: Map control and "To map" pan/zoom ✅ COMPLETE
@@ -153,24 +158,7 @@ Each step is intended for one AI agent run. Do them sequentially.
 
 ---
 
-### Step 4: Active and previewed routes
-
-**Goal:** Draw the active route and the currently previewed job route (when a job is selected in the list) as lines on the map.
-
-**Where:**
-- `mapDisplay.ts` — same `displayedRoutes` and `DisplayableRoute` structure. Route path: array of points with `coordinates.lat`, `coordinates.lon` (or parse from `routeData`).
-- New component or layer in RouteMapMaplibre: one GeoJSON source for "routes" (MultiLineString or multiple LineString features), with a property for route id and type (active/preview/available). One line layer (or more for different styles).
-
-**Tasks:**
-1. Subscribe to `displayedRoutes` and optionally `selectedRoute`. Build a GeoJSON FeatureCollection of LineString features from `route.path` (or parsed route data). Properties: routeId, isActive, isPreview, isSelected.
-2. Add a MapLibre source (e.g. `routes`) and a line layer. Use data-driven paint (e.g. `line-color`, `line-width`) from feature properties so active/preview/selected have different colors/weights (reuse colors from `mapDisplay.ts` ROUTE_STYLES).
-3. Ensure routes update when `fullEmployeeData`, `selectedActiveJobData`, or `selectedRoute` change (same reactive deps as Leaflet's `updateDisplayedRoutes`).
-
-**Acceptance:** Active job and travel routes and the preview route (when a job is selected) appear as lines with correct styles; selection state is visible.
-
----
-
-### Step 5: POIs from places via Martin — no clustering, small symbols
+### Step 4: POIs from places via Martin — no clustering, small symbols
 
 **Goal:** Show POIs as small circles/symbols from **Martin vector tiles**; no clustering. POIs only need to indicate "something here"; finding a specific type is done via filter UI (later step).
 
@@ -189,7 +177,7 @@ Each step is intended for one AI agent run. Do them sequentially.
 
 ---
 
-### Step 6: POI click → Svelte popup (supply/demand, good type, amount)
+### Step 5: POI click → Svelte popup (supply/demand, good type, amount)
 
 **Goal:** Clicking a POI opens a popup (Svelte component, no generated HTML) showing place info: supply or demand, good type, amount (and later "Accept job" when a second POI is selected).
 
@@ -200,15 +188,17 @@ Each step is intended for one AI agent run. Do them sequentially.
 **Tasks:**
 1. On MapLibre `click`, if the click is on the places layer, get feature's place id (and any other props). Resolve full place (from places cache or by tile) and compute `selectPlaceGoods`, supply amount, etc. (same as Leaflet PlacesRenderer).
 2. Add a **single** popup UI: a Svelte component rendered in the DOM (e.g. absolute div next to the map), positioned at clicked point (or above it). Pass in `place`, goods info, amounts. No `innerHTML`; all content is Svelte.
-3. Popup shows: region, type (Supply/Demand), good name, amount (for supply). For demand, optionally show job value/duration/XP when we have a selected supply (next step).
+3. Popup shows: region, type (Supply/Demand), good name, amount (for supply). For demand, show travel time to the POI (computed from route data even though routes are not yet displayed on the map). Optionally show job value/duration/XP when we have a selected supply (next step).
 
 **Acceptance:** Click POI → Svelte popup with correct supply/demand, good type, and amount; no raw HTML strings.
 
 ---
 
-### Step 7: Second POI selection and "Start job"
+### Step 6: Second POI selection and "Start job"
 
 **Goal:** Allow selecting a second POI after the first: first click = supply (or demand), second = the other; then show "Start job" and call accept-from-places API.
+
+**Important:** Travel time computation must be correct for this step, even though routes are not yet displayed on the map (route display is implemented in Step 7). The travel time should be computed from route data and shown in the popup/UI when selecting POIs. Note that proper testing of the "Start job" logic will require route display to be implemented (Step 7).
 
 **Where:**
 - Reuse `placeFilter` store concept: first selection sets "supply" or "demand" and the selected place; second selection sets the other. Alternatively introduce a small "job draft" store: `{ supplyPlaceId, demandPlaceId } | null`.
@@ -220,7 +210,24 @@ Each step is intended for one AI agent run. Do them sequentially.
 3. On "Start job": call `POST /api/jobs/accept-from-places` with `selectedEmployee`, `currentGameState.id`, `supplyPlaceId`, `demandPlaceId`. On success, refresh game data (e.g. `gameDataAPI.loadAllEmployeeData()`), clear the two-place selection, close popup. On error, show message.
 4. Visually distinguish the two selected POIs on the map (e.g. different color or ring).
 
-**Acceptance:** User can select supply then demand (or vice versa); "Start job" creates the job and updates the game; selection state is clear on the map.
+**Acceptance:** User can select supply then demand (or vice versa); "Start job" creates the job and updates the game; selection state is clear on the map. Travel time computation is correct even though routes are not yet displayed.
+
+---
+
+### Step 7: Active and previewed routes
+
+**Goal:** Draw the active route and the currently previewed job route (when a job is selected in the list) as lines on the map.
+
+**Where:**
+- `mapDisplay.ts` — same `displayedRoutes` and `DisplayableRoute` structure. Route path: array of points with `coordinates.lat`, `coordinates.lon` (or parse from `routeData`).
+- New component or layer in RouteMapMaplibre: one GeoJSON source for "routes" (MultiLineString or multiple LineString features), with a property for route id and type (active/preview/available). One line layer (or more for different styles).
+
+**Tasks:**
+1. Subscribe to `displayedRoutes` and optionally `selectedRoute`. Build a GeoJSON FeatureCollection of LineString features from `route.path` (or parsed route data). Properties: routeId, isActive, isPreview, isSelected.
+2. Add a MapLibre source (e.g. `routes`) and a line layer. Use data-driven paint (e.g. `line-color`, `line-width`) from feature properties so active/preview/selected have different colors/weights (reuse colors from `mapDisplay.ts` ROUTE_STYLES).
+3. Ensure routes update when `fullEmployeeData`, `selectedActiveJobData`, or `selectedRoute` change (same reactive deps as Leaflet's `updateDisplayedRoutes`).
+
+**Acceptance:** Active job and travel routes and the preview route (when a job is selected) appear as lines with correct styles; selection state is visible.
 
 ---
 
