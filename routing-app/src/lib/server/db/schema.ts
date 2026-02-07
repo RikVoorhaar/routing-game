@@ -315,6 +315,7 @@ export const activePlaces = pgTable(
 			.default(sql`CURRENT_TIMESTAMP`)
 	},
 	(table) => [
+		index('active_places_place_id_idx').on(table.placeId), // Critical for JOIN performance in views
 		index('active_places_region_id_idx').on(table.regionId),
 		index('active_places_category_id_idx').on(table.categoryId),
 		index('active_places_region_category_idx').on(table.regionId, table.categoryId)

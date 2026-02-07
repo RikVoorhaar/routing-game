@@ -176,6 +176,20 @@
       "when": 1769460500000,
       "tag": "0024_cap_tile_size_lines_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1770468984014,
+      "tag": "0025_enhanced_active_places_with_geom",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1770498911632,
+      "tag": "0026_add_active_places_place_id_index",
+      "breakpoints": true
     }
   ]
 }

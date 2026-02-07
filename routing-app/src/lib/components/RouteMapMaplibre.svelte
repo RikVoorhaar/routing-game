@@ -8,6 +8,7 @@
 	import { getRoute } from '$lib/stores/routeCache';
 	import EmployeeMarkers from './map/maplibre/EmployeeMarkers.svelte';
 	import RegionBorders from './map/maplibre/RegionBorders.svelte';
+	import PlacesLayer from './map/maplibre/PlacesLayer.svelte';
 	import type { Employee, Coordinate, PathPoint } from '$lib/server/db/schema';
 	import type { DisplayableRoute } from '$lib/stores/mapDisplay';
 	import { log } from '$lib/logger';
@@ -75,7 +76,6 @@
 
 	// Europe basemap: Planetiler MBTiles (OpenMapTiles schema) via Martin. Overlay: PostGIS active_places.
 	const tileServerUrl = getTileServerUrl();
-	const martinActivePlacesUrl = `${tileServerUrl}/active_places_with_geom`;
 
 	// Load map style from JSON file
 	let mapStyle: StyleSpecification | null = null;
@@ -279,18 +279,7 @@
 			class="h-full w-full"
 			autoloadGlobalCss={true}
 		>
-			<VectorTileSource id="martin-active-places" url={martinActivePlacesUrl}>
-				<CircleLayer
-					id="active-places-circles"
-					sourceLayer="active_places_with_geom"
-					paint={{
-						'circle-radius': 4,
-						'circle-color': '#2563eb',
-						'circle-stroke-width': 1,
-						'circle-stroke-color': '#fff'
-					}}
-				/>
-			</VectorTileSource>
+			<PlacesLayer {tileServerUrl} />
 			<EmployeeMarkers />
 			<RegionBorders />
 		</MapLibre>
