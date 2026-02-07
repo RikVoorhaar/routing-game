@@ -7,6 +7,7 @@
 	import { displayedRoutes } from '$lib/stores/mapDisplay';
 	import { getRoute } from '$lib/stores/routeCache';
 	import EmployeeMarkers from './map/maplibre/EmployeeMarkers.svelte';
+	import RegionBorders from './map/maplibre/RegionBorders.svelte';
 	import type { Employee, Coordinate, PathPoint } from '$lib/server/db/schema';
 	import type { DisplayableRoute } from '$lib/stores/mapDisplay';
 	import { log } from '$lib/logger';
@@ -291,6 +292,7 @@
 				/>
 			</VectorTileSource>
 			<EmployeeMarkers />
+			<RegionBorders />
 		</MapLibre>
 	{:else}
 		<div class="flex h-full items-center justify-center">

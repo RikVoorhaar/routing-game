@@ -267,6 +267,14 @@
 						<div class="card-body p-2">
 							<div class="flex items-center justify-between px-4 py-2">
 								<h3 class="card-title">Route Map (MapLibre)</h3>
+								<label class="label cursor-pointer gap-2">
+									<span class="label-text text-sm">Regions</span>
+									<input
+										type="checkbox"
+										class="toggle toggle-sm"
+										bind:checked={$regionOverlayEnabled}
+									/>
+								</label>
 							</div>
 							<div class="flex-1">
 								<RouteMapMaplibre />
