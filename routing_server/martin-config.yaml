@@ -10,3 +10,37 @@ postgres:
   auto_publish:
     functions:
       from_schemas: public
+  # Explicit table configurations for zoom level control
+  # Note: When using explicit tables, auto_publish.tables is disabled
+  tables:
+    enhanced_active_places_with_geom:
+      schema: public
+      table: enhanced_active_places_with_geom
+      srid: 3857
+      geometry_column: geom
+      id_column: place_id
+      minzoom: 8  # Show places at zoom 8 and above (regions show at zoom 7 and below)
+      maxzoom: 22
+      properties:
+        place_id: int8
+        category_name: text
+        region_code: text
+        created_at: timestamptz
+    region:
+      schema: public
+      table: region
+      srid: 3857
+      geometry_column: geom
+      minzoom: 0
+      maxzoom: 7  # Show regions at zoom 7 and below (places show at zoom 8 and above)
+      properties:
+        id: int4
+        code: text
+        name_latin: text
+        name_local: text
+        country_code: text
+
+# Increase tile cache size for better performance (default is 256 MB)
+cache:
+  tiles:
+    size: 512  # MB - increase if you have memory available

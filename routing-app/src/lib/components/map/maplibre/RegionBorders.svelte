@@ -61,6 +61,8 @@
 	});
 
 	// Compute layer visibility based on regionOverlayEnabled
+	// Note: Regions are loaded from API (not Martin), so we control visibility client-side
+	// Martin's region table has maxzoom: 7 configured, but we're using the API endpoint
 	$: layerVisibility = $regionOverlayEnabled ? 'visible' : 'none';
 </script>
 

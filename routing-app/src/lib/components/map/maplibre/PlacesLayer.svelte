@@ -9,6 +9,7 @@
 	// to set up the structure for future filtering implementation.
 
 	// URL for enhanced active places view
+	// Martin is configured with minzoom: 8, so it won't serve tiles below zoom 8
 	const martinActivePlacesUrl = `${tileServerUrl}/enhanced_active_places_with_geom`;
 </script>
 

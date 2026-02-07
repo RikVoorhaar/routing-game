@@ -40,6 +40,7 @@ services:
       - ./postgres-conf:/docker-entrypoint-initdb.d
       - ./postgres-conf/pg_hba.conf:/var/lib/postgresql/data/pg_hba.conf
       - ./postgres-conf/postgresql.conf:/var/lib/postgresql/data/postgresql.conf
+    shm_size: 512mb  # Increase shared memory for MVT tile generation (default 64MB is too small)
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U routing_user -d routing_game"]
       interval: 10s

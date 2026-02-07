@@ -267,25 +267,59 @@
 			lastHandledEmployeeId = null;
 		}
 	}
+
+	// Track current zoom for debug display
+	let currentZoomDisplay = mapZoom;
+	let zoomListenerSetup = false;
+
+	// Setup zoom listener when map instance is available
+	$: {
+		if (mapInstance && !zoomListenerSetup) {
+			const map = mapInstance;
+			currentZoomDisplay = map.getZoom();
+			map.on('zoom', () => {
+				currentZoomDisplay = map.getZoom();
+			});
+			map.on('zoomend', () => {
+				currentZoomDisplay = map.getZoom();
+			});
+			zoomListenerSetup = true;
+		}
+	}
+
+	// Also update from mapZoom prop
+	$: {
+		if (mapInstance) {
+			currentZoomDisplay = mapInstance.getZoom();
+		} else {
+			currentZoomDisplay = mapZoom;
+		}
+	}
 </script>
 
-<div class="h-full w-full min-h-[400px]">
-	{#if mapStyle}
-		<MapLibre
-			bind:map={mapInstance}
-			style={mapStyle}
-			center={mapCenter}
-			zoom={mapZoom}
-			class="h-full w-full"
-			autoloadGlobalCss={true}
-		>
-			<PlacesLayer {tileServerUrl} />
-			<EmployeeMarkers />
-			<RegionBorders />
-		</MapLibre>
-	{:else}
-		<div class="flex h-full items-center justify-center">
-			<span class="loading loading-spinner loading-lg"></span>
-		</div>
-	{/if}
+<div class="h-full w-full min-h-[400px] flex flex-col">
+	<div class="flex-1 min-h-0">
+		{#if mapStyle}
+			<MapLibre
+				bind:map={mapInstance}
+				style={mapStyle}
+				center={mapCenter}
+				zoom={mapZoom}
+				class="h-full w-full"
+				autoloadGlobalCss={true}
+			>
+				<PlacesLayer {tileServerUrl} />
+				<EmployeeMarkers />
+				<RegionBorders />
+			</MapLibre>
+		{:else}
+			<div class="flex h-full items-center justify-center">
+				<span class="loading loading-spinner loading-lg"></span>
+			</div>
+		{/if}
+	</div>
+	<!-- Debug zoom display -->
+	<div class="bg-base-200 px-2 py-1 text-xs text-base-content flex-shrink-0">
+		Zoom: {currentZoomDisplay.toFixed(2)} | Places visible: {currentZoomDisplay >= 8 ? 'Yes' : 'No'} | Regions visible: {currentZoomDisplay <= 7 ? 'Yes' : 'No'}
+	</div>
 </div>
