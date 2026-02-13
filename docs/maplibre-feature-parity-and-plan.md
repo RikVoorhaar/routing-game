@@ -226,6 +226,53 @@ Each step is intended for one AI agent run. Do them sequentially.
 
 ---
 
+### Step 5.5: Color-code POIs by supply/demand type and add icons for good categories
+
+**Goal:** Visually distinguish POIs using:
+1. **Colors** for supply vs demand: Supply POIs in one color (e.g., green), demand POIs in another color (e.g., orange/red).
+2. **Icons** for good type categories: Each good type (e.g., "electronics", "food", "clothing") should have a distinct icon overlay on the POI circle.
+
+This requires computing supply/demand type and good type on the frontend for each POI.
+
+**Where:**
+- `routing-app/src/lib/components/map/maplibre/PlacesLayer.svelte` — Update `CircleLayer` for color-coding and add `SymbolLayer` for icons.
+- Since supply/demand and good type are deterministic based on `gameState.seed` and `place.id`, we can compute them client-side using `selectPlaceGoods()` from `placeGoodsSelection.ts`.
+- Icon mapping: Define a mapping from good type strings to icon names/URLs (e.g., emoji, SVG icons, or icon font glyphs).
+
+**Tasks:**
+1. Compute supply/demand type and good type for each POI feature using `selectPlaceGoods(gameState.seed, placeId, categoryGoods)`.
+2. Use MapLibre data-driven styling (`circle-color` with expressions) to color-code circles:
+   - Supply POIs: green (e.g., `#10b981` or `#22c55e`)
+   - Demand POIs: orange/red (e.g., `#f97316` or `#ef4444`)
+3. Add a `SymbolLayer` on top of the `CircleLayer` to display icons:
+   - Use `icon-image` property with data-driven expressions based on good type
+   - Icons should be small (e.g., 12-16px) and centered on the circle
+   - Define icon mapping: `{ goodType: iconName }` (e.g., `{ "electronics": "⚡", "food": "🍔", "clothing": "👕" }`)
+   - Consider using emoji, icon fonts (e.g., Font Awesome), or custom SVG sprites
+4. Handle edge cases: when `gameState` or `placeGoodsConfig` is not yet loaded, use default color (current blue) and no icon.
+5. Ensure computation is efficient — consider caching computed types per place ID if needed for performance.
+
+**Implementation Notes:**
+- MapLibre expressions can use `['get', 'property_name']` to access feature properties, but we need to compute supply/demand and good type dynamically.
+- For icons, MapLibre supports:
+  - **Emoji**: Can be used directly in `text-field` with `SymbolLayer` (but requires text layer, not icon-image)
+  - **Icon fonts**: Load icon font, use `text-field` with icon font glyph codes
+  - **SVG sprites**: Add icons to map style's sprite sheet, reference via `icon-image`
+  - **Image URLs**: Load images and add to map style, reference via `icon-image`
+- Recommended approach: Use `SymbolLayer` with `text-field` and emoji or icon font glyphs for simplicity, or add icons to map style sprite sheet for better control.
+- Options for supply/demand computation:
+  - **Option A**: Add `supply_demand_type` and `good_type` as properties in the Martin view (requires backend change, but most efficient).
+  - **Option C**: Use separate layers for supply and demand POIs, filtered by computed type (requires client-side filtering of features).
+  - **Option D**: Use a GeoJSON source instead of vector tiles, compute supply/demand and good type when building the GeoJSON, then use data-driven styling (more flexible but loses vector tile performance benefits).
+- Recommended: **Option A** (backend enhancement) for best performance, or **Option C** (separate filtered layers) for frontend-only solution.
+
+**Acceptance:** 
+- Supply POIs appear in green, demand POIs appear in orange/red.
+- Each POI displays an icon representing its good type category.
+- Colors and icons update correctly when game state or place goods config changes.
+
+---
+
 ### Step 6: Second POI selection and "Start job"
 
 **Goal:** Allow selecting a second POI after the first: first click = supply (or demand), second = the other; then show "Start job" and call accept-from-places API.
