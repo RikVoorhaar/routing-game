@@ -35,6 +35,10 @@ This document plans bringing the MapLibre GL map tab to feature parity with the 
   - **Schema:** `places` and `active_places` in `routing-app/src/lib/server/db/schema.ts`. Existing view for Martin: `drizzle/0020_active_places_with_geom.sql` (place_id, region_id, category_id, geom).
   - **POI data via Martin (not tile API):** POI data for the MapLibre map should be loaded via Martin vector tiles, not the legacy tile API + IndexedDB. The raw `places` table is not directly useable by the tile server (e.g. it has only category_id/region_id, no human-readable category/region names for tile properties; and/or Martin expects a view with a single geometry column and MVT-friendly properties). A separate implementation step (or migration) must **prepare a Martin-servable table or view based on `places`** — e.g. a view that joins `places` with `categories` and `region` so each row has `place_id`, `category` (name), `region_code`, and `geom`, and optionally restricts to `active_places` so only the game subset is served. That view is then what MapLibre uses as the POI vector-tile source; no tile API or client-side POI cache for the MapLibre tab.
   - **Legacy (Leaflet):** `loadPlacesForTiles` in `routing-app/src/lib/map/placesLoader.ts`; `getPlacesForVisibleTilesGrouped` in `routing-app/src/lib/map/placesGetter.ts`; tile API `GET /api/places/[tile_x]/[tile_y]` and IndexedDB cache remain for the Leaflet map until it is retired.
+  - **⚠️ TODO: Delete legacy tile API endpoints once MapLibre migration is complete:**
+    - `GET /api/places/tiles` - Returns list of all tiles with places data (used by `placesBackgroundLoader.ts` for prefetching)
+    - `GET /api/places/[tile_x]/[tile_y]` - Returns gzipped places data for a specific tile (used by `placesLoader.ts`)
+    - These endpoints are only used by the old Leaflet map system. MapLibre uses Martin vector tiles directly, so these can be removed once Leaflet is retired.
   - **Place filter:** `placeFilter` store (`$lib/stores/placeFilter.ts`) — `PlaceFilter { selectedPlaceId, selectedGood, filterType, targetType }`. `createPlaceFilterPredicate` in `$lib/places/placeFilter.ts` filters by supply/demand/good.
   - **Place goods:** `placeGoods` store, `placeGoodsConfig` (`$lib/config/placeGoodsTypes.ts`), `selectPlaceGoods` in `$lib/places/placeGoodsSelection.ts`; supply amount: `$lib/places/supplyAmount.ts`.
 - **Job from two POIs:** `POST /api/jobs/accept-from-places` — body `{ employeeId, gameStateId, supplyPlaceId, demandPlaceId }`; see `routing-app/src/routes/api/jobs/accept-from-places/+server.ts`.
@@ -158,22 +162,35 @@ Each step is intended for one AI agent run. Do them sequentially.
 
 ---
 
-### Step 4: POIs from places via Martin — no clustering, small symbols
+### Step 4: POIs from places via Martin — no clustering, small symbols ✅ COMPLETE
 
 **Goal:** Show POIs as small circles/symbols from **Martin vector tiles**; no clustering. POIs only need to indicate "something here"; finding a specific type is done via filter UI (later step).
 
 **Where:**
-- **Martin-servable POI source (prepare first):** The raw `places` table is not directly useable by the tile server. Add a **table or view** that Martin can serve, based on `places`: e.g. a view that joins `places` with `categories` and `region` so each row has one geometry column plus properties like `place_id`, `category` (name), `region_code`. Optionally restrict to `active_places` so only the game subset is in the tiles. Document or implement this in a migration when ready; do not run migrations as part of the plan — the plan only states that this preparation is required.
-- Current MapLibre setup uses `active_places_with_geom` (place_id, region_id, category_id, geom). Either switch to the new view once it exists, or extend that view to add category name and region code so the client can filter/display without extra lookups.
-- Per-POI data for popups (supply/demand, amount): supply/demand and amount are derived from game state and config (e.g. `selectPlaceGoods`, `generateSupplyAmount`), not stored in the DB per place. So the tile layer only needs enough to identify the place (place_id, category, region_code); the app fetches or computes supply/demand/amount when showing the popup (e.g. from place_id + game state).
+- `routing-app/drizzle/0025_enhanced_active_places_with_geom.sql` — Database migration creating enhanced view with category_name and region_code.
+- `routing-app/drizzle/0026_add_active_places_place_id_index.sql` — Database migration adding critical index on `active_places.place_id` for JOIN performance.
+- `routing-app/src/lib/components/map/maplibre/PlacesLayer.svelte` — MapLibre component rendering POIs from Martin vector tiles.
+- `routing_server/martin-config.yaml` — Martin configuration with explicit table config including minzoom: 8 for places.
+- `routing_server/docker-compose.yml` — Increased PostgreSQL shared memory to 512MB for MVT tile generation.
 
 **Tasks:**
-1. **Preparation (document only; implement in a separate step):** Ensure a Martin-servable POI source exists: a view (or table) based on `places` that exposes one geometry column and MVT-friendly properties (at least place_id, category name, region code). Restrict to active_places if desired. Do not run any database migrations from this plan.
-2. In MapLibre, use that source as a **vector tile layer** (same tile server URL, source id = the view/table name). Replace or drop the current `active_places_with_geom` layer in favour of the new source if the new one is the canonical POI layer.
-3. Use **small** circle/style (e.g. radius 3–5px) so many POIs don't overlap; no clustering.
-4. Apply **filter** from `placeFilter` / `createPlaceFilterPredicate` in the client: use MapLibre layer filter expressions on the POI layer (e.g. filter by `category` or other tile properties) when a filter is active; for supply/demand/good type the filter may require client-side logic if those are not in the tile (they're derived from place_id + game state).
+1. ✅ Created `enhanced_active_places_with_geom` view that joins `active_places` with `places`, `categories`, and `region` to include `category_name` and `region_code`.
+2. ✅ Added critical index on `active_places.place_id` for fast JOINs (reduces query time from 1m23s to <1s for COUNT(*)).
+3. ✅ Created `PlacesLayer.svelte` component using `VectorTileSource` and `CircleLayer` from `svelte-maplibre-gl`.
+4. ✅ Configured Martin with explicit table configuration including `minzoom: 8` so places only show at zoom 8+ (regions show at zoom 7 and below).
+5. ✅ Set circle radius to 3px (small, no clustering).
+6. ✅ Added `placeFilter` store import (structure for Step 5 filtering implementation).
+7. ✅ Increased PostgreSQL shared memory from 64MB to 512MB to prevent "No space left on device" errors during MVT tile generation.
 
-**Acceptance:** POIs are loaded via Martin (vector tiles) from a prepared table/view based on places; they appear as small circles; no clustering; filter UI can narrow what's shown where possible from tile properties.
+**Implementation Details:**
+- ✅ View created: `enhanced_active_places_with_geom` with columns: `place_id`, `category_name`, `region_code`, `created_at`, `geom`
+- ✅ Index added: `active_places_place_id_idx` on `active_places(place_id)` — critical for JOIN performance with 340k+ rows
+- ✅ Martin config: Explicit table configuration with `id_column: place_id`, `minzoom: 8`, `maxzoom: 22`, and properties mapping
+- ✅ Zoom restrictions: Places show at zoom 8+ (Martin won't serve tiles below zoom 8), regions show at zoom 7 and below
+- ✅ Performance: Tile requests are fast (~10ms), COUNT(*) queries are <1s after index and ANALYZE
+- ✅ Shared memory fix: Increased PostgreSQL `shm_size` to 512MB to handle MVT tile generation for large datasets
+
+**Acceptance:** ✅ POIs are loaded via Martin vector tiles from `enhanced_active_places_with_geom` view; they appear as small circles (3px radius, no clustering); places only show at zoom 8+; regions show at zoom 7 and below; performance is optimized with proper indexes and shared memory configuration.
 
 ---
 

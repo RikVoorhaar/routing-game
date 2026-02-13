@@ -1,7 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { places } from '$lib/server/db/schema';
 import { sql } from 'drizzle-orm';
 import { serverLog } from '$lib/server/logging/serverLogger';
 import { redisClient } from '$lib/server/redis';
@@ -43,9 +42,16 @@ export const GET: RequestHandler = async () => {
 		if (!tilesData) {
 			serverLog.api.info({}, 'Tiles list not found in cache, querying database');
 
-			// Query distinct tile coordinates using SQL DISTINCT
+			// Query distinct tile coordinates computed from geom column at zoom level 8
+			// Convert geom (EPSG:3857) to lat/lon, then compute tile coordinates
 			const result = await db.execute(
-				sql`SELECT DISTINCT tile_x as "tileX", tile_y as "tileY" FROM places ORDER BY tile_x, tile_y`
+				sql`
+					SELECT DISTINCT 
+						FLOOR((ST_X(ST_Transform(geom, 4326)) + 180.0) / 360.0 * POWER(2, 8))::integer as "tileX",
+						FLOOR((1.0 - LN(TAN(RADIANS(ST_Y(ST_Transform(geom, 4326)))) + 1.0 / COS(RADIANS(ST_Y(ST_Transform(geom, 4326))))) / PI()) / 2.0 * POWER(2, 8))::integer as "tileY"
+					FROM places
+					ORDER BY "tileX", "tileY"
+				`
 			);
 
 			// postgres-js execute returns an array directly

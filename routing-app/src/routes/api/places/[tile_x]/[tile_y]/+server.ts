@@ -1,8 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { places } from '$lib/server/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { serverLog } from '$lib/server/logging/serverLogger';
 import { getPlaces, setPlaces } from '$lib/server/placesCache';
 import { gzipSync } from 'zlib';
@@ -40,17 +39,35 @@ export const GET: RequestHandler = async ({ params }) => {
 		if (!placesDataGzip) {
 			serverLog.api.debug({ tileX, tileY }, 'Places not found in cache, querying database');
 
-			// Query places table for all places in this tile
-			const placesList = await db
-				.select({
-					id: places.id,
-					category: places.category,
-					lat: places.lat,
-					lon: places.lon,
-					region: places.region
-				})
-				.from(places)
-				.where(and(eq(places.tileX, tileX), eq(places.tileY, tileY)));
+			// Query places table for all places in this tile using raw SQL
+			// Compute tile coordinates from geom at zoom level 8 and filter by requested tile
+			// Join with categories and regions to get category name and region code
+			// Extract lat/lon from geom
+			const result = await db.execute(
+				sql`
+					SELECT 
+						p.id,
+						COALESCE(c.name, 'unknown') as category,
+						ST_Y(ST_Transform(p.geom, 4326)) as lat,
+						ST_X(ST_Transform(p.geom, 4326)) as lon,
+						COALESCE(r.code, 'unknown') as region
+					FROM places p
+					LEFT JOIN categories c ON p.category_id = c.id
+					LEFT JOIN region r ON p.region_id = r.id
+					WHERE 
+						FLOOR((ST_X(ST_Transform(p.geom, 4326)) + 180.0) / 360.0 * POWER(2, 8))::integer = ${tileX}
+						AND FLOOR((1.0 - LN(TAN(RADIANS(ST_Y(ST_Transform(p.geom, 4326)))) + 1.0 / COS(RADIANS(ST_Y(ST_Transform(p.geom, 4326))))) / PI()) / 2.0 * POWER(2, 8))::integer = ${tileY}
+				`
+			);
+
+			// Transform result to match expected format
+			const placesList = (result as Array<{ id: bigint; category: string; lat: number; lon: number; region: string }>).map((row) => ({
+				id: Number(row.id),
+				category: row.category,
+				lat: Number(row.lat),
+				lon: Number(row.lon),
+				region: row.region
+			}));
 
 			// Build JSON array of places
 			const placesJson = JSON.stringify(placesList);
