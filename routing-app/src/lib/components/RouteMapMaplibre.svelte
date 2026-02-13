@@ -9,10 +9,12 @@
 	import EmployeeMarkers from './map/maplibre/EmployeeMarkers.svelte';
 	import RegionBorders from './map/maplibre/RegionBorders.svelte';
 	import PlacesLayer from './map/maplibre/PlacesLayer.svelte';
+	import PlacePopup from './map/maplibre/PlacePopup.svelte';
 	import type { Employee, Coordinate, PathPoint } from '$lib/server/db/schema';
 	import type { DisplayableRoute } from '$lib/stores/mapDisplay';
+	import type { Place } from '$lib/stores/placesCache';
 	import { log } from '$lib/logger';
-	import type { Map as MapLibreMap, StyleSpecification } from 'maplibre-gl';
+	import type { Map as MapLibreMap, StyleSpecification, MapMouseEvent } from 'maplibre-gl';
 
 	// Same default view as Leaflet MapManager (Utrecht, zoom 13). MapLibre uses [lng, lat].
 	const DEFAULT_CENTER: [number, number] = [5.1214, 52.0907];
@@ -23,6 +25,12 @@
 
 	// Track last handled employee ID to prevent re-triggering on tab switches
 	let lastHandledEmployeeId: string | null = null;
+
+	// POI popup state
+	let selectedPlace: Place | null = null;
+	let popupLngLat: [number, number] | null = null;
+	let popupPixelPosition: { x: number; y: number } | null = null;
+	let clickHandlerSetup = false;
 
 	// Map state persistence key
 	const MAP_STATE_KEY = 'maplibre-map-state';
@@ -87,12 +95,12 @@
 				throw new Error(`Failed to fetch map style: ${response.statusText}`);
 			}
 			const styleJson = await response.json();
-			
+
 			// Replace hardcoded URL with dynamic tile server URL
 			if (styleJson.sources?.europe) {
 				styleJson.sources.europe.url = `${tileServerUrl}/europe`;
 			}
-			
+
 			mapStyle = styleJson as StyleSpecification;
 			log.debug('[RouteMapMaplibre] Loaded map style from JSON');
 		} catch (error) {
@@ -107,17 +115,23 @@
 						maxzoom: 15
 					}
 				},
-				layers: [
-					{ id: 'background', type: 'background', paint: { 'background-color': '#f8f4f0' } }
-				]
+				layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#f8f4f0' } }]
 			} as StyleSpecification;
 		}
 	});
 
-	// Setup map state persistence when map instance is available
+	// Setup map state persistence and click handler when map instance is available
 	$: {
 		if (mapInstance) {
 			setupMapStatePersistence();
+			setupClickHandler();
+		}
+	}
+
+	// Update popup position when popup location changes
+	$: {
+		if (mapInstance && popupLngLat) {
+			updatePopupPosition();
 		}
 	}
 
@@ -209,7 +223,11 @@
 						}
 					}
 
-					if (parsedRouteData?.path && Array.isArray(parsedRouteData.path) && parsedRouteData.path.length > 0) {
+					if (
+						parsedRouteData?.path &&
+						Array.isArray(parsedRouteData.path) &&
+						parsedRouteData.path.length > 0
+					) {
 						const bounds = calculateBoundsFromPath(parsedRouteData.path);
 						if (bounds) {
 							mapInstance.fitBounds(bounds, { padding: 20 });
@@ -245,6 +263,122 @@
 		});
 
 		persistenceSetup = true;
+	}
+
+	/**
+	 * Handle map click - detect POI clicks and show popup
+	 */
+	function handleMapClick(e: MapMouseEvent) {
+		if (!mapInstance) return;
+
+		// Query features at click point on the places layer
+		const features = mapInstance.queryRenderedFeatures(e.point, {
+			layers: ['active-places-circles']
+		});
+
+		if (features && features.length > 0) {
+			const feature = features[0];
+			const props = feature.properties || {};
+
+			// Extract place data from feature
+			// Handle both snake_case and camelCase property names
+			const placeId = Number(props.place_id ?? props.placeId ?? 0);
+			const category = props.category_name ?? props.categoryName ?? 'Unknown';
+			const region = props.region_code ?? props.regionCode ?? null;
+
+			// Extract coordinates from geometry (Point: [lng, lat])
+			let lng: number | null = null;
+			let lat: number | null = null;
+
+			if (feature.geometry && feature.geometry.type === 'Point' && feature.geometry.coordinates) {
+				const coords = feature.geometry.coordinates as [number, number];
+				lng = coords[0];
+				lat = coords[1];
+			}
+
+			if (placeId && lat !== null && lng !== null) {
+				selectedPlace = {
+					id: placeId,
+					category,
+					lat,
+					lon: lng,
+					region
+				};
+				popupLngLat = [lng, lat];
+				updatePopupPosition();
+			} else {
+				log.warn('[RouteMapMaplibre] Invalid feature data:', { placeId, lat, lng, props });
+			}
+		} else {
+			// Clicked outside POI - close popup
+			selectedPlace = null;
+			popupLngLat = null;
+			popupPixelPosition = null;
+		}
+	}
+
+	/**
+	 * Update popup pixel position based on current map view
+	 */
+	function updatePopupPosition() {
+		if (!mapInstance || !popupLngLat) {
+			popupPixelPosition = null;
+			return;
+		}
+
+		try {
+			const point = mapInstance.project(popupLngLat);
+			popupPixelPosition = { x: point.x, y: point.y };
+		} catch (error) {
+			log.warn('[RouteMapMaplibre] Failed to project popup position:', error);
+			popupPixelPosition = null;
+		}
+	}
+
+	/**
+	 * Setup click handler and map movement listeners when map instance is available
+	 */
+	function setupClickHandler() {
+		if (!mapInstance || clickHandlerSetup) return;
+
+		mapInstance.on('click', handleMapClick);
+
+		// Update popup position when map moves
+		mapInstance.on('move', () => {
+			if (popupLngLat) {
+				updatePopupPosition();
+			}
+		});
+
+		mapInstance.on('moveend', () => {
+			if (popupLngLat) {
+				updatePopupPosition();
+			}
+		});
+
+		mapInstance.on('zoom', () => {
+			if (popupLngLat) {
+				updatePopupPosition();
+			}
+		});
+
+		mapInstance.on('zoomend', () => {
+			if (popupLngLat) {
+				updatePopupPosition();
+			}
+		});
+
+		clickHandlerSetup = true;
+		log.debug('[RouteMapMaplibre] Click handler and movement listeners setup complete');
+	}
+
+	/**
+	 * Close popup
+	 */
+	function closePopup() {
+		selectedPlace = null;
+		popupLngLat = null;
+		popupPixelPosition = null;
 	}
 
 	// Reactive: Setup persistence when map instance is available
@@ -297,8 +431,8 @@
 	}
 </script>
 
-<div class="h-full w-full min-h-[400px] flex flex-col">
-	<div class="flex-1 min-h-0">
+<div class="relative flex h-full min-h-[400px] w-full flex-col">
+	<div class="relative min-h-0 flex-1">
 		{#if mapStyle}
 			<MapLibre
 				bind:map={mapInstance}
@@ -317,9 +451,20 @@
 				<span class="loading loading-spinner loading-lg"></span>
 			</div>
 		{/if}
+
+		<!-- POI Popup -->
+		{#if selectedPlace && popupPixelPosition}
+			<PlacePopup
+				place={selectedPlace}
+				{popupPixelPosition}
+				onClose={closePopup}
+				zoom={currentZoomDisplay}
+			/>
+		{/if}
 	</div>
 	<!-- Debug zoom display -->
-	<div class="bg-base-200 px-2 py-1 text-xs text-base-content flex-shrink-0">
-		Zoom: {currentZoomDisplay.toFixed(2)} | Places visible: {currentZoomDisplay >= 8 ? 'Yes' : 'No'} | Regions visible: {currentZoomDisplay <= 7 ? 'Yes' : 'No'}
+	<div class="flex-shrink-0 bg-base-200 px-2 py-1 text-xs text-base-content">
+		Zoom: {currentZoomDisplay.toFixed(2)} | Places visible: {currentZoomDisplay >= 8 ? 'Yes' : 'No'}
+		| Regions visible: {currentZoomDisplay <= 7 ? 'Yes' : 'No'}
 	</div>
 </div>

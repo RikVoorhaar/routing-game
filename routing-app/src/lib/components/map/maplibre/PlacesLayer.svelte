@@ -18,7 +18,7 @@
 		id="active-places-circles"
 		sourceLayer="enhanced_active_places_with_geom"
 		paint={{
-			'circle-radius': 3,
+			'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 3, 12, 3, 16, 8],
 			'circle-color': '#2563eb',
 			'circle-stroke-width': 1,
 			'circle-stroke-color': '#fff'

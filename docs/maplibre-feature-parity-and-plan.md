@@ -194,7 +194,7 @@ Each step is intended for one AI agent run. Do them sequentially.
 
 ---
 
-### Step 5: POI click → Svelte popup (supply/demand, good type, amount)
+### Step 5: POI click → Svelte popup (supply/demand, good type, amount) ✅ COMPLETE
 
 **Goal:** Clicking a POI opens a popup (Svelte component, no generated HTML) showing place info: supply or demand, good type, amount (and later "Accept job" when a second POI is selected).
 
@@ -203,11 +203,26 @@ Each step is intended for one AI agent run. Do them sequentially.
 - MapLibre: use map `click` (or `mouseup`) on the places layer; query features under cursor (`map.queryRenderedFeatures`), get place id, then look up full place + goods from stores/API and show the popup.
 
 **Tasks:**
-1. On MapLibre `click`, if the click is on the places layer, get feature's place id (and any other props). Resolve full place (from places cache or by tile) and compute `selectPlaceGoods`, supply amount, etc. (same as Leaflet PlacesRenderer).
-2. Add a **single** popup UI: a Svelte component rendered in the DOM (e.g. absolute div next to the map), positioned at clicked point (or above it). Pass in `place`, goods info, amounts. No `innerHTML`; all content is Svelte.
-3. Popup shows: region, type (Supply/Demand), good name, amount (for supply). For demand, show travel time to the POI (computed from route data even though routes are not yet displayed on the map). Optionally show job value/duration/XP when we have a selected supply (next step).
+1. ✅ On MapLibre `click`, if the click is on the places layer, get feature's place id (and any other props). Resolve full place (from places cache or by tile) and compute `selectPlaceGoods`, supply amount, etc. (same as Leaflet PlacesRenderer).
+2. ✅ Add a **single** popup UI: a Svelte component rendered in the DOM (e.g. absolute div next to the map), positioned at clicked point (or above it). Pass in `place`, goods info, amounts. No `innerHTML`; all content is Svelte.
+3. ✅ Popup shows: region, type (Supply/Demand), good name, amount (for supply). For demand, show travel time to the POI (computed from route data even though routes are not yet displayed on the map). Optionally show job value/duration/XP when we have a selected supply (next step).
+4. ✅ Added zoom-based scaling: popup scales from 66% at zoom 12 to 100% at zoom 16+.
+5. ✅ Updated POI circle size: circles scale from 3px at zoom ≤12 to 8px at zoom 16+ (linear interpolation).
 
-**Acceptance:** Click POI → Svelte popup with correct supply/demand, good type, and amount; no raw HTML strings.
+**Implementation Details:**
+- ✅ Created `PlacePopup.svelte` component using Tailwind/DaisyUI (no `<style>` tags)
+- ✅ Added click handler in `RouteMapMaplibre.svelte` using `map.queryRenderedFeatures()` on `'active-places-circles'` layer
+- ✅ Extracts place data from vector tile feature properties (`place_id`, `category_name`, `region_code`) and geometry coordinates
+- ✅ Computes `selectedGoods` using `selectPlaceGoods()`, `supplyAmount` using `generateSupplyAmount()`
+- ✅ For demand nodes: computes travel time from selected employee to demand place via `/api/travel/route` API
+- ✅ Computes job value and XP for demand nodes when employee and route data are available
+- ✅ Popup positioned using `map.project()` to convert lng/lat to pixel coordinates
+- ✅ Popup position updates on map move/zoom events to stay aligned with POI
+- ✅ Popup scales with zoom: 66% at zoom 12, linear interpolation to 100% at zoom 16+
+- ✅ POI circle radius uses MapLibre zoom interpolation: 3px at zoom 8-12, linear increase to 8px at zoom 16
+- ✅ Close button and click-outside-to-close functionality
+
+**Acceptance:** ✅ Click POI → Svelte popup with correct supply/demand, good type, and amount; no raw HTML strings. Popup scales smoothly with zoom level. POI circles scale appropriately at higher zoom levels.
 
 ---
 
