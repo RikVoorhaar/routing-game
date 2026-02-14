@@ -271,9 +271,9 @@
 	function handleMapClick(e: MapMouseEvent) {
 		if (!mapInstance) return;
 
-		// Query features at click point on the places layer
+		// Query features at click point on the places icons layer
 		const features = mapInstance.queryRenderedFeatures(e.point, {
-			layers: ['active-places-circles']
+			layers: ['places-icons']
 		});
 
 		if (features && features.length > 0) {
@@ -281,10 +281,11 @@
 			const props = feature.properties || {};
 
 			// Extract place data from feature
-			// Handle both snake_case and camelCase property names
-			const placeId = Number(props.place_id ?? props.placeId ?? 0);
-			const category = props.category_name ?? props.categoryName ?? 'Unknown';
-			const region = props.region_code ?? props.regionCode ?? null;
+			// GeoJSON features use camelCase (placeId, categoryName, regionCode)
+			// Vector tile features use snake_case (place_id, category_name, region_code)
+			const placeId = Number(props.placeId ?? props.place_id ?? 0);
+			const category = props.categoryName ?? props.category_name ?? 'Unknown';
+			const region = props.regionCode ?? props.region_code ?? null;
 
 			// Extract coordinates from geometry (Point: [lng, lat])
 			let lng: number | null = null;
@@ -442,7 +443,7 @@
 				class="h-full w-full"
 				autoloadGlobalCss={true}
 			>
-				<PlacesLayer {tileServerUrl} />
+				<PlacesLayer {tileServerUrl} mapInstance={mapInstance} />
 				<EmployeeMarkers />
 				<RegionBorders />
 			</MapLibre>
