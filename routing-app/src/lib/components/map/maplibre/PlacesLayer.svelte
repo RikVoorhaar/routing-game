@@ -60,10 +60,10 @@
 		const iconLoads: Promise<void>[] = [];
 		
 		// Load both supply (green) and demand (red) versions of each icon
-		// Using darker colors for better contrast
+		// Using darker colors for better contrast, with hover versions
 		for (const baseIconName of allBaseIconNames) {
-			iconLoads.push(loadFontAwesomeIcon(mapInstance!, `${baseIconName}-supply`, '#16a34a')); // dark green
-			iconLoads.push(loadFontAwesomeIcon(mapInstance!, `${baseIconName}-demand`, '#dc2626')); // dark red
+			iconLoads.push(loadFontAwesomeIcon(mapInstance!, `${baseIconName}-supply`, '#16a34a', '#15803d')); // dark green / darker green hover
+			iconLoads.push(loadFontAwesomeIcon(mapInstance!, `${baseIconName}-demand`, '#dc2626', '#b91c1c')); // dark red / darker red hover
 		}
 
 		// Load all icons in parallel
@@ -79,8 +79,9 @@
 	/**
 	 * Load Font Awesome SVG icon with color and add to MapLibre sprite sheet
 	 * Creates colored versions of icons by modifying SVG fill color
+	 * @param hoverColor - Optional hover color for creating hover version
 	 */
-	async function loadFontAwesomeIcon(map: MapLibreMap, iconName: string, color: string): Promise<void> {
+	async function loadFontAwesomeIcon(map: MapLibreMap, iconName: string, color: string, hoverColor?: string): Promise<void> {
 		if (loadedIcons.has(iconName)) {
 			return; // Already loaded
 		}
@@ -108,13 +109,7 @@
 
 			let svgText = await response.text();
 			
-			// Create black version for border (before modifying color)
-			const originalSvgText = svgText;
-			const blackSvgText = originalSvgText.replace(/fill="[^"]*"/g, 'fill="#000000"').replace(/fill='[^']*'/g, "fill='#000000'");
-			const blackSvgBlob = new Blob([blackSvgText], { type: 'image/svg+xml' });
-			const blackSvgDataUrl = URL.createObjectURL(blackSvgBlob);
-			
-			// Replace fill with the desired color for colored version
+			// Replace fill with the desired color
 			svgText = svgText.replace(/fill="[^"]*"/g, `fill="${color}"`);
 			svgText = svgText.replace(/fill='[^']*'/g, `fill='${color}'`);
 			// Also handle stroke if present
@@ -125,17 +120,11 @@
 			const svgBlob = new Blob([svgText], { type: 'image/svg+xml' });
 			const svgDataUrl = URL.createObjectURL(svgBlob);
 			
-			// Load both black (for border) and colored versions
-			const blackImg = new Image();
-			const coloredImg = new Image();
+			// Load as image and add to map
+			const img = new Image();
 			
 			await new Promise<void>((resolve, reject) => {
-				let blackLoaded = false;
-				let coloredLoaded = false;
-				
-				const tryRender = () => {
-					if (!blackLoaded || !coloredLoaded) return;
-					
+				img.onload = () => {
 					try {
 						// Create canvas to render SVG at desired size
 						const canvas = document.createElement('canvas');
@@ -152,14 +141,56 @@
 						ctx.imageSmoothingEnabled = true;
 						ctx.imageSmoothingQuality = 'high';
 						
-						// Draw black version slightly larger for border (15% larger)
-						const borderScale = 1.15;
-						const borderSize = size * borderScale;
-						const borderOffset = (borderSize - size) / 2;
-						ctx.drawImage(blackImg, -borderOffset, -borderOffset, borderSize, borderSize);
+						// Draw shadow for border effect with more spread
+						ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+						ctx.shadowBlur = 5;
+						ctx.shadowOffsetX = 0;
+						ctx.shadowOffsetY = 0;
 						
-						// Draw colored icon on top (centered)
-						ctx.drawImage(coloredImg, 0, 0, size, size);
+						// Draw SVG with shadow (creates border)
+						ctx.drawImage(img, 0, 0, size, size);
+						
+						// Reset shadow
+						ctx.shadowColor = 'transparent';
+						ctx.shadowBlur = 0;
+						
+						// Draw colored icon on top (without shadow, sharp)
+						ctx.drawImage(img, 0, 0, size, size);
+						
+						// If hover color provided, also create hover version
+						if (hoverColor) {
+							const hoverSvgText = svgText.replace(/fill="[^"]*"/g, `fill="${hoverColor}"`).replace(/fill='[^']*'/g, `fill='${hoverColor}'`);
+							const hoverSvgBlob = new Blob([hoverSvgText], { type: 'image/svg+xml' });
+							const hoverSvgDataUrl = URL.createObjectURL(hoverSvgBlob);
+							const hoverImg = new Image();
+							
+							hoverImg.onload = () => {
+								const hoverCanvas = document.createElement('canvas');
+								hoverCanvas.width = size;
+								hoverCanvas.height = size;
+								const hoverCtx = hoverCanvas.getContext('2d');
+								if (hoverCtx) {
+									hoverCtx.imageSmoothingEnabled = true;
+									hoverCtx.imageSmoothingQuality = 'high';
+									
+									// Draw shadow
+									hoverCtx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+									hoverCtx.shadowBlur = 5;
+									hoverCtx.drawImage(hoverImg, 0, 0, size, size);
+									
+									// Reset shadow and draw icon
+									hoverCtx.shadowColor = 'transparent';
+									hoverCtx.shadowBlur = 0;
+									hoverCtx.drawImage(hoverImg, 0, 0, size, size);
+									
+									createImageBitmap(hoverCanvas).then((hoverBitmap) => {
+										map.addImage(`${iconName}-hover`, hoverBitmap);
+										URL.revokeObjectURL(hoverSvgDataUrl);
+									});
+								}
+							};
+							hoverImg.src = hoverSvgDataUrl;
+						}
 						
 						// Convert canvas to ImageBitmap for better compatibility
 						createImageBitmap(canvas)
@@ -167,41 +198,22 @@
 								map.addImage(iconName, imageBitmap);
 								loadedIcons.add(iconName);
 								URL.revokeObjectURL(svgDataUrl);
-								URL.revokeObjectURL(blackSvgDataUrl);
 								resolve();
 							})
 							.catch((error) => {
 								URL.revokeObjectURL(svgDataUrl);
-								URL.revokeObjectURL(blackSvgDataUrl);
 								reject(error);
 							});
 					} catch (error) {
 						URL.revokeObjectURL(svgDataUrl);
-						URL.revokeObjectURL(blackSvgDataUrl);
 						reject(error);
 					}
 				};
-				
-				blackImg.onload = () => {
-					blackLoaded = true;
-					tryRender();
-				};
-				blackImg.onerror = () => {
-					URL.revokeObjectURL(blackSvgDataUrl);
-					reject(new Error(`Failed to load black version for ${iconName}`));
-				};
-				
-				coloredImg.onload = () => {
-					coloredLoaded = true;
-					tryRender();
-				};
-				coloredImg.onerror = () => {
+				img.onerror = () => {
 					URL.revokeObjectURL(svgDataUrl);
-					reject(new Error(`Failed to load colored version for ${iconName}`));
+					reject(new Error(`Failed to load image for ${iconName}`));
 				};
-				
-				blackImg.src = blackSvgDataUrl;
-				coloredImg.src = svgDataUrl;
+				img.src = svgDataUrl;
 			});
 		} catch (error) {
 			log.warn(`[PlacesLayer] Error loading Font Awesome icon ${iconName}:`, error);
@@ -217,9 +229,10 @@
 		for (const feature of features) {
 			const iconName = feature.properties?.iconName;
 			const iconColor = feature.properties?.iconColor;
+			const iconColorHover = feature.properties?.iconColorHover;
 			
 			if (iconName && typeof iconName === 'string' && iconColor && typeof iconColor === 'string' && !loadedIcons.has(iconName)) {
-				iconLoads.push(loadFontAwesomeIcon(map, iconName, iconColor));
+				iconLoads.push(loadFontAwesomeIcon(map, iconName, iconColor, iconColorHover as string | undefined));
 			}
 		}
 
@@ -346,8 +359,9 @@
 				// This allows us to load colored versions of icons
 				const coloredIconName = `${computed.iconName}-${computed.type}`;
 				
-				// Store color for icon loading
+				// Store colors for icon loading (normal and hover)
 				const iconColor = computed.type === 'supply' ? '#16a34a' : '#dc2626'; // dark green / dark red
+				const iconColorHover = computed.type === 'supply' ? '#15803d' : '#b91c1c'; // darker green / darker red
 
 				// Create GeoJSON feature with computed properties
 				const geoJSONFeature = {
@@ -361,7 +375,9 @@
 						good: computed.good,
 						iconName: coloredIconName,
 						baseIconName: computed.iconName,
-						iconColor
+						iconColor,
+						iconColorHover,
+						isHovered: false
 					}
 				};
 
@@ -384,6 +400,38 @@
 		}
 	}
 
+
+	/**
+	 * Update hover state for a specific feature
+	 */
+	function updateFeatureHover(featureId: string, isHovered: boolean) {
+		if (!mapInstance) return;
+
+		const source = mapInstance.getSource('places-geojson') as GeoJSONSourceType;
+		if (!source) return;
+
+		// Update the feature's hover state
+		const features = placesGeoJSON.features.map((feature) => {
+			const id = `${feature.properties?.placeId}-${feature.properties?.type}`;
+			if (id === featureId) {
+				return {
+					...feature,
+					properties: {
+						...feature.properties,
+						isHovered
+					}
+				};
+			}
+			return feature;
+		});
+
+		placesGeoJSON = {
+			type: 'FeatureCollection',
+			features
+		};
+
+		source.setData(placesGeoJSON);
+	}
 
 	/**
 	 * Update the GeoJSON source data
@@ -444,10 +492,57 @@
 			const iconName = e.id;
 			// Check if it's one of our Font Awesome icons
 			if (iconName.includes('-supply') || iconName.includes('-demand')) {
-				const color = iconName.includes('-supply') ? '#16a34a' : '#dc2626'; // dark green / dark red
-				await loadFontAwesomeIcon(mapInstance, iconName, color);
+				const isSupply = iconName.includes('-supply');
+				const color = isSupply ? '#16a34a' : '#dc2626'; // dark green / dark red
+				const hoverColor = isSupply ? '#15803d' : '#b91c1c'; // darker green / darker red
+				await loadFontAwesomeIcon(mapInstance, iconName, color, hoverColor);
 			}
 		});
+
+		// Handle hover effects on icons
+		let hoveredFeatureId: string | null = null;
+		
+		const handleMouseMove = (e: any) => {
+			if (!mapInstance) return;
+
+			const features = mapInstance.queryRenderedFeatures(e.point, {
+				layers: ['places-icons']
+			});
+
+			if (features.length > 0) {
+				const feature = features[0];
+				const props = feature.properties || {};
+				const featureId = `${props.placeId}-${props.type}`;
+				
+				if (hoveredFeatureId !== featureId) {
+					// Update hover state
+					if (hoveredFeatureId) {
+						// Clear previous hover
+						updateFeatureHover(hoveredFeatureId, false);
+					}
+					hoveredFeatureId = featureId;
+					updateFeatureHover(featureId, true);
+					mapInstance.getCanvas().style.cursor = 'pointer';
+				}
+			} else {
+				// Clear hover
+				if (hoveredFeatureId) {
+					updateFeatureHover(hoveredFeatureId, false);
+					hoveredFeatureId = null;
+					mapInstance.getCanvas().style.cursor = '';
+				}
+			}
+		};
+
+		const handleMouseLeave = () => {
+			if (!mapInstance || !hoveredFeatureId) return;
+			updateFeatureHover(hoveredFeatureId, false);
+			hoveredFeatureId = null;
+			mapInstance.getCanvas().style.cursor = '';
+		};
+
+		mapInstance.on('mousemove', handleMouseMove);
+		mapInstance.on('mouseleave', handleMouseLeave);
 
 		// Debounce updates to avoid spam
 		let updateTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -512,13 +607,35 @@
 
 <!-- GeoJSON source with computed properties -->
 <GeoJSONSource id="places-geojson" data={placesGeoJSON}>
-	<!-- Icons for good types - colored and hoverable -->
+	<!-- Colored circles for zoom < 11 -->
+	<CircleLayer
+		id="places-circles-low-zoom"
+		filter={['<', ['zoom'], 11]}
+		paint={{
+			'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 3, 10, 4],
+			'circle-color': [
+				'case',
+				['==', ['get', 'type'], 'supply'],
+				'#16a34a',
+				'#dc2626'
+			],
+			'circle-stroke-width': 1,
+			'circle-stroke-color': '#ffffff'
+		}}
+	/>
+
+	<!-- Icons for good types - colored and hoverable (zoom >= 11) -->
 	<SymbolLayer
 		id="places-icons"
-		filter={['has', 'iconName']}
+		filter={['all', ['has', 'iconName'], ['>=', ['zoom'], 11]]}
 		layout={{
-			'icon-image': ['get', 'iconName'],
-			'icon-size': ['interpolate', ['linear'], ['zoom'], 8, 0.5, 12, 0.5, 16, 0.75],
+			'icon-image': [
+				'case',
+				['get', 'isHovered'],
+				['concat', ['get', 'iconName'], '-hover'],
+				['get', 'iconName']
+			],
+			'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.5, 12, 0.5, 16, 0.75, 19, 0.75, 22, 1.0],
 			'icon-allow-overlap': true,
 			'icon-ignore-placement': true
 		}}

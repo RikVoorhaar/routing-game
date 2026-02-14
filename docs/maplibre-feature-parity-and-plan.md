@@ -226,7 +226,7 @@ Each step is intended for one AI agent run. Do them sequentially.
 
 ---
 
-### Step 5.5: Color-code POIs by supply/demand type and add icons for good categories
+### Step 5.5: Color-code POIs by supply/demand type and add icons for good categories ✅ COMPLETE
 
 **Goal:** Visually distinguish POIs using:
 1. **Colors** for supply vs demand: Supply POIs in one color (e.g., green), demand POIs in another color (e.g., orange/red).
@@ -240,12 +240,12 @@ This requires computing supply/demand type and good type on the frontend for eac
 - Since supply/demand and good type are deterministic based on `gameState.seed` and `place.id`, we can compute them client-side using `selectPlaceGoods()` from `placeGoodsSelection.ts`.
 
 **Tasks:**
-1. Compute supply/demand type and good type for each POI feature using `selectPlaceGoods(gameState.seed, placeId, categoryGoods)`. This must be done client-side since it's dynamic based on game state seed.
-2. Create separate `CircleLayer` instances for supply and demand POIs:
+1. ✅ Compute supply/demand type and good type for each POI feature using `selectPlaceGoods(gameState.seed, placeId, categoryGoods)`. This must be done client-side since it's dynamic based on game state seed.
+2. ✅ Create separate `CircleLayer` instances for supply and demand POIs:
    - **Supply layer**: Filter features where computed type is 'supply', use green color (e.g., `#10b981` or `#22c55e`)
    - **Demand layer**: Filter features where computed type is 'demand', use orange/red color (e.g., `#f97316` or `#ef4444`)
    - Use MapLibre `filter` expressions to show/hide features based on computed supply/demand type
-3. Add Font Awesome SVG icons using `SymbolLayer`:
+3. ✅ Add Font Awesome SVG icons using `SymbolLayer`:
    - Add Font Awesome SVG icons to map style's sprite sheet (Option 2)
    - Create `SymbolLayer` with `icon-image` property using data-driven expressions based on computed good type
    - Icons should be small (e.g., 12-16px) and centered on the circle
@@ -267,9 +267,9 @@ This requires computing supply/demand type and good type on the frontend for eac
      - `construction materials`: `fa-gears`
      - `chemicals`: `fa-flask`
      - `animals`: `fa-cow`
-4. Handle edge cases: when `gameState` or `placeGoodsConfig` is not yet loaded, use default color (current blue) and no icon.
-5. Cache computed supply/demand and good type per `placeId` + `gameState.seed` combination to avoid recomputing on every map update.
-6. Update layers reactively when `gameState`, `placeGoodsConfig`, or visible features change.
+4. ✅ Handle edge cases: when `gameState` or `placeGoodsConfig` is not yet loaded, use default color (current blue) and no icon.
+5. ✅ Cache computed supply/demand and good type per `placeId` + `gameState.seed` combination to avoid recomputing on every map update.
+6. ✅ Update layers reactively when `gameState`, `placeGoodsConfig`, or visible features change.
 
 **Implementation Notes:**
 - **Important**: Supply/demand type and good type are **dynamic** and **must be computed on the frontend**. They depend on:
@@ -291,11 +291,11 @@ This requires computing supply/demand type and good type on the frontend for eac
   - Add `SymbolLayer` on top with Font Awesome icons filtered by computed good type
 
 **Implementation Steps:**
-1. Load vector tiles from Martin (provides `place_id`, `category_name`, `region_code`, geometry)
-2. For each visible feature, compute supply/demand and good type using `selectPlaceGoods(gameState.seed, placeId, categoryGoods)`
-3. Group features into supply vs demand based on computed type
-4. Render supply POIs in one layer (green circles), demand POIs in another layer (orange/red circles)
-5. Add SymbolLayer with Font Awesome icons, filtered by computed good type
+1. ✅ Load vector tiles from Martin (provides `place_id`, `category_name`, `region_code`, geometry)
+2. ✅ For each visible feature, compute supply/demand and good type using `selectPlaceGoods(gameState.seed, placeId, categoryGoods)`
+3. ✅ Group features into supply vs demand based on computed type
+4. ✅ Render supply POIs in one layer (green circles), demand POIs in another layer (orange/red circles)
+5. ✅ Add SymbolLayer with Font Awesome icons, filtered by computed good type
 
 **Performance Considerations:**
 - Cache computed supply/demand and good type per `placeId` + `gameState.seed` combination
@@ -303,10 +303,45 @@ This requires computing supply/demand type and good type on the frontend for eac
 - Use MapLibre `filter` expressions to efficiently show/hide features in separate layers
 - Consider debouncing layer updates during rapid map movements
 
-**Acceptance:** 
-- Supply POIs appear in green, demand POIs appear in orange/red.
+**Implementation Details:**
+- ✅ Created `goodsIconMapping.ts` utility with mapping from goods types to Font Awesome icon names
+- ✅ Installed `@fortawesome/fontawesome-free` package and copied SVG icons to `static/icons/fontawesome/`
+- ✅ Implemented `loadFontAwesomeIcon()` function that:
+  - Loads SVG files from local static directory (faster than CDN)
+  - Modifies SVG fill color to create colored versions (supply: dark green `#16a34a`, demand: dark red `#dc2626`)
+  - Renders SVG to canvas with black shadow border (5px blur for spread)
+  - Converts to ImageBitmap for MapLibre compatibility
+  - Creates both normal and hover versions (hover: darker colors `#15803d` / `#b91c1c`)
+- ✅ Created GeoJSON source (`places-geojson`) that:
+  - Queries visible features from vector tile source
+  - Computes supply/demand and good type for each feature using `selectPlaceGoods()`
+  - Caches computed properties per `placeId + seed` combination
+  - Updates reactively when map moves/zooms or game state changes
+- ✅ Added `CircleLayer` for zoom < 11:
+  - Shows colored circles (green for supply, red for demand) at low zoom levels
+  - Uses data-driven `circle-color` based on computed `type` property
+  - Scales from 3px at zoom 8 to 4px at zoom 10
+- ✅ Added `SymbolLayer` for zoom >= 11:
+  - Shows Font Awesome icons colored by supply/demand type
+  - Icons scale from 0.5 at zoom 11-12 to 1.0 at zoom 22
+  - Uses `icon-image` with conditional expression to switch between normal and hover versions
+  - Icons have black shadow border for visibility
+- ✅ Implemented hover effect:
+  - Uses `mousemove` and `mouseleave` events to detect hover
+  - Updates `isHovered` property in GeoJSON features
+  - Switches icon-image to hover version (darker colors) on hover
+  - Changes cursor to pointer on hover
+- ✅ Preloads all required icons on map initialization for faster rendering
+- ✅ Handles missing icons via `styleimagemissing` event handler
+
+**Acceptance:** ✅ 
+- Supply POIs appear in dark green (`#16a34a`), demand POIs appear in dark red (`#dc2626`).
 - Each POI displays a Font Awesome icon representing its good type category (mapped according to the list above).
 - Colors and icons update correctly when game state or place goods config changes.
+- Icons have black shadow border for better visibility.
+- Icons darken on hover (supply: `#15803d`, demand: `#b91c1c`).
+- At zoom < 11, POIs show as colored circles instead of icons.
+- Icons remain visible at all zoom levels (up to zoom 22).
 
 ---
 
