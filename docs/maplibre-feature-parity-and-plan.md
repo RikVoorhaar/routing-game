@@ -230,45 +230,82 @@ Each step is intended for one AI agent run. Do them sequentially.
 
 **Goal:** Visually distinguish POIs using:
 1. **Colors** for supply vs demand: Supply POIs in one color (e.g., green), demand POIs in another color (e.g., orange/red).
-2. **Icons** for good type categories: Each good type (e.g., "electronics", "food", "clothing") should have a distinct icon overlay on the POI circle.
+2. **Icons** for good type categories: Each good type should have a distinct Font Awesome icon overlay on the POI circle.
 
 This requires computing supply/demand type and good type on the frontend for each POI.
 
 **Where:**
 - `routing-app/src/lib/components/map/maplibre/PlacesLayer.svelte` — Update `CircleLayer` for color-coding and add `SymbolLayer` for icons.
+- `routing-app/config/place_goods.yaml` — Contains all goods types that need icon mapping.
 - Since supply/demand and good type are deterministic based on `gameState.seed` and `place.id`, we can compute them client-side using `selectPlaceGoods()` from `placeGoodsSelection.ts`.
-- Icon mapping: Define a mapping from good type strings to icon names/URLs (e.g., emoji, SVG icons, or icon font glyphs).
 
 **Tasks:**
-1. Compute supply/demand type and good type for each POI feature using `selectPlaceGoods(gameState.seed, placeId, categoryGoods)`.
-2. Use MapLibre data-driven styling (`circle-color` with expressions) to color-code circles:
-   - Supply POIs: green (e.g., `#10b981` or `#22c55e`)
-   - Demand POIs: orange/red (e.g., `#f97316` or `#ef4444`)
-3. Add a `SymbolLayer` on top of the `CircleLayer` to display icons:
-   - Use `icon-image` property with data-driven expressions based on good type
+1. Compute supply/demand type and good type for each POI feature using `selectPlaceGoods(gameState.seed, placeId, categoryGoods)`. This must be done client-side since it's dynamic based on game state seed.
+2. Create separate `CircleLayer` instances for supply and demand POIs:
+   - **Supply layer**: Filter features where computed type is 'supply', use green color (e.g., `#10b981` or `#22c55e`)
+   - **Demand layer**: Filter features where computed type is 'demand', use orange/red color (e.g., `#f97316` or `#ef4444`)
+   - Use MapLibre `filter` expressions to show/hide features based on computed supply/demand type
+3. Add Font Awesome SVG icons using `SymbolLayer`:
+   - Add Font Awesome SVG icons to map style's sprite sheet (Option 2)
+   - Create `SymbolLayer` with `icon-image` property using data-driven expressions based on computed good type
    - Icons should be small (e.g., 12-16px) and centered on the circle
-   - Define icon mapping: `{ goodType: iconName }` (e.g., `{ "electronics": "⚡", "food": "🍔", "clothing": "👕" }`)
-   - Consider using emoji, icon fonts (e.g., Font Awesome), or custom SVG sprites
+   - Map good types to Font Awesome icon names in sprite sheet:
+     - `people`: `fa-person`
+     - `groceries`: `fa-basket-shopping`
+     - `food (hot)`: `fa-pizza-slice`
+     - `electronics`: `fa-microchip`
+     - `consumer goods`: `fa-spray-can-sparkles`
+     - `packages`: `fa-box-open`
+     - `flowers`: `fa-seedling`
+     - `fuel (liquid)`: `fa-gas-pump`
+     - `cars`: `fa-car-side`
+     - `medicine`: `fa-capsules`
+     - `bulk food`: `fa-carrot`
+     - `coal`: `fa-smog`
+     - `ore`: `fa-gem`
+     - `quarried stuff`: `fa-pallet`
+     - `construction materials`: `fa-gears`
+     - `chemicals`: `fa-flask`
+     - `animals`: `fa-cow`
 4. Handle edge cases: when `gameState` or `placeGoodsConfig` is not yet loaded, use default color (current blue) and no icon.
-5. Ensure computation is efficient — consider caching computed types per place ID if needed for performance.
+5. Cache computed supply/demand and good type per `placeId` + `gameState.seed` combination to avoid recomputing on every map update.
+6. Update layers reactively when `gameState`, `placeGoodsConfig`, or visible features change.
 
 **Implementation Notes:**
-- MapLibre expressions can use `['get', 'property_name']` to access feature properties, but we need to compute supply/demand and good type dynamically.
-- For icons, MapLibre supports:
-  - **Emoji**: Can be used directly in `text-field` with `SymbolLayer` (but requires text layer, not icon-image)
-  - **Icon fonts**: Load icon font, use `text-field` with icon font glyph codes
-  - **SVG sprites**: Add icons to map style's sprite sheet, reference via `icon-image`
-  - **Image URLs**: Load images and add to map style, reference via `icon-image`
-- Recommended approach: Use `SymbolLayer` with `text-field` and emoji or icon font glyphs for simplicity, or add icons to map style sprite sheet for better control.
-- Options for supply/demand computation:
-  - **Option A**: Add `supply_demand_type` and `good_type` as properties in the Martin view (requires backend change, but most efficient).
-  - **Option C**: Use separate layers for supply and demand POIs, filtered by computed type (requires client-side filtering of features).
-  - **Option D**: Use a GeoJSON source instead of vector tiles, compute supply/demand and good type when building the GeoJSON, then use data-driven styling (more flexible but loses vector tile performance benefits).
-- Recommended: **Option A** (backend enhancement) for best performance, or **Option C** (separate filtered layers) for frontend-only solution.
+- **Important**: Supply/demand type and good type are **dynamic** and **must be computed on the frontend**. They depend on:
+  - `gameState.seed` (changes per game state)
+  - `place.id` (deterministic RNG input)
+  - `place.category` (from backend via `category_name` in vector tiles)
+  - `placeGoodsConfig` (loaded from `place_goods.yaml` on frontend)
+- The backend provides the place category (`category_name`), but the frontend must compute whether it's supply/demand and which good type using `selectPlaceGoods()`. This cannot be done in the backend because it's dynamic per game state.
+
+**Chosen Implementation Approach:**
+- **Icons**: **Option 2** — Font Awesome SVG sprites
+  - Add Font Awesome SVG icons to map style's sprite sheet
+  - Reference icons via `icon-image` with data-driven expressions based on computed good type
+  - Map good types to Font Awesome icon names (see mapping in Tasks section)
+- **Supply/demand computation**: **Option C** — separate filtered layers
+  - Create separate `CircleLayer` instances for supply and demand POIs
+  - Filter features client-side based on computed supply/demand type
+  - Each layer can have different colors (green for supply, orange/red for demand)
+  - Add `SymbolLayer` on top with Font Awesome icons filtered by computed good type
+
+**Implementation Steps:**
+1. Load vector tiles from Martin (provides `place_id`, `category_name`, `region_code`, geometry)
+2. For each visible feature, compute supply/demand and good type using `selectPlaceGoods(gameState.seed, placeId, categoryGoods)`
+3. Group features into supply vs demand based on computed type
+4. Render supply POIs in one layer (green circles), demand POIs in another layer (orange/red circles)
+5. Add SymbolLayer with Font Awesome icons, filtered by computed good type
+
+**Performance Considerations:**
+- Cache computed supply/demand and good type per `placeId` + `gameState.seed` combination
+- Only recompute when game state changes or when new places come into view
+- Use MapLibre `filter` expressions to efficiently show/hide features in separate layers
+- Consider debouncing layer updates during rapid map movements
 
 **Acceptance:** 
 - Supply POIs appear in green, demand POIs appear in orange/red.
-- Each POI displays an icon representing its good type category.
+- Each POI displays a Font Awesome icon representing its good type category (mapped according to the list above).
 - Colors and icons update correctly when game state or place goods config changes.
 
 ---
